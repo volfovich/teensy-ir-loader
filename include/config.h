@@ -53,10 +53,10 @@
 // Delay (stereo ping-pong between the IR and the reverb, ported from HexeFX)
 // ---------------------------------------------------------------------------
 // Longest delay time. The two float delay lines need 2 x 4 bytes per sample
-// of delay (650 ms = 230 KB), split between RAM1 and RAM2; with the IR and the
-// reverb that leaves about 58 KB free in RAM1 and 160 KB in RAM2. RAM1 is the
+// of delay (750 ms = 265 KB), split between RAM1 and RAM2; with the IR and the
+// reverb that leaves about 40 KB free in RAM1 and 145 KB in RAM2. RAM1 is the
 // limit: every 100 ms takes about 17.6 KB from each. Lower it to free memory.
-#define DELAY_MAX_MS 650
+#define DELAY_MAX_MS 750
 // Defaults, changeable over USB serial and saved to EEPROM.
 #define DEFAULT_DELAY_ON 0
 #define DEFAULT_DELAY_MIX 30        // 0 = dry only, 100 = wet only

@@ -23,7 +23,7 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
   - Ported from the [HexeFX](https://github.com/hexeguitar/hexefx_audiolib_F32) `AudioEffectDelayStereo_F32` (MIT, Piotr Zapart).
   - Repeats alternate left and right. Reads are Hermite-interpolated, and there are damping filters in the feedback path.
   - Optional tape-like modulation. Changing the delay time glides instead of jumping.
-  - Delay time from 20 to 650 ms, stored in 32-bit float. The maximum is set by RAM; see `DELAY_MAX_MS` in `include/config.h`.
+  - Delay time from 20 to 750 ms, stored in 32-bit float. The maximum is set by RAM; see `DELAY_MAX_MS` in `include/config.h`.
   - It uses one ping-pong pair instead of HexeFX's two. With a mono guitar input both of its pairs carry the same signal, so one pair sounds the same with modulation off, at half the memory.
 - **Stereo plate reverb after the delay:**
   - Ported from the [HexeFX](https://github.com/hexeguitar/hexefx_audiolib_F32) `AudioEffectPlateReverb_F32` (MIT, Piotr Zapart). The port matches the original algorithm and its parameter ranges.
@@ -87,7 +87,7 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `b` | Toggle IR bypass (raw amp signal, with a click-free fade). The delay and reverb are not affected. |
 | `dl` | Toggle the delay on/off (the repeats ring out) |
 | `dmix 0..100` | Delay dry/wet blend (0 = dry only, 100 = repeats only) |
-| `dtime 20..650` | Delay time in ms. Changes glide, like turning a tape delay's time knob. |
+| `dtime 20..750` | Delay time in ms. Changes glide, like turning a tape delay's time knob. |
 | `dfb 0..100` | Delay repeats (feedback) |
 | `dtone 0..100` | Brightness of the repeats (lower values make each repeat darker) |
 | `dmod 0..100` | Delay modulation depth (tape-like wobble) |
@@ -124,10 +124,10 @@ Smaller blocks cost more CPU because the same IR is split into more partitions, 
 
 Memory use with 32-sample blocks:
 
-- **RAM1 (fast DTCM/ITCM):** about 455 of 512 KB. This holds the code, the IR spectra and the input history used every block (about 200 KB), and one delay line (about 115 KB).
-- **RAM2 (OCRAM/DMAMEM):** about 350 of 512 KB. This holds the reverb's delay lines (about 120 KB), the other delay line (about 115 KB), and the file list and file-loading buffers (about 110 KB).
+- **RAM1 (fast DTCM/ITCM):** about 470 of 512 KB. This holds the code, the IR spectra and the input history used every block (about 200 KB), and one delay line (about 130 KB).
+- **RAM2 (OCRAM/DMAMEM):** about 370 of 512 KB. This holds the reverb's delay lines (about 120 KB), the other delay line (about 130 KB), and the file list and file-loading buffers (about 110 KB).
 
-About 58 KB stays free in RAM1 and 160 KB in RAM2, for the stack and the heap. To get more room, lower `DELAY_MAX_MS`.
+About 40 KB stays free in RAM1 and 145 KB in RAM2, for the stack and the heap. To get more room, lower `DELAY_MAX_MS`.
 
 ## How it works
 
