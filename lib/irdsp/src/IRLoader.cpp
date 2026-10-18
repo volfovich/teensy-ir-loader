@@ -56,6 +56,175 @@ double besselI0(double x) {
   return sum;
 }
 
+// Decodes the data chunk front to back, one float per frame (first channel
+// or the mix), continuing where the previous call stopped.
+class Decoder {
+ public:
+  Decoder(ByteSource& src, const WavInfo& info, ChannelMode mode)
+      : src_(src), info_(info), mode_(mode), left_(info.frames) {}
+
+  bool start() { return src_.seek(info_.dataOffset); }
+
+  // Decodes up to n frames into dst; returns fewer only at the end of the data.
+  int read(float* dst, int n) {
+    if (n > (int)left_) n = (int)left_;
+    const int block = info_.blockAlign;
+    const int bytes = block / info_.channels;
+    const bool isFloat = info_.format == 3;
+    const int chans = info_.channels;
+    uint8_t buf[2048];
+    const int framesPerRead = (int)sizeof(buf) / block;
+    int done = 0;
+    while (done < n) {
+      int want = n - done;
+      if (want > framesPerRead) want = framesPerRead;
+      int got = src_.read(buf, want * block) / block;
+      if (got <= 0) break;
+      for (int i = 0; i < got; i++) {
+        const uint8_t* fp = buf + i * block;
+        if (mode_ == ChannelMode::kMix && chans > 1) {
+          float s = 0.0f;
+          for (int c = 0; c < chans; c++) s += decode(fp + c * bytes, bytes, isFloat);
+          dst[done + i] = s / (float)chans;
+        } else {
+          dst[done + i] = decode(fp, bytes, isFloat);
+        }
+      }
+      done += got;
+    }
+    left_ -= done;
+    return done;
+  }
+
+ private:
+  ByteSource& src_;
+  const WavInfo& info_;
+  const ChannelMode mode_;
+  uint32_t left_;  // frames not yet decoded
+};
+
+// Resampler input: a whole array in memory.
+struct ArrayInput {
+  const float* in;
+  // Returns a pointer p with p[k - k0] = sample k for k0 <= k <= k1.
+  const float* get(int k0, int /*k1*/, int& /*inLen*/) { return in + k0; }
+};
+
+// Resampler input streamed from the file through a sliding window of cap
+// samples, so the source never has to fit in memory. k0 and k1 only grow,
+// and k0 never passes the previous k1 + 1 (the kernel is wider than one
+// output step), so the window only ever slides forward.
+struct StreamInput {
+  Decoder& dec;
+  float* buf;
+  int cap;
+  int base = 0, count = 0;  // buf holds samples base .. base + count - 1
+
+  // Tops the window up. If the file ends early, inLen shrinks to the number
+  // of samples it really holds.
+  void fill(int& inLen) {
+    const int room = cap - count, rest = inLen - base - count;
+    const int want = room < rest ? room : rest;
+    const int got = dec.read(buf + count, want);
+    count += got;
+    if (got < want) inLen = base + count;
+  }
+
+  const float* get(int k0, int k1, int& inLen) {
+    if (k1 >= base + count) {
+      const int drop = k0 - base;  // samples no longer needed
+      memmove(buf, buf + drop, (count - drop) * sizeof(float));
+      base = k0;
+      count -= drop;
+      fill(inLen);
+    }
+    return buf + (k0 - base);
+  }
+};
+
+// The resampler proper, for either input type (see resampleIR()).
+template <class Input>
+int resampleCore(Input& in, int inLen, double ratio, float* out, int maxOut,
+                 float* table, int tableCap) {
+  int outLen = (int)ceil(inLen / ratio);
+  if (outLen > maxOut) outLen = maxOut;
+  // Low-pass at 97% of the lower Nyquist frequency, in cycles/input sample.
+  const double fc = 0.5 * (ratio > 1.0 ? 1.0 / ratio : 1.0) * 0.97;
+  const double halfWidth = kResampleZeroCrossings / (2.0 * fc);  // input samples
+  const double beta = 8.6;  // ~ -90 dB stopband
+  const double i0beta = besselI0(beta);
+  auto kernel = [&](double d) -> double {
+    d = fabs(d);
+    if (d >= halfWidth) return 0.0;
+    const double x = 2.0 * fc * d;
+    const double sinc = x < 1e-12 ? 1.0 : sin(M_PI * x) / (M_PI * x);
+    const double r = d / halfWidth;
+    const double w = besselI0(beta * sqrt(fmax(0.0, 1.0 - r * r))) / i0beta;
+    return 2.0 * fc * sinc * w;
+  };
+  const float scale = (float)ratio;  // preserve filter gain (sum of taps)
+
+  // Taps k0..k1 of output n; false once the input has run out early.
+  auto taps = [&](int n, int& k0, int& k1, const float*& x) {
+    const double t = n * ratio;
+    k0 = (int)ceil(t - halfWidth);
+    k1 = (int)floor(t + halfWidth);
+    if (k0 < 0) k0 = 0;
+    if (k1 > inLen - 1) k1 = inLen - 1;
+    const int len = inLen;
+    x = in.get(k0, k1, inLen);
+    if (inLen != len) {
+      const int shorter = (int)ceil(inLen / ratio);
+      if (shorter < outLen) outLen = shorter;
+      if (n >= outLen) return false;
+      if (k1 > inLen - 1) k1 = inLen - 1;
+    }
+    return true;
+  };
+
+  // Fast path: tabulate the kernel once (kResampleTableOS points per input
+  // sample) and interpolate linearly; ~50x faster than evaluating it per tap.
+  const int tabLen = (int)ceil(halfWidth * kResampleTableOS) + 2;
+  if (table && tabLen <= tableCap) {
+    for (int i = 0; i < tabLen; i++) table[i] = (float)kernel((double)i / kResampleTableOS);
+    for (int n = 0; n < outLen; n++) {
+      int k0, k1;
+      const float* x;
+      if (!taps(n, k0, k1, x)) break;
+      const double t = n * ratio;
+      float acc = 0.0f;
+      const float d0 = (float)(t - k0);  // distance to the first tap
+      for (int k = k0; k <= k1; k++) {
+        float pos = fabsf(d0 - (float)(k - k0)) * (float)kResampleTableOS;
+        int i = (int)pos;
+        if (i >= tabLen - 1) continue;
+        float fr = pos - (float)i;
+        acc += x[k - k0] * (table[i] + fr * (table[i + 1] - table[i]));
+      }
+      out[n] = acc * scale;
+    }
+    return outLen;
+  }
+
+  // Reference path: evaluate the kernel for every tap.
+  for (int n = 0; n < outLen; n++) {
+    int k0, k1;
+    const float* x;
+    if (!taps(n, k0, k1, x)) break;
+    const double t = n * ratio;
+    double acc = 0.0;
+    for (int k = k0; k <= k1; k++) acc += x[k - k0] * kernel(t - k);
+    out[n] = (float)acc * scale;
+  }
+  return outLen;
+}
+
+// Window size the streaming resampler needs for a given ratio.
+int resampleSpan(double ratio) {
+  const double fc = 0.5 * (ratio > 1.0 ? 1.0 / ratio : 1.0) * 0.97;
+  return (int)(kResampleZeroCrossings / fc) + 2;
+}
+
 }  // namespace
 
 bool parseWav(ByteSource& src, WavInfo& info, const char** err) {
@@ -112,96 +281,21 @@ bool parseWav(ByteSource& src, WavInfo& info, const char** err) {
 
 int readWavSamples(ByteSource& src, const WavInfo& info, ChannelMode mode,
                    float* dst, int maxFrames) {
-  int frames = (int)info.frames < maxFrames ? (int)info.frames : maxFrames;
-  if (!src.seek(info.dataOffset)) return 0;
-  const int bytes = info.blockAlign / info.channels;
-  const bool isFloat = info.format == 3;
-  const int chans = info.channels;
-  uint8_t buf[2048];
-  const int framesPerRead = (int)sizeof(buf) / info.blockAlign;
-  int done = 0;
-  while (done < frames) {
-    int want = frames - done;
-    if (want > framesPerRead) want = framesPerRead;
-    int got = src.read(buf, want * info.blockAlign) / info.blockAlign;
-    if (got <= 0) break;
-    for (int i = 0; i < got; i++) {
-      const uint8_t* fp = buf + i * info.blockAlign;
-      if (mode == ChannelMode::kMix && chans > 1) {
-        float s = 0.0f;
-        for (int c = 0; c < chans; c++) s += decode(fp + c * bytes, bytes, isFloat);
-        dst[done + i] = s / (float)chans;
-      } else {
-        dst[done + i] = decode(fp, bytes, isFloat);
-      }
-    }
-    done += got;
-  }
-  return done;
+  Decoder dec(src, info, mode);
+  if (!dec.start()) return 0;
+  return dec.read(dst, maxFrames);
 }
 
 int resampleIR(const float* in, int inLen, double fsIn, double fsOut,
                float* out, int maxOut, float* table, int tableCap) {
   const double ratio = fsIn / fsOut;  // input samples per output sample
-  int outLen = (int)ceil(inLen / ratio);
-  if (outLen > maxOut) outLen = maxOut;
   if (fabs(ratio - 1.0) < 1e-9) {
+    const int outLen = inLen < maxOut ? inLen : maxOut;
     for (int i = 0; i < outLen; i++) out[i] = in[i];
     return outLen;
   }
-  // Low-pass at 97% of the lower Nyquist frequency, in cycles/input sample.
-  const double fc = 0.5 * (ratio > 1.0 ? 1.0 / ratio : 1.0) * 0.97;
-  const double halfWidth = kResampleZeroCrossings / (2.0 * fc);  // input samples
-  const double beta = 8.6;  // ~ -90 dB stopband
-  const double i0beta = besselI0(beta);
-  auto kernel = [&](double d) -> double {
-    d = fabs(d);
-    if (d >= halfWidth) return 0.0;
-    const double x = 2.0 * fc * d;
-    const double sinc = x < 1e-12 ? 1.0 : sin(M_PI * x) / (M_PI * x);
-    const double r = d / halfWidth;
-    const double w = besselI0(beta * sqrt(fmax(0.0, 1.0 - r * r))) / i0beta;
-    return 2.0 * fc * sinc * w;
-  };
-  const float scale = (float)ratio;  // preserve filter gain (sum of taps)
-
-  // Fast path: tabulate the kernel once (kResampleTableOS points per input
-  // sample) and interpolate linearly; ~50x faster than evaluating it per tap.
-  const int tabLen = (int)ceil(halfWidth * kResampleTableOS) + 2;
-  if (table && tabLen <= tableCap) {
-    for (int i = 0; i < tabLen; i++) table[i] = (float)kernel((double)i / kResampleTableOS);
-    for (int n = 0; n < outLen; n++) {
-      const double t = n * ratio;
-      int k0 = (int)ceil(t - halfWidth);
-      int k1 = (int)floor(t + halfWidth);
-      if (k0 < 0) k0 = 0;
-      if (k1 > inLen - 1) k1 = inLen - 1;
-      float acc = 0.0f;
-      const float d0 = (float)(t - k0);  // distance to the first tap
-      for (int k = k0; k <= k1; k++) {
-        float pos = fabsf(d0 - (float)(k - k0)) * (float)kResampleTableOS;
-        int i = (int)pos;
-        if (i >= tabLen - 1) continue;
-        float fr = pos - (float)i;
-        acc += in[k] * (table[i] + fr * (table[i + 1] - table[i]));
-      }
-      out[n] = acc * scale;
-    }
-    return outLen;
-  }
-
-  // Reference path: evaluate the kernel for every tap.
-  for (int n = 0; n < outLen; n++) {
-    const double t = n * ratio;
-    int k0 = (int)ceil(t - halfWidth);
-    int k1 = (int)floor(t + halfWidth);
-    if (k0 < 0) k0 = 0;
-    if (k1 > inLen - 1) k1 = inLen - 1;
-    double acc = 0.0;
-    for (int k = k0; k <= k1; k++) acc += in[k] * kernel(t - k);
-    out[n] = (float)acc * scale;
-  }
-  return outLen;
+  ArrayInput input{in};
+  return resampleCore(input, inLen, ratio, out, maxOut, table, tableCap);
 }
 
 bool prepareIR(ByteSource& src, const IRPrepOptions& opt, float* scratch,
@@ -215,17 +309,23 @@ bool prepareIR(ByteSource& src, const IRPrepOptions& opt, float* scratch,
 
   // Only decode what can end up in the IR (plus resampler support).
   int needed = (int)ceil(maxLen * ratio) + 64 + (int)ceil(kResampleZeroCrossings / 0.97 * (ratio > 1 ? ratio : 1));
-  if (needed > scratchCap) needed = scratchCap;
-  if ((double)scratchCap < maxLen * ratio * 0.999 && res.sourceFrames > scratchCap) {
-    // Source rate so high that maxLen output samples do not fit the buffer.
-    *err = "sample rate too high for the load buffer";
-    return false;
-  }
-  int n = readWavSamples(src, res.wav, opt.channels, scratch, needed);
-  if (n <= 0) { *err = "read error"; return false; }
+  int inLen = res.sourceFrames < needed ? res.sourceFrames : needed;
+  Decoder dec(src, res.wav, opt.channels);
+  if (!dec.start()) { *err = "read error"; return false; }
 
-  int len = resampleIR(scratch, n, res.wav.sampleRate, opt.targetRate, out, maxLen,
-                       opt.kernelTable, opt.kernelTableCap);
+  int len;
+  if (!res.resampled) {
+    // Decode straight into the output.
+    len = dec.read(out, inLen < maxLen ? inLen : maxLen);
+    if (len <= 0) { *err = "read error"; return false; }
+  } else {
+    // Stream the source through scratch while resampling.
+    if (scratchCap < resampleSpan(ratio)) { *err = "load buffer too small"; return false; }
+    StreamInput input{dec, scratch, scratchCap};
+    input.fill(inLen);
+    if (inLen <= 0) { *err = "read error"; return false; }
+    len = resampleCore(input, inLen, ratio, out, maxLen, opt.kernelTable, opt.kernelTableCap);
+  }
   int fullLen = (int)ceil(res.sourceFrames / ratio);
 
   // Peak for the relative thresholds.

@@ -10,7 +10,9 @@
 
 // Load buffers live in the 512 KB OCRAM (DMAMEM) so the DTCM stays free for
 // the convolver's spectra and delay line, which are accessed every block.
-DMAMEM static float g_scratch[IR_LOAD_SCRATCH];
+// The source is streamed through g_scratch, so any file length fits.
+static const int kLoadScratch = 2048;
+DMAMEM static float g_scratch[kLoadScratch];
 DMAMEM static float g_ir[IR_MAX_LENGTH];
 // Resampler kernel table: enough for 192 kHz sources (makes loading ~50x faster).
 static const int kKernelTableSize = 14336;
@@ -19,7 +21,9 @@ DMAMEM static float g_kernelTable[kKernelTableSize];
 // ---------------------------------------------------------------------------
 // IR file list
 // ---------------------------------------------------------------------------
-static char g_files[IR_MAX_FILES][IR_PATH_MAX];
+// Only used from loop(), so it lives in OCRAM too (rows past g_numFiles are
+// never read, so it needs no initialization).
+DMAMEM static char g_files[IR_MAX_FILES][IR_PATH_MAX];
 static int g_numFiles = 0;
 static int g_current = -1;
 static bool g_sdOk = false;
@@ -111,7 +115,7 @@ bool loadIRIndex(int idx) {
   const char* err = "";
   SdSource src(f);
   uint32_t t0 = millis();
-  bool ok = irdsp::prepareIR(src, opt, g_scratch, IR_LOAD_SCRATCH, g_ir, IR_MAX_LENGTH, res, &err);
+  bool ok = irdsp::prepareIR(src, opt, g_scratch, kLoadScratch, g_ir, IR_MAX_LENGTH, res, &err);
   f.close();
   if (!ok) {
     Serial.printf("Failed to load %s: %s\n", path, err);

@@ -36,8 +36,9 @@ class PartitionedConvolver {
   static constexpr int kBlock = B;
   static constexpr int kMaxLen = MAXN;
   static constexpr int kMaxParts = MAXN / B;
-  static constexpr int kBins = B + 1;        // bins 0..B of a 2B-point FFT
-  static constexpr int kStride = 2 * kBins;  // floats per partition spectrum
+  // Floats per partition spectrum: bins 0..B of a 2B-point FFT, packed with
+  // the real DC and Nyquist bins sharing the first pair (see FFT::forwardReal).
+  static constexpr int kStride = 2 * B;
 
   enum State : int { kIdle = 0, kPending = 1, kFading = 2 };
 
@@ -137,7 +138,15 @@ class PartitionedConvolver {
     // the rest wrap around to slots kMaxParts-1, kMaxParts-2, ...
     const int n1 = (head_ + 1 < P) ? head_ + 1 : P;
     const int n2 = P - n1;
-    for (int k = 0; k < kBins; k++) {
+    {
+      // Pair 0 holds the DC and Nyquist bins, both real.
+      float acc4[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+      macReal(fdl_ + head_ * kStride, H, n1, acc4);
+      macReal(fdl_ + (kMaxParts - 1) * kStride, H + n1 * kStride, n2, acc4);
+      acc[0] = acc4[0] + acc4[2];
+      acc[1] = acc4[1] + acc4[3];
+    }
+    for (int k = 1; k < B; k++) {
       float acc4[4] = {0.0f, 0.0f, 0.0f, 0.0f};
       const float* h = H + 2 * k;
       mac(fdl_ + head_ * kStride + 2 * k, h, n1, acc4);
@@ -175,6 +184,26 @@ class PartitionedConvolver {
       ai0 += x[1] * h[0];
     }
     a[0] = ar0; a[1] = ai0; a[2] = ar1; a[3] = ai1;
+  }
+
+  // The same walk for the packed DC / Nyquist pair: two real
+  // multiply-accumulates per partition instead of one complex one.
+  static inline void macReal(const float* x, const float* h, int n, float* a) {
+    float d0 = a[0], q0 = a[1], d1 = a[2], q1 = a[3];
+    int p = 0;
+    for (; p + 1 < n; p += 2) {
+      d0 += x[0] * h[0];
+      q0 += x[1] * h[1];
+      d1 += x[-kStride] * h[kStride];
+      q1 += x[1 - kStride] * h[kStride + 1];
+      x -= 2 * kStride;
+      h += 2 * kStride;
+    }
+    if (p < n) {
+      d0 += x[0] * h[0];
+      q0 += x[1] * h[1];
+    }
+    a[0] = d0; a[1] = q0; a[2] = d1; a[3] = q1;
   }
 
   void installIR(int set, const float* ir, int len) {

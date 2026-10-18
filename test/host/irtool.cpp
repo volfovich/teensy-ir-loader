@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
   if (!f) { perror(argv[1]); return 1; }
   FileSource src(f);
   // Same buffer sizes as the firmware.
-  std::vector<float> scratch(36864), out(maxLen), table(14336);
+  std::vector<float> scratch(2048), out(maxLen), table(14336);
   if (!(argc > 7 && !strcmp(argv[7], "exact"))) {
     opt.kernelTable = table.data();
     opt.kernelTableCap = (int)table.size();

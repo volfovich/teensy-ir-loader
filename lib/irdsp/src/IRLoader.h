@@ -78,7 +78,9 @@ int resampleIR(const float* in, int inLen, double fsIn, double fsOut,
                float* out, int maxOut, float* table = nullptr, int tableCap = 0);
 
 // Full pipeline: parse, decode, resample, trim, truncate, normalize.
-//   scratch      - working buffer for the decoded source (scratchCap floats)
+//   scratch      - window the source is streamed through while resampling
+//                  (scratchCap floats; 512 covers every supported sample
+//                  rate, more means fewer, larger reads)
 //   out          - receives the IR (maxLen floats)
 // Returns false and sets *err on failure.
 bool prepareIR(ByteSource& src, const IRPrepOptions& opt, float* scratch,

@@ -34,28 +34,34 @@ class FFT {
     }
   }
 
-  // Forward transform of a real signal x[N]. Writes bins 0..N/2 interleaved
-  // (re, im) into out[2*(N/2+1)].
+  // Forward transform of a real signal x[N]. Writes bins 0..N/2 packed into
+  // out[N]: bins 0 and N/2 are real, so out[0] = Re X[0] and
+  // out[1] = Re X[N/2], followed by (re, im) of bins 1..N/2-1.
   void forwardReal(const float* x, float* out) {
     for (int i = 0; i < N; i++) {
       re_[i] = x[rev_[i]];
       im_[i] = 0.0f;
     }
     butterflies();
-    for (int k = 0; k <= N / 2; k++) {
+    out[0] = re_[0];
+    out[1] = re_[N / 2];
+    for (int k = 1; k < N / 2; k++) {
       out[2 * k] = re_[k];
       out[2 * k + 1] = im_[k];
     }
   }
 
-  // Inverse transform of a Hermitian spectrum given as bins 0..N/2 (re, im
-  // interleaved). Writes the real time signal to y[N]. NOT scaled by 1/N
-  // (the convolver folds the scale into the IR spectra).
+  // Inverse transform of a Hermitian spectrum given as bins 0..N/2, packed
+  // as forwardReal() writes them. Writes the real time signal to y[N]. NOT
+  // scaled by 1/N (the convolver folds the scale into the IR spectra).
   void inverseReal(const float* spec, float* y) {
     // IFFT(Y) = conj(FFT(conj(Y))); output is real so we only need Re().
     for (int i = 0; i < N; i++) {
       int k = rev_[i];
-      if (k <= N / 2) {
+      if (k == 0 || k == N / 2) {
+        re_[i] = spec[k == 0 ? 0 : 1];
+        im_[i] = 0.0f;
+      } else if (k < N / 2) {
         re_[i] = spec[2 * k];
         im_[i] = -spec[2 * k + 1];
       } else {

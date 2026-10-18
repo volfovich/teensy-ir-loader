@@ -124,6 +124,10 @@ hi_rate = rng.uniform(-1, 1, 192000) * np.exp(-np.arange(192000) / 20000)
 info, y = run("r192", wav_bytes(hi_rate, 192000, 3, 4), 8192, "energy", 1)
 check(y is not None and len(y) > 8000 and "truncated=1" in info, "1 s IR at 192 kHz fits the load buffers", f"({info[:40]})")
 
+hi_rate = rng.uniform(-1, 1, 384000) * np.exp(-np.arange(384000) / 40000)
+info, y = run("r384", wav_bytes(hi_rate, 384000, 3, 4), 8192, "energy", 1)
+check(y is not None and len(y) > 8000 and "truncated=1" in info, "1 s IR at 384 kHz streams through the load buffer", f"({info[:40]})")
+
 delayed = np.concatenate([np.zeros(100), left])
 info, y = run("lead", wav_bytes(delayed, 44100, 3, 4), 8192, "none", 1)
 check("lead=100" in info and np.allclose(y[:50], left[:50], atol=1e-7), "100 samples of leading silence removed")

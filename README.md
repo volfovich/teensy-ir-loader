@@ -14,7 +14,7 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
 - **Zero added latency from the convolution.** The partition size equals the audio block size, so total latency is only the audio buffering, about 1.5 ms at the default 32-sample blocks, plus the codec's converter delay.
 - **Just copy WAVs to the SD card:**
   - Files can go in the root folder or an `/IR` folder.
-  - Any sample rate from 8 to 192 kHz is accepted and resampled on the Teensy.
+  - Any sample rate from 8 to 384 kHz is accepted and resampled on the Teensy. The file is streamed from the card, so its length does not matter. Above 192 kHz loading is slower.
   - Mono or stereo files, 8/16/24/32-bit PCM or 32/64-bit float, including `WAVE_FORMAT_EXTENSIBLE`.
   - Each IR is loudness-normalized on load, so switching IRs does not cause big level jumps.
   - Leading silence (pure latency) and the inaudible tail (wasted CPU) are trimmed automatically.
@@ -124,10 +124,10 @@ Smaller blocks cost more CPU because the same IR is split into more partitions, 
 
 Memory use with 32-sample blocks:
 
-- **RAM1 (fast DTCM/ITCM):** about 470 of 512 KB. This holds the IR spectra, the input history used every block, and one delay line (about 115 KB).
-- **RAM2 (OCRAM/DMAMEM):** about 475 of 512 KB. This holds the file-loading buffers, the reverb's delay lines (about 120 KB) and the other delay line (about 115 KB).
+- **RAM1 (fast DTCM/ITCM):** about 455 of 512 KB. This holds the code, the IR spectra and the input history used every block (about 200 KB), and one delay line (about 115 KB).
+- **RAM2 (OCRAM/DMAMEM):** about 350 of 512 KB. This holds the reverb's delay lines (about 120 KB), the other delay line (about 115 KB), and the file list and file-loading buffers (about 110 KB).
 
-About 40 KB stays free in each bank, for the stack and the heap. To get more room, lower `DELAY_MAX_MS`.
+About 58 KB stays free in RAM1 and 160 KB in RAM2, for the stack and the heap. To get more room, lower `DELAY_MAX_MS`.
 
 ## How it works
 
