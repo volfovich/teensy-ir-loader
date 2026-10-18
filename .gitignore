@@ -1,0 +1,4 @@
+.pio/
+.vscode/
+test/host/test_convolver
+test/host/irtool
