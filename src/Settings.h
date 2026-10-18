@@ -1,4 +1,4 @@
-// Settings.h - persistent settings (last IR, levels, bypass) stored in EEPROM.
+// Settings.h - persistent settings (last IR, levels, bypass, reverb) stored in EEPROM.
 #pragma once
 
 #include <stdint.h>
@@ -13,6 +13,11 @@ struct Settings {
   uint8_t lineIn;
   uint8_t lineOut;
   uint8_t bypass;
+  // Added in "IRL2"; an "IRL1" record is upgraded with the reverb defaults.
+  uint8_t reverbOn;
+  uint8_t reverbMix;   // 0 .. 100
+  uint8_t reverbSize;  // 0 .. 100
+  uint8_t reverbTone;  // 0 .. 100
 };
 
 extern Settings g_settings;

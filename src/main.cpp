@@ -1,6 +1,7 @@
 // Teensy 4.0 + Audio Shield guitar IR loader
 //
-//   tube amp line out -> shield LINE IN (L) -> convolution -> LINE OUT + headphones
+//   tube amp line out -> shield LINE IN (L) -> convolution -> stereo plate reverb
+//                     -> LINE OUT L/R + headphones   (32-bit float throughout)
 //
 // Copy .wav impulse responses to the SD card (root or /IR folder). Any sample
 // rate, mono or stereo, 8/16/24/32-bit PCM or 32/64-bit float; files are
@@ -8,11 +9,11 @@
 //
 // Control: USB serial (type "?" for help) and optional buttons (config.h).
 //
-//   AudioGraph  audio objects, codec, level/bypass setters
+//   AudioGraph  audio objects, codec, level/bypass/reverb setters
 //   IRLibrary   SD card file list and IR loading
 //   Settings    EEPROM-backed settings
 //   SerialUI    serial commands and level meter
-//   Buttons     next / previous / bypass buttons
+//   Buttons     next / previous / bypass / reverb buttons
 #include <Arduino.h>
 
 #include "AudioGraph.h"

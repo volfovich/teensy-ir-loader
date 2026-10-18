@@ -20,13 +20,18 @@ void printHelp() {
       "  n / p        next / previous IR\n"
       "  b            toggle bypass\n"
       "  g <dB>       output gain after the IR (now %.1f dB)\n"
+      "  rv           toggle reverb (now %s)\n"
+      "  mix <0-100>  reverb dry/wet, 0 = dry only (now %u)\n"
+      "  size <0-100> reverb time (now %u)\n"
+      "  tone <0-100> reverb brightness (now %u)\n"
       "  in <0-15>    line-in sensitivity, 0 = 3.12 Vpp (least sensitive)\n"
       "  out <13-31>  line-out level, 13 = loudest\n"
       "  hp <0-100>   headphone volume %%\n"
       "  m            toggle live level meter\n"
       "  s            status (CPU, levels, latency)\n"
       "  r            rescan SD card\n",
-      g_settings.outGainDb);
+      g_settings.outGainDb, g_settings.reverbOn ? "on" : "off", g_settings.reverbMix,
+      g_settings.reverbSize, g_settings.reverbTone);
 }
 
 static void printList() {
@@ -44,8 +49,12 @@ static void printStatus() {
                 convolver.bypassed() ? "BYPASSED" : "active");
   Serial.printf("Latency:   ~%.2f ms buffering (2 x %d-sample blocks) + codec\n",
                 2 * blockMs, AUDIO_BLOCK_SAMPLES);
-  Serial.printf("CPU:       convolver %.1f%% avg / %.1f%% max, audio total %.1f%% max\n",
-                convolver.cpuPercent(), convolver.cpuPercentMax(), AudioProcessorUsageMax());
+  Serial.printf("Reverb:    %s, mix %u%%, size %u%%, tone %u%%\n",
+                g_settings.reverbOn ? "on" : (convolver.reverbActive() ? "off (tail ringing)" : "off"),
+                g_settings.reverbMix, g_settings.reverbSize, g_settings.reverbTone);
+  Serial.printf("CPU:       IR + reverb %.1f%% avg / %.1f%% max (reverb %.1f%%), audio total %.1f%% max\n",
+                convolver.cpuPercent(), convolver.cpuPercentMax(), convolver.reverbCpuPercent(),
+                AudioProcessorUsageMax());
   Serial.printf("Memory:    audio blocks %d / %d used (max)\n", AudioMemoryUsageMax(),
                 AUDIO_MEMORY_BLOCKS);
   Serial.printf("Levels:    in %.1f dBFS, out %.1f dBFS peak, clipped samples %lu\n",
@@ -77,6 +86,14 @@ static void handleCommand(char* line) {
     loadRelative(-1);
   } else if (!strcmp(line, "b")) {
     setBypass(!g_settings.bypass);
+  } else if (!strcmp(line, "rv")) {
+    setReverbOn(!g_settings.reverbOn);
+  } else if (!strcmp(line, "mix") && arg) {
+    setReverbMix(atoi(arg));
+  } else if (!strcmp(line, "size") && arg) {
+    setReverbSize(atoi(arg));
+  } else if (!strcmp(line, "tone") && arg) {
+    setReverbTone(atoi(arg));
   } else if (!strcmp(line, "g") && arg) {
     setOutputGainDb((float)atof(arg));
   } else if (!strcmp(line, "in") && arg) {

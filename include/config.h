@@ -53,6 +53,20 @@
 #define DEFAULT_HP_VOLUME 0.5f
 
 // ---------------------------------------------------------------------------
+// Reverb (stereo plate after the IR, ported from HexeFX)
+// ---------------------------------------------------------------------------
+// Defaults, changeable over USB serial and saved to EEPROM (all 0 .. 100).
+#define DEFAULT_REVERB_ON 0
+#define DEFAULT_REVERB_MIX 25   // 0 = dry only, 100 = wet only
+#define DEFAULT_REVERB_SIZE 50  // reverb time (about 1.1 .. 6 s)
+#define DEFAULT_REVERB_TONE 50  // treble in the tail, 100 = brightest
+// Fixed voicing, 0.0 .. 1.0.
+#define REVERB_DIFFUSION 1.0f  // lower values give more distinct echoes
+#define REVERB_LODAMP 0.2f     // bass loss in the tail (keeps it from getting muddy)
+#define REVERB_LOWPASS 0.0f    // treble cut on the reverb output
+#define REVERB_HIPASS 0.0f     // bass cut on the reverb output
+
+// ---------------------------------------------------------------------------
 // Hardware
 // ---------------------------------------------------------------------------
 #define SDCARD_CS_PIN 10  // SD slot on the Teensy 4 Audio Shield (Rev D)
@@ -63,5 +77,6 @@
 #define BUTTON_NEXT_PIN 2
 #define BUTTON_PREV_PIN 3
 #define BUTTON_BYPASS_PIN 4
+#define BUTTON_REVERB_PIN 5
 
-#define AUDIO_MEMORY_BLOCKS 16
+#define AUDIO_MEMORY_BLOCKS 20
