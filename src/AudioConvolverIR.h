@@ -1,31 +1,39 @@
 // AudioConvolverIR.h - Teensy Audio Library object wrapping the convolver
-// and the plate reverb that follows it.
+// and the delay and plate reverb that follow it.
 //
 // One mono input (guitar), two outputs (0 = left, 1 = right). The whole chain
 // runs in 32-bit float inside update():
 //
-//   in -> IR convolution -> IR bypass blend x output gain = core
-//   core -> dry gain ----------------------------+-> out L / R
-//   core -> plate reverb (stereo) -> wet gain ---+
+//   in -> IR convolution -> IR bypass blend x output gain = core (mono)
+//   core   -> ping-pong delay (mono in, stereo out, dry/wet) -> dL, dR
+//   dL, dR -> plate reverb (stereo in, stereo out, dry/wet)  -> out L / R
 //
-// Adds smoothed output gain, click-free IR bypass, a reverb with dry/wet mix
-// and on/off (the tail rings out when switched off), peak meters, a clip
-// counter and CPU measurement of its own update().
+// Adds smoothed output gain, click-free IR bypass, on/off for each effect
+// (tails ring out when switched off; an idle effect passes its input through
+// unchanged and costs no CPU), peak meters, a clip counter and CPU
+// measurement of its own update().
 #pragma once
 
 #include <Arduino.h>
 #include <AudioStream.h>
 #include <math.h>
 
+#include "FxSlot.h"
 #include "PartitionedConvolver.h"
 #include "PlateReverb.h"
+#include "StereoDelay.h"
 #include "config.h"
 
 class AudioConvolverIR : public AudioStream {
  public:
   using Engine = irdsp::PartitionedConvolver<AUDIO_BLOCK_SAMPLES, IR_MAX_LENGTH>;
 
-  AudioConvolverIR() : AudioStream(1, inputQueue_), reverb_(AUDIO_SAMPLE_RATE_EXACT) {}
+  AudioConvolverIR()
+      : AudioStream(1, inputQueue_),
+        delay_(AUDIO_SAMPLE_RATE_EXACT),
+        reverb_(AUDIO_SAMPLE_RATE_EXACT),
+        dlSlot_(AUDIO_SAMPLE_RATE_EXACT),
+        rvSlot_(AUDIO_SAMPLE_RATE_EXACT) {}
 
   Engine& engine() { return engine_; }
 
@@ -36,26 +44,41 @@ class AudioConvolverIR : public AudioStream {
     reverb_.init(mem);
     __enable_irq();
   }
+  // Hands the delay its two lines (len floats each). Until this is called
+  // the delay stays off.
+  void beginDelay(float* lineA, float* lineB, int len) {
+    __disable_irq();
+    delay_.init(lineA, lineB, len);
+    __enable_irq();
+  }
 
   void setOutputGainDb(float db) { gainTarget_ = powf(10.0f, db / 20.0f); }
   void setBypass(bool on) { wetTarget_ = on ? 0.0f : 1.0f; }
   bool bypassed() const { return wetTarget_ < 0.5f; }
 
-  // Reverb controls, all 0..1 except on/off. Applied at the next block.
-  void setReverbOn(bool on) { rvOn_ = on; }
-  void setReverbMix(float m) {
-    float wet, dry;
-    irdsp::mixPower(m, &wet, &dry);
-    rvWetMix_ = wet;
-    rvDryMix_ = dry;
+  // Delay controls, all 0..1 except on/off and time. Applied at the next block.
+  void setDelayOn(bool on) { dlSlot_.setOn(on); }
+  void setDelayMix(float m) { dlSlot_.setMix(m); }
+  void setDelayTimeMs(float ms) { dlTimeMs_ = ms; }
+  void setDelayFeedback(float v) { dlFeedback_ = v; }
+  void setDelayTone(float v) { dlTone_ = v; }  // 1 = brightest repeats
+  void setDelayMod(float v) { dlMod_ = v; }    // modulation depth
+  void setDelayShape(float bassCut, float treble, float bass, float modRate, float inertia) {
+    dlBassCut_ = bassCut; dlTreble_ = treble; dlBass_ = bass; dlModRate_ = modRate; dlInertia_ = inertia;
   }
+  // True while the delay is on or its repeats are still ringing out.
+  bool delayActive() const { return dlSlot_.running(); }
+
+  // Reverb controls, all 0..1 except on/off. Applied at the next block.
+  void setReverbOn(bool on) { rvSlot_.setOn(on); }
+  void setReverbMix(float m) { rvSlot_.setMix(m); }
   void setReverbSize(float v) { rvSize_ = v; }
   void setReverbTone(float v) { rvTone_ = v; }  // 1 = brightest tail
   void setReverbShape(float diffusion, float loDamp, float lowpass, float hipass) {
     rvDiffusion_ = diffusion; rvLoDamp_ = loDamp; rvLowpass_ = lowpass; rvHipass_ = hipass;
   }
   // True while the reverb is on or its tail is still ringing out.
-  bool reverbActive() const { return rvRunning_; }
+  bool reverbActive() const { return rvSlot_.running(); }
 
   // Meters: return the peak (linear, 1.0 = full scale) since the last call.
   float takeInputPeak() { float p = inPeak_; inPeak_ = 0.0f; return p; }
@@ -65,14 +88,15 @@ class AudioConvolverIR : public AudioStream {
   // CPU load of this object, in percent of one core.
   float cpuPercent() const { return cyclesToPercent(cyclesAvg_); }
   float cpuPercentMax() const { return cyclesToPercent(cyclesMax_); }
-  // Share of the above spent in the reverb.
-  float reverbCpuPercent() const { return cyclesToPercent(rvCyclesAvg_); }
+  // Shares of the above spent in the delay and the reverb.
+  float delayCpuPercent() const { return cyclesToPercent(dlSlot_.cyclesAvg()); }
+  float reverbCpuPercent() const { return cyclesToPercent(rvSlot_.cyclesAvg()); }
   void resetCpuMax() { cyclesMax_ = 0; }
 
   void update(void) override {
     const uint32_t t0 = ARM_DWT_CYCCNT;
     constexpr int B = AUDIO_BLOCK_SAMPLES;
-    float x[B], y[B], wl[B], wr[B];
+    float x[B], y[B], dl[B], dr[B], ol[B], orr[B];
 
     audio_block_t* in = receiveReadOnly(0);
     float pk = inPeak_;
@@ -104,27 +128,35 @@ class AudioConvolverIR : public AudioStream {
     gainCur_ = g1;
     wetCur_ = w1;
 
+    // Delay, then reverb. An idle effect passes its input through, so with
+    // both idle the signal stays mono.
     const uint32_t t1 = ARM_DWT_CYCCNT;
-    const bool reverb = processReverb(y, wl, wr);
-    const uint32_t rc = ARM_DWT_CYCCNT - t1;
-    rvCyclesAvg_ = rvCyclesAvg_ + (rc - rvCyclesAvg_) * 0.01f;
+    const bool delayed = processDelay(y, dl, dr);
+    const uint32_t t2 = ARM_DWT_CYCCNT;
+    dlSlot_.addCycles(t2 - t1);
+    const float* sl = delayed ? dl : y;
+    const float* sr = delayed ? dr : y;
+    const bool reverbed = processReverb(sl, sr, ol, orr);
+    rvSlot_.addCycles(ARM_DWT_CYCCNT - t2);
+    const float* fl = reverbed ? ol : sl;
+    const float* fr = reverbed ? orr : sr;
 
     float opk = outPeak_;
     uint32_t clips = 0;
     audio_block_t* outL = allocate();
     if (!outL) return;
-    if (!reverb) {
-      // Reverb idle: the dry signal goes to both outputs unchanged.
+    if (!delayed && !reverbed) {
+      // Effects idle: the dry signal goes to both outputs unchanged.
       toInt16(y, outL->data, opk, clips);
       transmit(outL, 0);
       transmit(outL, 1);
       release(outL);
     } else {
       audio_block_t* outR = allocate();
-      toInt16(wl, outL->data, opk, clips);
+      toInt16(fl, outL->data, opk, clips);
       transmit(outL, 0);
       if (outR) {
-        toInt16(wr, outR->data, opk, clips);
+        toInt16(fr, outR->data, opk, clips);
         transmit(outR, 1);
         release(outR);
       } else {
@@ -166,16 +198,56 @@ class AudioConvolverIR : public AudioStream {
     }
   }
 
-  // Mixes the reverb into core (in place of wl/wr). Returns false while the
-  // reverb is idle, in which case core is the output for both channels.
-  bool processReverb(const float* core, float* wl, float* wr) {
-    constexpr int B = AUDIO_BLOCK_SAMPLES;
-    const bool on = rvOn_ && reverb_.ready();
-    if (!on && !rvRunning_) return false;
-    if (!rvRunning_) {  // starting from idle: the tank is already clear
-      rvRunning_ = true;
-      rvQuietBlocks_ = 0;
+  // An effect that has gone idle is cleared a few KB per block (clearing it
+  // all at once would stall this interrupt), or all at once if it is
+  // switched on again meanwhile. Returns false while it is still clearing.
+  template <class Fx>
+  static bool finishClearing(bool& clearing, const irdsp::FxSlot<AUDIO_BLOCK_SAMPLES>& slot, Fx& fx) {
+    if (!clearing) return true;
+    if (!slot.on()) {
+      if (fx.clearStep(4096)) clearing = false;
+      return false;
     }
+    fx.clearStep(1 << 30);
+    clearing = false;
+    return true;
+  }
+
+  // The delay stage: core -> out L/R. Returns false while the delay is idle
+  // (the caller uses core for both channels).
+  bool processDelay(const float* core, float* outL, float* outR) {
+    constexpr int B = AUDIO_BLOCK_SAMPLES;
+    if (!finishClearing(dlClearing_, dlSlot_, delay_)) return false;
+    const bool wasRunning = dlSlot_.running();
+    if (!dlSlot_.begin(delay_.ready())) return false;
+
+    // Time changes glide (tape-like), except when starting from idle: the
+    // lines are empty then, so jump straight to the set time.
+    delay_.setDelaySamples(dlTimeMs_ * (AUDIO_SAMPLE_RATE_EXACT / 1000.0f), !wasRunning);
+    delay_.setFeedback(dlFeedback_);
+    delay_.setTrebleCut(1.0f - dlTone_);
+    delay_.setModDepth(dlMod_);
+    delay_.setBassCut(dlBassCut_);
+    delay_.setTreble(dlTreble_);
+    delay_.setBass(dlBass_);
+    delay_.setModRate(dlModRate_);
+    delay_.setInertia(dlInertia_);
+
+    float in[B];
+    dlSlot_.feed(core, in);
+    delay_.process(in, outL, outR, B);
+    dlSlot_.mix(core, outL);
+    dlSlot_.mix(core, outR);
+    if (dlSlot_.end()) dlClearing_ = true;
+    return true;
+  }
+
+  // The reverb stage: in L/R -> out L/R. Returns false while the reverb is
+  // idle (the caller passes its input on).
+  bool processReverb(const float* inL, const float* inR, float* outL, float* outR) {
+    constexpr int B = AUDIO_BLOCK_SAMPLES;
+    if (!finishClearing(rvClearing_, rvSlot_, reverb_)) return false;
+    if (!rvSlot_.begin(reverb_.ready())) return false;
 
     reverb_.setSize(rvSize_);
     reverb_.setHiDamp(1.0f - rvTone_);
@@ -184,41 +256,22 @@ class AudioConvolverIR : public AudioStream {
     reverb_.setLowpass(rvLowpass_);
     reverb_.setHipass(rvHipass_);
 
-    // Off fades the tank input out and leaves the tail to ring; the dry
-    // signal returns to unity.
-    const float in0 = rvInCur_, in1 = ramp(in0, on ? 1.0f : 0.0f);
-    const float d0 = rvDryCur_, d1 = ramp(d0, on ? rvDryMix_ : 1.0f);
-    const float e0 = rvWetCur_, e1 = ramp(e0, rvWetMix_);
-    float rin[B];
-    for (int i = 0; i < B; i++) rin[i] = core[i] * (in0 + (in1 - in0) * (float)(i + 1) / (float)B);
-    reverb_.process(rin, wl, wr, B);
-    float wetPeak = 0.0f;
-    for (int i = 0; i < B; i++) {
-      const float a = (float)(i + 1) / (float)B;
-      const float d = d0 + (d1 - d0) * a, e = e0 + (e1 - e0) * a;
-      wetPeak = fmaxf(wetPeak, fmaxf(fabsf(wl[i]), fabsf(wr[i])));
-      wl[i] = d * core[i] + e * wl[i];
-      wr[i] = d * core[i] + e * wr[i];
-    }
-    rvInCur_ = in1;
-    rvDryCur_ = d1;
-    rvWetCur_ = e1;
-
-    // Once off and the tail is inaudible (-100 dBFS for 0.5 s), clear the
-    // tank and go idle (no reverb CPU while off).
-    constexpr int kQuietBlocks = (int)(AUDIO_SAMPLE_RATE_EXACT * 0.5f / B);
-    if (on || wetPeak > 1e-5f) {
-      rvQuietBlocks_ = 0;
-    } else if (++rvQuietBlocks_ >= kQuietBlocks && d1 == 1.0f) {
-      reverb_.reset();
-      rvRunning_ = false;
-    }
+    float rl[B], rr[B];
+    rvSlot_.feed(inL, rl);
+    rvSlot_.feed(inR, rr);
+    reverb_.process(rl, rr, outL, outR, B);
+    rvSlot_.mix(inL, outL);
+    rvSlot_.mix(inR, outR);
+    if (rvSlot_.end()) rvClearing_ = true;
     return true;
   }
 
   audio_block_t* inputQueue_[1];
   Engine engine_;
+  irdsp::StereoDelay delay_;
   irdsp::PlateReverb reverb_;
+  irdsp::FxSlot<AUDIO_BLOCK_SAMPLES> dlSlot_, rvSlot_;
+  bool dlClearing_ = false, rvClearing_ = false;  // audio interrupt only
   volatile float gainTarget_ = 0.5f, gainCur_ = 0.5f;
   volatile float wetTarget_ = 1.0f, wetCur_ = 1.0f;
   volatile float inPeak_ = 0.0f, outPeak_ = 0.0f;
@@ -226,14 +279,9 @@ class AudioConvolverIR : public AudioStream {
   volatile float cyclesAvg_ = 0.0f;
   volatile uint32_t cyclesMax_ = 0;
 
-  // Reverb settings (written by setters, read once per block).
-  volatile bool rvOn_ = false;
-  volatile float rvWetMix_ = 0.0f, rvDryMix_ = 1.0f;
+  // Effect settings (written by setters, read once per block).
+  volatile float dlTimeMs_ = 380.0f, dlFeedback_ = 0.35f, dlTone_ = 0.6f, dlMod_ = 0.0f;
+  volatile float dlBassCut_ = 0.0f, dlTreble_ = 1.0f, dlBass_ = 1.0f, dlModRate_ = 0.0f, dlInertia_ = 0.0f;
   volatile float rvSize_ = 0.5f, rvTone_ = 0.5f;
   volatile float rvDiffusion_ = 1.0f, rvLoDamp_ = 0.0f, rvLowpass_ = 0.0f, rvHipass_ = 0.0f;
-  // Reverb state (audio interrupt only, except reads of rvRunning_).
-  volatile bool rvRunning_ = false;
-  float rvInCur_ = 0.0f, rvDryCur_ = 1.0f, rvWetCur_ = 0.0f;
-  int rvQuietBlocks_ = 0;
-  volatile float rvCyclesAvg_ = 0.0f;
 };

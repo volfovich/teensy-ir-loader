@@ -1,17 +1,18 @@
-// PlateReverb.h - 32-bit float stereo plate reverb (mono in, stereo out).
+// PlateReverb.h - 32-bit float stereo plate reverb.
 //
 // A port of AudioEffectPlateReverb_F32 from hexefx_audiolib_F32
 // (https://github.com/hexeguitar/hexefx_audiolib_F32), an FV-1 style plate:
 //
-//   in -> 4 input allpasses (L) --+--------------------+
-//   in -> 4 input allpasses (R) --|--+                 |
+//   in L -> 4 input allpasses ----+--------------------+
+//   in R -> 4 input allpasses ----|--+                 |
 //                                 v  v                 v
 //   +-> delay1 -> damp -> allpass2 -> delay2 -> damp -> allpass3 -> delay3
 //   |   -> damp -> allpass4 -> delay4 -> damp --+
 //   +-------------------------------------------+  (x reverb time each stage)
 //
 // The output taps are read from the four loop delays at different offsets for
-// L and R, which gives a wide, decorrelated stereo image from a mono input.
+// L and R, which gives a wide, decorrelated stereo image even from a mono
+// input (pass the same buffer for both inputs).
 // The loop delays are modulated by two quadrature LFOs (chorused tail).
 //
 // Line lengths, taps, gains, filter coefficients, LFO rates and the parameter
@@ -46,19 +47,9 @@
 #include <stdint.h>
 #include <string.h>
 
-namespace irdsp {
+#include "irdsp_blocks.h"
 
-// Cheap, nearly energy-preserving crossfade (Signalsmith Audio, as used by
-// HexeFX mix_pwr): mix 0 -> (wet 0, dry 1), mix 1 -> (wet 1, dry 0).
-inline void mixPower(float mix, float* wet, float* dry) {
-  mix = mix < 0.0f ? 0.0f : (mix > 1.0f ? 1.0f : mix);
-  const float x2 = 1.0f - mix;
-  const float a = mix * x2;
-  const float b = a * (1.0f + 1.4186f * a);
-  const float c = b + mix, d = b + x2;
-  *wet = c * c;
-  *dry = d * d;
-}
+namespace irdsp {
 
 class PlateReverb {
  public:
@@ -69,10 +60,8 @@ class PlateReverb {
                                     (3423 + 4589 + 4365 + 3698); // loop delays
 
   explicit PlateReverb(float sampleRate = 44100.0f) {
-    for (int i = 0; i <= 256; i++)
-      lfoTable_[i] = (1.0f + sinf(6.2831853f * (float)i / 256.0f)) * (float)kLfoDepth;
-    lfo1_.adder = (uint32_t)(1.35f * 4294967295.0f / sampleRate);
-    lfo2_.adder = (uint32_t)(1.57f * 4294967295.0f / sampleRate);
+    lfo1_.setRate(1.35f, sampleRate);
+    lfo2_.setRate(1.57f, sampleRate);
   }
 
   // Hands over the line memory (kMemFloats floats) and clears it.
@@ -91,17 +80,32 @@ class PlateReverb {
   }
   bool ready() const { return mem_ != nullptr; }
 
-  // Silences the tank (all lines and filter states).
+  // Silences the tank (all lines and filter states) at once.
   void reset() {
-    if (mem_) memset(mem_, 0, kMemFloats * sizeof(float));
-    for (auto& a : inL_) a.idx = 0;
-    for (auto& a : inR_) a.idx = 0;
-    for (auto& a : loopAp_) a.idx = 0;
-    for (auto& d : dly_) d.idx = 0;
-    for (auto& f : loopFlt_) f.clear();
-    masterL_.clear();
-    masterR_.clear();
-    loopOut_ = 0.0f;
+    clearPos_ = 0;
+    clearStep(kMemFloats);
+  }
+
+  // Clears up to n floats of the tank per call (spreads a full clear over
+  // several audio blocks); returns true when the tank is silent.
+  bool clearStep(int n) {
+    if (!mem_) return true;
+    if (clearPos_ == 0) {
+      for (auto& a : inL_) a.idx = 0;
+      for (auto& a : inR_) a.idx = 0;
+      for (auto& a : loopAp_) a.idx = 0;
+      for (auto& d : dly_) d.idx = 0;
+      for (auto& f : loopFlt_) f.clear();
+      masterL_.clear();
+      masterR_.clear();
+      loopOut_ = 0.0f;
+    }
+    const int count = n < kMemFloats - clearPos_ ? n : kMemFloats - clearPos_;
+    memset(mem_ + clearPos_, 0, count * sizeof(float));
+    clearPos_ += count;
+    if (clearPos_ < kMemFloats) return false;
+    clearPos_ = 0;
+    return true;
   }
 
   // ---- Parameters, all 0..1 (same mappings as the HexeFX setters) ---------
@@ -128,10 +132,10 @@ class PlateReverb {
 
   // ---- Audio --------------------------------------------------------------
 
-  // Processes n samples of mono input into the wet-only stereo outputs.
-  // At the default settings 100 % wet is about as loud as the input
-  // (checked by test/host/test_reverb.cpp).
-  void process(const float* in, float* outL, float* outR, int n) {
+  // Processes n samples into the wet-only stereo outputs (inL and inR may be
+  // the same buffer). At the default settings 100 % wet is about as loud as
+  // the input (checked by test/host/test_reverb.cpp).
+  void process(const float* inL, const float* inR, float* outL, float* outR, int n) {
     const float rvt = rvTime_ * rvTimeScaler_;
     const float k = apK_;
     const float hiD = loopHiDamp_, loD = loopLoDamp_;
@@ -142,15 +146,14 @@ class PlateReverb {
     Delay& d4 = dly_[3];
     float loopOut = loopOut_;
     for (int i = 0; i < n; i++) {
-      lfo1_.acc += lfo1_.adder;
-      lfo2_.acc += lfo2_.adder;
+      lfo1_.tick();
+      lfo2_.tick();
 
       // Input diffusers (the original's 0.5 input gain).
-      const float x = in[i] * 0.5f;
-      float acc = x;
+      float acc = inL[i] * 0.5f;
       for (auto& a : inL_) acc = a.process(acc, k);
       const float inOutL = acc;
-      acc = x;
+      acc = inR[i] * 0.5f;
       for (auto& a : inR_) acc = a.process(acc, k);
       const float inOutR = acc;
 
@@ -191,8 +194,6 @@ class PlateReverb {
   static constexpr float kMasterHpF = 0.08f;
   static constexpr float kMasterLpF = 0.1f;
 
-  static float clamp01(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
-
   struct Allpass {
     float* bf;
     int len, idx;
@@ -228,36 +229,8 @@ class PlateReverb {
     inline void advance() { if (++idx >= len) idx = 0; }
   };
 
-  // One-pole low/high shelving pair with per-sample smoothing of the shelf
-  // gains toward their targets.
-  struct Shelf {
-    float lp = 0.0f, hp = 0.0f;
-    float hiDamp = 1.0f, loDamp = 0.0f;  // current (smoothed) shelf gains
-    void clear() { lp = 0.0f; hp = 0.0f; }
-    static inline float slew(float cur, float target) {
-      if (cur < target) { cur += kStep; if (cur > target) cur = target; }
-      else if (cur > target) { cur -= kStep; if (cur < target) cur = target; }
-      return cur;
-    }
-    inline float process(float in, float hiTarget, float loTarget, float hpF, float lpF) {
-      hiDamp = slew(hiDamp, hiTarget);
-      loDamp = slew(loDamp, loTarget);
-      lp += (in - lp) * lpF;
-      const float hi = in - lp;
-      hp += (lp - hp) * hpF;
-      return lp + hiDamp * hi + loDamp * hp;
-    }
-    static constexpr float kStep = 0.02f;
-  };
-
-  struct Lfo {
-    uint32_t acc = 0, adder = 0;
-  };
-
   inline void modulate(Delay& d, const Lfo& lfo, uint32_t phase) {
-    const uint32_t i = ((lfo.acc >> 24) + phase) & 0xFF;
-    const float f = (float)(lfo.acc & 0x00FFFFFF) * (1.0f / 16777216.0f);
-    const float v = lfoTable_[i] + (lfoTable_[i + 1] - lfoTable_[i]) * f;  // 0 .. 2 x depth
+    const float v = lfo.value(phase) * (float)kLfoDepth;  // 0 .. 2 x depth
     const int off = (int)v;
     d.write(d.tap(off, v - (float)off), 2 * kLfoDepth);
     d.advance();
@@ -268,8 +241,8 @@ class PlateReverb {
   Shelf loopFlt_[4];
   Shelf masterL_, masterR_;
   Lfo lfo1_, lfo2_;
-  float lfoTable_[257];
   float* mem_ = nullptr;
+  int clearPos_ = 0;
   float loopOut_ = 0.0f;
 
   // Parameters (defaults as in the original's begin()).

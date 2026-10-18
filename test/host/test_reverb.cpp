@@ -34,7 +34,7 @@ struct Rig {
   void run(const std::vector<float>& x, std::vector<float>& l, std::vector<float>& r) {
     l.resize(x.size());
     r.resize(x.size());
-    for (size_t i = 0; i + kB <= x.size(); i += kB) rv->process(&x[i], &l[i], &r[i], kB);
+    for (size_t i = 0; i + kB <= x.size(); i += kB) rv->process(&x[i], &x[i], &l[i], &r[i], kB);
   }
 };
 

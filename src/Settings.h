@@ -1,4 +1,4 @@
-// Settings.h - persistent settings (last IR, levels, bypass, reverb) stored in EEPROM.
+// Settings.h - persistent settings (last IR, levels, bypass, effects) stored in EEPROM.
 #pragma once
 
 #include <stdint.h>
@@ -18,6 +18,13 @@ struct Settings {
   uint8_t reverbMix;   // 0 .. 100
   uint8_t reverbSize;  // 0 .. 100
   uint8_t reverbTone;  // 0 .. 100
+  // Added in "IRL3"; older records are upgraded with the delay defaults.
+  uint8_t delayOn;
+  uint8_t delayMix;       // 0 .. 100
+  uint8_t delayFeedback;  // 0 .. 100
+  uint8_t delayTone;      // 0 .. 100
+  uint8_t delayMod;       // 0 .. 100
+  uint16_t delayTimeMs;   // 20 .. DELAY_MAX_MS
 };
 
 extern Settings g_settings;

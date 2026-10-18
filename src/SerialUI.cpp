@@ -20,6 +20,12 @@ void printHelp() {
       "  n / p        next / previous IR\n"
       "  b            toggle bypass\n"
       "  g <dB>       output gain after the IR (now %.1f dB)\n"
+      "  dl           toggle delay (now %s)\n"
+      "  dmix <0-100> delay dry/wet, 0 = dry only (now %u)\n"
+      "  dtime <ms>   delay time, 20-%d ms (now %u)\n"
+      "  dfb <0-100>  delay repeats (now %u)\n"
+      "  dtone <0-100> delay brightness (now %u)\n"
+      "  dmod <0-100> delay modulation depth (now %u)\n"
       "  rv           toggle reverb (now %s)\n"
       "  mix <0-100>  reverb dry/wet, 0 = dry only (now %u)\n"
       "  size <0-100> reverb time (now %u)\n"
@@ -30,7 +36,9 @@ void printHelp() {
       "  m            toggle live level meter\n"
       "  s            status (CPU, levels, latency)\n"
       "  r            rescan SD card\n",
-      g_settings.outGainDb, g_settings.reverbOn ? "on" : "off", g_settings.reverbMix,
+      g_settings.outGainDb, g_settings.delayOn ? "on" : "off", g_settings.delayMix, DELAY_MAX_MS,
+      g_settings.delayTimeMs, g_settings.delayFeedback, g_settings.delayTone, g_settings.delayMod,
+      g_settings.reverbOn ? "on" : "off", g_settings.reverbMix,
       g_settings.reverbSize, g_settings.reverbTone);
 }
 
@@ -49,12 +57,16 @@ static void printStatus() {
                 convolver.bypassed() ? "BYPASSED" : "active");
   Serial.printf("Latency:   ~%.2f ms buffering (2 x %d-sample blocks) + codec\n",
                 2 * blockMs, AUDIO_BLOCK_SAMPLES);
+  Serial.printf("Delay:     %s, mix %u%%, %u ms, repeats %u%%, tone %u%%, mod %u%%\n",
+                g_settings.delayOn ? "on" : (convolver.delayActive() ? "off (repeats ringing)" : "off"),
+                g_settings.delayMix, g_settings.delayTimeMs, g_settings.delayFeedback,
+                g_settings.delayTone, g_settings.delayMod);
   Serial.printf("Reverb:    %s, mix %u%%, size %u%%, tone %u%%\n",
                 g_settings.reverbOn ? "on" : (convolver.reverbActive() ? "off (tail ringing)" : "off"),
                 g_settings.reverbMix, g_settings.reverbSize, g_settings.reverbTone);
-  Serial.printf("CPU:       IR + reverb %.1f%% avg / %.1f%% max (reverb %.1f%%), audio total %.1f%% max\n",
-                convolver.cpuPercent(), convolver.cpuPercentMax(), convolver.reverbCpuPercent(),
-                AudioProcessorUsageMax());
+  Serial.printf("CPU:       IR + effects %.1f%% avg / %.1f%% max (delay %.1f%%, reverb %.1f%%), audio total %.1f%% max\n",
+                convolver.cpuPercent(), convolver.cpuPercentMax(), convolver.delayCpuPercent(),
+                convolver.reverbCpuPercent(), AudioProcessorUsageMax());
   Serial.printf("Memory:    audio blocks %d / %d used (max)\n", AudioMemoryUsageMax(),
                 AUDIO_MEMORY_BLOCKS);
   Serial.printf("Levels:    in %.1f dBFS, out %.1f dBFS peak, clipped samples %lu\n",
@@ -86,6 +98,18 @@ static void handleCommand(char* line) {
     loadRelative(-1);
   } else if (!strcmp(line, "b")) {
     setBypass(!g_settings.bypass);
+  } else if (!strcmp(line, "dl")) {
+    setDelayOn(!g_settings.delayOn);
+  } else if (!strcmp(line, "dmix") && arg) {
+    setDelayMix(atoi(arg));
+  } else if (!strcmp(line, "dtime") && arg) {
+    setDelayTimeMs(atoi(arg));
+  } else if (!strcmp(line, "dfb") && arg) {
+    setDelayFeedback(atoi(arg));
+  } else if (!strcmp(line, "dtone") && arg) {
+    setDelayTone(atoi(arg));
+  } else if (!strcmp(line, "dmod") && arg) {
+    setDelayMod(atoi(arg));
   } else if (!strcmp(line, "rv")) {
     setReverbOn(!g_settings.reverbOn);
   } else if (!strcmp(line, "mix") && arg) {

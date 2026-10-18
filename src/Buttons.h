@@ -1,4 +1,4 @@
-// Buttons.h - optional next / previous / bypass / reverb buttons (pins in config.h).
+// Buttons.h - optional next / previous / bypass / reverb / delay buttons (pins in config.h).
 #pragma once
 
 void buttonsBegin();

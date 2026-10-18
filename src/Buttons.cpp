@@ -25,10 +25,10 @@ struct Button {
   }
 };
 static Button btnNext{BUTTON_NEXT_PIN}, btnPrev{BUTTON_PREV_PIN}, btnBypass{BUTTON_BYPASS_PIN},
-    btnReverb{BUTTON_REVERB_PIN};
+    btnReverb{BUTTON_REVERB_PIN}, btnDelay{BUTTON_DELAY_PIN};
 
 void buttonsBegin() {
-  for (Button* b : {&btnNext, &btnPrev, &btnBypass, &btnReverb})
+  for (Button* b : {&btnNext, &btnPrev, &btnBypass, &btnReverb, &btnDelay})
     if (b->pin >= 0) pinMode(b->pin, INPUT_PULLUP);
 }
 
@@ -37,4 +37,5 @@ void serviceButtons() {
   if (btnPrev.pressed()) loadRelative(-1);
   if (btnBypass.pressed()) setBypass(!g_settings.bypass);
   if (btnReverb.pressed()) setReverbOn(!g_settings.reverbOn);
+  if (btnDelay.pressed()) setDelayOn(!g_settings.delayOn);
 }

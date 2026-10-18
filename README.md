@@ -3,8 +3,9 @@
 A low-latency guitar cabinet IR loader for the **Teensy 4.0 + Audio Shield (Rev D)**.
 
 ```
-tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──► stereo plate reverb ──► LINE OUT L/R + headphone jack
-                                                (IR from SD card)    (dry/wet mix, on/off)
+tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──► ping-pong delay ──► plate reverb ──► LINE OUT L/R + headphone jack
+                                                (IR from SD card)    (mono in, stereo)    (stereo)
+                                                                     each effect: dry/wet mix, on/off
 ```
 
 ## Features
@@ -18,13 +19,20 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
   - Each IR is loudness-normalized on load, so switching IRs does not cause big level jumps.
   - Leading silence (pure latency) and the inaudible tail (wasted CPU) are trimmed automatically.
 - **Click-free switching:** IR changes use a 25 ms crossfade, and the audio never drops out while a file loads.
-- **Stereo plate reverb after the IR:**
+- **Stereo ping-pong delay after the IR:**
+  - Ported from the [HexeFX](https://github.com/hexeguitar/hexefx_audiolib_F32) `AudioEffectDelayStereo_F32` (MIT, Piotr Zapart).
+  - Repeats alternate left and right. Reads are Hermite-interpolated, and there are damping filters in the feedback path.
+  - Optional tape-like modulation. Changing the delay time glides instead of jumping.
+  - Delay time from 20 to 650 ms, stored in 32-bit float. The maximum is set by RAM; see `DELAY_MAX_MS` in `include/config.h`.
+  - It uses one ping-pong pair instead of HexeFX's two. With a mono guitar input both of its pairs carry the same signal, so one pair sounds the same with modulation off, at half the memory.
+- **Stereo plate reverb after the delay:**
   - Ported from the [HexeFX](https://github.com/hexeguitar/hexefx_audiolib_F32) `AudioEffectPlateReverb_F32` (MIT, Piotr Zapart). The port matches the original algorithm and its parameter ranges.
-  - Runs in 32-bit float in the same audio object as the convolution, so the IR → reverb → mix path never drops to 16 bits.
   - Dry/wet mix, size and tone controls.
-  - Switching it off is click-free and lets the tail ring out. When the tail has died away, the reverb stops using CPU and the output is bit-identical to having no reverb.
-- **Remembers settings:** the last IR, your levels and the reverb settings are stored in EEPROM.
-- **Controls:** USB serial commands, plus optional *next*, *previous*, *bypass* and *reverb* buttons.
+- **Both effects:**
+  - They run in 32-bit float in the same audio object as the convolution, so the path from the IR through the delay and reverb never drops to 16 bits.
+  - Switching an effect off is click-free and lets its tail ring out. When the tail has died away, the effect stops using CPU and passes its input through bit-identically.
+- **Remembers settings:** the last IR, your levels and the delay and reverb settings are stored in EEPROM.
+- **Controls:** USB serial commands, plus optional *next*, *previous*, *bypass*, *reverb* and *delay* buttons.
 
 ## Hardware
 
@@ -32,9 +40,9 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
 |---|---|---|
 | Amp line out signal | **LINE IN L** | Only the left input is processed. |
 | Amp line out ground | **GND** next to the line-in pads | |
-| To mixer / interface / power amp | **LINE OUT L** and **R** + GND | Stereo when the reverb is on; both carry the same signal when it is off. For a mono rig use L. If the gear you feed is not AC-coupled, add a 2.2–10 µF capacitor in series. |
+| To mixer / interface / power amp | **LINE OUT L** and **R** + GND | Stereo when the delay or reverb is on; both carry the same signal when they are off. For a mono rig use L. If the gear you feed is not AC-coupled, add a 2.2–10 µF capacitor in series. |
 | Headphones | 3.5 mm jack | **Headphones only.** The jack's ground is a *virtual* ground, so never connect it to another device's ground. |
-| Buttons (optional) | pins 2 (next), 3 (prev), 4 (bypass), 5 (reverb on/off) to GND | Change or disable them in `include/config.h`. |
+| Buttons (optional) | pins 2 (next), 3 (prev), 4 (bypass), 5 (reverb on/off), 9 (delay on/off) to GND | Change or disable them in `include/config.h`. |
 
 ### ⚠️ Level and safety
 
@@ -76,7 +84,13 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `l` | List IR files (`>` marks the current one) |
 | `3` | Load IR number 3 |
 | `n` / `p` | Next / previous IR |
-| `b` | Toggle IR bypass (raw amp signal, with a click-free fade). The reverb is not affected. |
+| `b` | Toggle IR bypass (raw amp signal, with a click-free fade). The delay and reverb are not affected. |
+| `dl` | Toggle the delay on/off (the repeats ring out) |
+| `dmix 0..100` | Delay dry/wet blend (0 = dry only, 100 = repeats only) |
+| `dtime 20..650` | Delay time in ms. Changes glide, like turning a tape delay's time knob. |
+| `dfb 0..100` | Delay repeats (feedback) |
+| `dtone 0..100` | Brightness of the repeats (lower values make each repeat darker) |
+| `dmod 0..100` | Delay modulation depth (tape-like wobble) |
 | `rv` | Toggle the reverb on/off (the tail rings out) |
 | `mix 0..100` | Reverb dry/wet blend (0 = dry only, 100 = reverb only). Equal-power crossfade. |
 | `size 0..100` | Reverb time (about 1.1 to 6 s) |
@@ -86,7 +100,7 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `out 13..31` | Line-out level (13 = loudest, 3.16 V peak-to-peak) |
 | `hp 0..100` | Headphone volume |
 | `m` | Live input/output meter |
-| `s` | Status: CPU load (including the reverb's share), reverb settings, peak levels, clip count, latency |
+| `s` | Status: CPU load (including the delay's and reverb's shares), effect settings, peak levels, clip count, latency |
 | `r` | Rescan the SD card (after swapping cards) |
 
 ## Latency and CPU
@@ -104,14 +118,16 @@ The codec's ADC and DAC add their own fixed delay on top of the buffering. To me
 
 CPU cost scales with IR length. A typical 2048-sample cabinet IR uses about a quarter of the figures above.
 
-The reverb adds about 6 % CPU (measured with 32-sample blocks) while it is on or still ringing out, and nothing once its tail has died away. Run `s` to see the current value. Its diffusion, bass damping and output filters are set in `include/config.h`.
+The reverb adds about 6 % CPU (measured with 32-sample blocks) and the delay about 3 %, while each is on or still ringing out. Neither uses any CPU once its tail has died away. Run `s` to see the current values. The fixed voicing of both effects (diffusion, damping, filters, modulation rate, time glide) is set in `include/config.h`.
 
 Smaller blocks cost more CPU because the same IR is split into more partitions, and every partition is processed each block. At 16 samples there is still plenty of headroom, so try it if you want the lowest possible latency.
 
 Memory use with 32-sample blocks:
 
-- **RAM1 (fast DTCM/ITCM):** about 360 of 512 KB. This holds the IR spectra and the input history used every block.
-- **RAM2 (OCRAM/DMAMEM):** about 370 of 512 KB. This holds the file-loading buffers and the reverb's delay lines (about 120 KB).
+- **RAM1 (fast DTCM/ITCM):** about 470 of 512 KB. This holds the IR spectra, the input history used every block, and one delay line (about 115 KB).
+- **RAM2 (OCRAM/DMAMEM):** about 475 of 512 KB. This holds the file-loading buffers, the reverb's delay lines (about 120 KB) and the other delay line (about 115 KB).
+
+About 40 KB stays free in each bank, for the stack and the heap. To get more room, lower `DELAY_MAX_MS`.
 
 ## How it works
 
@@ -123,6 +139,14 @@ The convolution uses **uniformly partitioned overlap-save** (UPOLS):
 4. One inverse FFT turns that sum into the output. Its second half is exactly the next `B` output samples, with no added delay.
 
 When switching IRs, the new IR's spectra are computed in the background into a second buffer. For 25 ms both IRs are evaluated against the same input history and crossfaded. That is why switching causes no click and no tail cut-off.
+
+The delay is a cross-coupled pair of delay lines:
+
+1. The input plus the filtered feedback goes into line A.
+2. Line A's output is the left repeat, and it also feeds line B.
+3. Line B's output is the right repeat, and it feeds back into line A.
+
+So the repeats alternate left and right at the delay time. Both lines are read with 4-point Hermite interpolation, which allows smooth modulation and time glides.
 
 The reverb is an FV-1-style plate:
 
@@ -137,15 +161,18 @@ The reverb is an FV-1-style plate:
 platformio.ini              build settings (block size here)
 include/config.h            all tunable settings (IR length, pins, levels, normalization)
 src/main.cpp                setup() and loop()
-src/AudioGraph.{h,cpp}      audio objects, codec, level, bypass and reverb controls
+src/AudioGraph.{h,cpp}      audio objects, codec, level, bypass, delay and reverb controls
 src/IRLibrary.{h,cpp}       SD card scanning and IR loading
 src/Settings.{h,cpp}        settings saved in EEPROM
 src/SerialUI.{h,cpp}        serial commands and level meter
-src/Buttons.{h,cpp}         next / previous / bypass / reverb buttons
-src/AudioConvolverIR.h      Teensy Audio Library object (IR, gain, bypass, reverb mix, meters, CPU stats)
+src/Buttons.{h,cpp}         next / previous / bypass / reverb / delay buttons
+src/AudioConvolverIR.h      Teensy Audio Library object (IR, gain, bypass, delay, reverb, meters, CPU stats)
 lib/irdsp/src/              portable DSP core (no Arduino dependencies)
   PartitionedConvolver.h    the UPOLS convolution engine
+  StereoDelay.h             the ping-pong delay (port of HexeFX)
   PlateReverb.h             the stereo plate reverb (port of HexeFX)
+  FxSlot.h                  on/off with trails, dry/wet mix and idle detection per effect
+  irdsp_blocks.h            shared shelving filter, LFO and mix law
   irdsp_fft.h               small radix-2 FFT
   IRLoader.{h,cpp}          WAV parser, resampler, IR trimming and normalization
 test/host/                  PC tests for the DSP core
@@ -164,6 +191,7 @@ The tests check:
 
 - Convolution against a direct (time-domain) reference for block sizes 16–128 and IR lengths 1–8192.
 - That crossfades are exact.
+- That the delay's repeats alternate left and right at exactly the set time with the expected gains, that it stays stable at maximum feedback, its fractional delays are accurate, time changes glide without jumps, its tail dies out, and clearing empties both lines.
 - That the reverb stays stable at maximum size, its decay time rises with size, its tail dies out, its left and right channels are decorrelated, its wet level matches the dry level, and the mix law behaves correctly.
 - WAV decoding for every supported format.
 - Resampling accuracy at 22.05, 32, 48, 88.2, 96 and 192 kHz.

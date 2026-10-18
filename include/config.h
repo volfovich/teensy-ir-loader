@@ -53,7 +53,28 @@
 #define DEFAULT_HP_VOLUME 0.5f
 
 // ---------------------------------------------------------------------------
-// Reverb (stereo plate after the IR, ported from HexeFX)
+// Delay (stereo ping-pong between the IR and the reverb, ported from HexeFX)
+// ---------------------------------------------------------------------------
+// Longest delay time. The two float delay lines need 2 x 4 bytes per sample
+// of delay (650 ms = 230 KB), split between RAM1 and RAM2; with the IR and the
+// reverb that leaves about 40 KB free in each. Lower it to free memory.
+#define DELAY_MAX_MS 650
+// Defaults, changeable over USB serial and saved to EEPROM.
+#define DEFAULT_DELAY_ON 0
+#define DEFAULT_DELAY_MIX 30        // 0 = dry only, 100 = wet only
+#define DEFAULT_DELAY_TIME_MS 380   // 20 .. DELAY_MAX_MS
+#define DEFAULT_DELAY_FEEDBACK 35   // repeats, 0 .. 100
+#define DEFAULT_DELAY_TONE 60       // brightness of the repeats, 100 = no treble loss
+#define DEFAULT_DELAY_MOD 15        // modulation depth (tape-like wobble), 0 .. 100
+// Fixed voicing, 0.0 .. 1.0.
+#define DELAY_BASS_CUT 0.2f   // bass loss per repeat
+#define DELAY_TREBLE 1.0f     // treble of the delayed signal (1 = flat)
+#define DELAY_BASS 1.0f       // bass of the delayed signal (1 = flat)
+#define DELAY_MOD_RATE 0.35f  // modulation rate (cubic, 0.35 = about 0.7 Hz)
+#define DELAY_INERTIA 0.9f    // how slowly a new delay time is reached (pitch glide)
+
+// ---------------------------------------------------------------------------
+// Reverb (stereo plate after the delay, ported from HexeFX)
 // ---------------------------------------------------------------------------
 // Defaults, changeable over USB serial and saved to EEPROM (all 0 .. 100).
 #define DEFAULT_REVERB_ON 0
@@ -78,5 +99,6 @@
 #define BUTTON_PREV_PIN 3
 #define BUTTON_BYPASS_PIN 4
 #define BUTTON_REVERB_PIN 5
+#define BUTTON_DELAY_PIN 9
 
 #define AUDIO_MEMORY_BLOCKS 20

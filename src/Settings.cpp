@@ -5,8 +5,9 @@
 
 Settings g_settings;
 
-static const uint32_t kSettingsMagic = 0x49524C32;  // "IRL2"
-static const uint32_t kSettingsMagicV1 = 0x49524C31;  // "IRL1": no reverb fields
+static const uint32_t kSettingsMagic = 0x49524C33;  // "IRL3"
+static const uint32_t kSettingsMagicV2 = 0x49524C32;  // "IRL2": no delay fields
+static const uint32_t kSettingsMagicV1 = 0x49524C31;  // "IRL1": no reverb or delay fields
 static uint32_t g_saveAt = 0;  // millis() when a pending save is due (0 = none)
 
 static void defaultReverbSettings() {
@@ -14,6 +15,15 @@ static void defaultReverbSettings() {
   g_settings.reverbMix = DEFAULT_REVERB_MIX;
   g_settings.reverbSize = DEFAULT_REVERB_SIZE;
   g_settings.reverbTone = DEFAULT_REVERB_TONE;
+}
+
+static void defaultDelaySettings() {
+  g_settings.delayOn = DEFAULT_DELAY_ON;
+  g_settings.delayMix = DEFAULT_DELAY_MIX;
+  g_settings.delayFeedback = DEFAULT_DELAY_FEEDBACK;
+  g_settings.delayTone = DEFAULT_DELAY_TONE;
+  g_settings.delayMod = DEFAULT_DELAY_MOD;
+  g_settings.delayTimeMs = DEFAULT_DELAY_TIME_MS;
 }
 
 static void defaultSettings() {
@@ -24,21 +34,29 @@ static void defaultSettings() {
   g_settings.lineIn = DEFAULT_LINE_IN_LEVEL;
   g_settings.lineOut = DEFAULT_LINE_OUT_LEVEL;
   defaultReverbSettings();
+  defaultDelaySettings();
 }
 
 void loadSettings() {
   EEPROM.get(0, g_settings);
-  // Older firmware: keep the IR and levels, add the reverb defaults.
+  // Older firmware: keep what it stored, add defaults for the newer fields.
   if (g_settings.magic == kSettingsMagicV1) {
-    g_settings.magic = kSettingsMagic;
+    g_settings.magic = kSettingsMagicV2;
     defaultReverbSettings();
+  }
+  if (g_settings.magic == kSettingsMagicV2) {
+    g_settings.magic = kSettingsMagic;
+    defaultDelaySettings();
   }
   if (g_settings.magic != kSettingsMagic || g_settings.lineIn > 15 ||
       g_settings.lineOut < 13 || g_settings.lineOut > 31 ||
       !(g_settings.outGainDb >= -60.0f && g_settings.outGainDb <= 24.0f) ||
       !(g_settings.hpVolume >= 0.0f && g_settings.hpVolume <= 1.0f) ||
       g_settings.reverbOn > 1 || g_settings.reverbMix > 100 ||
-      g_settings.reverbSize > 100 || g_settings.reverbTone > 100) {
+      g_settings.reverbSize > 100 || g_settings.reverbTone > 100 ||
+      g_settings.delayOn > 1 || g_settings.delayMix > 100 || g_settings.delayFeedback > 100 ||
+      g_settings.delayTone > 100 || g_settings.delayMod > 100 ||
+      g_settings.delayTimeMs < 20 || g_settings.delayTimeMs > DELAY_MAX_MS) {
     defaultSettings();
   }
   g_settings.irPath[IR_PATH_MAX - 1] = 0;

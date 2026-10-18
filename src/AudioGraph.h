@@ -1,6 +1,6 @@
-// AudioGraph.h - audio objects (I2S in -> convolver + reverb -> I2S out L/R),
-// the codec, and the level/bypass/reverb controls shared by the serial UI and
-// the buttons.
+// AudioGraph.h - audio objects (I2S in -> convolver + delay + reverb -> I2S
+// out L/R), the codec, and the level/bypass/effect controls shared by the
+// serial UI and the buttons.
 #pragma once
 
 #include "AudioConvolverIR.h"
@@ -18,6 +18,12 @@ void setOutputGainDb(float db);       // -60 .. 24 dB
 void setLineInLevel(int level);       // 0 .. 15, 0 = 3.12 Vpp (least sensitive)
 void setLineOutLevel(int level);      // 13 .. 31, 13 = loudest
 void setHeadphoneVolume(int percent); // 0 .. 100
+void setDelayOn(bool on);
+void setDelayMix(int percent);        // 0 .. 100, 0 = dry only, 100 = wet only
+void setDelayTimeMs(int ms);          // 20 .. DELAY_MAX_MS
+void setDelayFeedback(int percent);   // 0 .. 100, repeats
+void setDelayTone(int percent);       // 0 .. 100, 100 = brightest repeats
+void setDelayMod(int percent);        // 0 .. 100, modulation depth
 void setReverbOn(bool on);
 void setReverbMix(int percent);       // 0 .. 100, 0 = dry only, 100 = wet only
 void setReverbSize(int percent);      // 0 .. 100, reverb time
