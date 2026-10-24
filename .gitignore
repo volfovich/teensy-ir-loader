@@ -16,3 +16,4 @@ lib/irdsp/src/DrumSongData.cpp
 __pycache__/
 test/host/test_reverb80
 test/host/render_reverb80
+test/host/test_midi

@@ -5,7 +5,7 @@ INC = -I../../lib/irdsp/src -I../../lib/oledui/src
 UI_SRC = $(wildcard ../../lib/oledui/src/*.cpp)
 UI_DEPS = $(UI_SRC) $(wildcard ../../lib/oledui/src/*.h) ui_fake.h
 
-all: test_convolver test_reverb test_reverb80 render_reverb80 test_delay test_studio_delay test_drums render_drums test_ui render_ui irtool
+all: test_convolver test_reverb test_reverb80 render_reverb80 test_midi test_delay test_studio_delay test_drums render_drums test_ui render_ui irtool
 
 test_convolver: test_convolver.cpp ../../lib/irdsp/src/*.h
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_convolver.cpp
@@ -47,6 +47,9 @@ render_drums: render_drums.cpp $(DRUM_DEPS)
 render_reverb80: render_reverb80.cpp $(REVERB80_DEPS) $(DRUM_DEPS)
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ render_reverb80.cpp $(REVERB80_SRC) $(DRUM_SRC)
 
+test_midi: test_midi.cpp ../../lib/irdsp/src/MidiDrums.cpp ../../lib/irdsp/src/MidiDrums.h ../../lib/irdsp/src/DrumSong.h
+	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_midi.cpp ../../lib/irdsp/src/MidiDrums.cpp
+
 test_ui: test_ui.cpp $(UI_DEPS)
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_ui.cpp $(UI_SRC)
 
@@ -75,11 +78,12 @@ test: all
 	./test_delay
 	./test_studio_delay
 	./test_drums
+	./test_midi
 	./test_ui
 	python3 test_loader.py
 
 clean:
-	rm -f test_convolver test_reverb test_reverb80 render_reverb80 test_delay test_studio_delay test_drums render_drums test_ui render_ui irtool
+	rm -f test_convolver test_reverb test_reverb80 render_reverb80 test_midi test_delay test_studio_delay test_drums render_drums test_ui render_ui irtool
 	rm -rf out
 
 .PHONY: all test render screenshots clean
