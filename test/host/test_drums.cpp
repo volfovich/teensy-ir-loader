@@ -523,7 +523,11 @@ static void testRealKits() {
       if (kit.count[v]) levels = levels && 20 * std::log10(hi / lo) < 0.5;
     }
   }
+  bool toms = true;
+  for (int k = 1; k < irdsp::drumKitCount(); k++)
+    toms = toms && irdsp::drumKit(k).count[irdsp::kTomHi] == 1 && irdsp::drumKit(k).count[irdsp::kTomLo] == 1;
   check(layers, "velocity layers: 2 kick, 3 snare, 4 closed hat", layers);
+  check(toms, "every recorded kit has a rack and a floor tom", toms);
   check(levels, "  ... each layer's peak follows its velocity", levels);
 
   // Hat balance in rock: the hats sit well under the kick and snare.

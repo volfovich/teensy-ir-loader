@@ -9,7 +9,9 @@
 
 namespace irdsp {
 
-enum DrumVoice : uint8_t { kKick, kSnare, kRim, kHatClosed, kHatOpen, kRide, kClick, kCrash, kDrumVoices };
+enum DrumVoice : uint8_t {
+  kKick, kSnare, kRim, kHatClosed, kHatOpen, kRide, kClick, kCrash, kTomHi, kTomLo, kDrumVoices
+};
 
 struct DrumSample {
   const int16_t* data;

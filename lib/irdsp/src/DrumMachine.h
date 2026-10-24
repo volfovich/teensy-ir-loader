@@ -15,6 +15,7 @@
 //               frequencies) plus noise, high-passed; closed chokes open
 //   ride        the same metal, band-passed, long decay
 //   crash       the same metal with more noise, high-passed, long decay
+//   toms        rack and floor: sines falling in pitch, plus a noise attack
 //   click       metronome / count-in: 2 kHz on accents, 1.2 kHz otherwise
 //
 // Steps fire at their exact sample (a fractional sample counter, so the
@@ -192,6 +193,8 @@ class DrumMachine {
   Biquad hatHp1_, hatHp2_, rideBp_;
   float crash_ = 0, crashK_;
   Biquad crashHp1_, crashHp2_;
+  float tomAmp_[2] = {}, tomPitch_[2] = {}, tomClick_[2] = {}, tomAmpK_[2], tomPitchK_;
+  uint32_t tomPhase_[2] = {};
   float clickAmp_ = 0, clickAmpK_;
   uint32_t clickPhase_ = 0, clickInc_ = 0, clickHi_, clickLo_;
 

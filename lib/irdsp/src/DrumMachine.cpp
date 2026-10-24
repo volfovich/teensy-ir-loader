@@ -30,10 +30,13 @@ constexpr float kMetalHz[6] = {205.3f, 304.4f, 369.6f, 522.7f, 540.0f, 800.0f};
 
 // Random velocity spread per lane (DrumVoice order), +-: hats and cymbals
 // vary the most, kick and snare less, the click not at all.
-constexpr float kSpread[kDrumVoices] = {0.08f, 0.08f, 0.08f, 0.15f, 0.15f, 0.15f, 0.0f, 0.08f};
-// Pan per lane, -1 left .. +1 right, from the drummer's seat: hats and crash
-// left, ride right. Balance law: the near side stays at full level.
-constexpr float kPan[kDrumVoices] = {0.0f, -0.1f, -0.1f, -0.35f, -0.35f, 0.4f, 0.0f, -0.3f};
+constexpr float kSpread[kDrumVoices] = {0.08f, 0.08f, 0.08f, 0.15f, 0.15f, 0.15f, 0.0f, 0.08f, 0.08f, 0.08f};
+// Pan per lane, -1 left .. +1 right, from the drummer's seat: hats, crash
+// and rack tom left, ride and floor tom right. Balance law: the near side
+// stays at full level.
+constexpr float kPan[kDrumVoices] = {0.0f, -0.1f, -0.1f, -0.35f, -0.35f, 0.4f, 0.0f, -0.3f, -0.15f, 0.35f};
+// Synth toms: base pitch (Hz; it starts 1.5x higher and falls) and decay.
+constexpr float kTomHz[2] = {150.0f, 92.0f}, kTomT60[2] = {0.45f, 0.6f}, kTomGain = 0.8f;
 constexpr float panL(int v) { return kPan[v] > 0.0f ? 1.0f - kPan[v] : 1.0f; }
 constexpr float panR(int v) { return kPan[v] < 0.0f ? 1.0f + kPan[v] : 1.0f; }
 // A sample plays at most this much above its layer's own velocity.
@@ -97,6 +100,8 @@ IRDSP_COLD void DrumMachine::init() {
   crashHp1_.setHighpass(4000.0f, fs_);
   crashHp2_.setHighpass(4000.0f, fs_);
   clickAmpK_ = decayK(0.05f, fs_);
+  for (int t = 0; t < 2; t++) tomAmpK_[t] = decayK(kTomT60[t], fs_);
+  tomPitchK_ = decayK(0.15f, fs_);
   clickHi_ = inc(2000.0f);
   clickLo_ = inc(1200.0f);
   limRel_ = 1.0f - expf(-1.0f / (kLimitReleaseMs * 0.001f * fs_));
@@ -158,7 +163,7 @@ IRDSP_COLD void DrumMachine::setTrainer(bool on, int stepBpm, int everyBars, int
 // ---- Audio ---------------------------------------------------------------------
 
 bool DrumMachine::voicesActive() const {
-  return kickAmp_ > 0.0f || kickClick_ > 0.0f || snBody_ > 0.0f || snNoise_ > 0.0f ||
+  return kickAmp_ > 0.0f || kickClick_ > 0.0f || tomAmp_[0] > 0.0f || tomAmp_[1] > 0.0f || snBody_ > 0.0f || snNoise_ > 0.0f ||
          rimAmp_ > 0.0f || rimTick_ > 0.0f || hatC_ > 0.0f || hatO_ > 0.0f || ride_ > 0.0f ||
          crash_ > 0.0f || clickAmp_ > 0.0f || samplesPlaying() > 0;
 }
@@ -214,6 +219,15 @@ void DrumMachine::trigger(int voice, int code, uint64_t sample) {
     case kCrash:
       crash_ = vel;
       break;
+    case kTomHi:
+    case kTomLo: {
+      const int t = voice - kTomHi;
+      tomAmp_[t] = vel;
+      tomPitch_[t] = 1.0f;
+      tomClick_[t] = vel;
+      tomPhase_[t] = 0;
+      break;
+    }
     case kClick:
       clickAmp_ = vel;
       clickInc_ = code == 9 ? clickHi_ : clickLo_;
@@ -280,6 +294,17 @@ void DrumMachine::renderVoices(float* outL, float* outR, int n) {
       kickClick_ *= kickClickK_;
       if (kickAmp_ < kOff) kickAmp_ = 0.0f;
       if (kickClick_ < kOff) kickClick_ = 0.0f;
+    }
+    for (int t = 0; t < 2; t++) {
+      if (tomAmp_[t] <= 0.0f) continue;
+      tomPhase_[t] += inc(kTomHz[t] * (1.0f + 0.5f * tomPitch_[t]));
+      tomPitch_[t] *= tomPitchK_;
+      const float x = kTomGain * (sine(tomPhase_[t]) * tomAmp_[t] + 0.3f * noise() * tomClick_[t]);
+      l += panL(kTomHi + t) * x;
+      r += panR(kTomHi + t) * x;
+      tomAmp_[t] *= tomAmpK_[t];
+      tomClick_[t] *= kickClickK_;
+      if (tomAmp_[t] < kOff) tomAmp_[t] = tomClick_[t] = 0.0f;
     }
     if (snBody_ > 0.0f || snNoise_ > 0.0f) {
       snPhase_ += snInc_;

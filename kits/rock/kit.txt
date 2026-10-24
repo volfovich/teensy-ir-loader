@@ -7,7 +7,7 @@
 #   order    position in the kit list (kit numbers are saved in settings,
 #            so a new kit goes last)
 #
-#   lane     kick snare rim hatc hato ride crash
+#   lane     kick snare rim hatc hato ride crash tomh (rack tom) toml (floor tom)
 #   vel      the velocity the sample is for, 1..9 (the AVL layers 1..5 are
 #            velocities 1, 3, 5, 7, 9). A hit plays the sample nearest its
 #            velocity, scaled by hit velocity / sample velocity.
@@ -34,3 +34,5 @@ hatc    9    hat-closed-9.wav  42-SabianRockHatClosed-5.flac   0.30  0.10  -14
 hato    7    hat-open-7.wav    46-SabianRockHatSemiOpen-4.flac 0.60  0.15  -14
 ride    7    ride-7.wav        51-ZildjianA24Ride-4.flac       2.00  0.60  -14
 crash   9    crash-9.wav       49-ZildjianA20Crash-5.flac      3.00  0.80  -8
+tomh    7    tom-high-7.wav    45-Ludwig14Tom-4.flac           0.45  0.20  -5
+toml    7    tom-low-7.wav     41-Ludwig16FloorTom-4.flac      0.45  0.20  -5

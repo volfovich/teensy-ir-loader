@@ -22,7 +22,7 @@ OUT = os.path.join(ROOT, "lib", "irdsp", "src", "DrumKitData.cpp")
 
 # Lane names in kit.txt, in DrumVoice order (DrumMachine.h). The click has no
 # samples: it is always synthesized.
-LANES = ["kick", "snare", "rim", "hatc", "hato", "ride", "click", "crash"]
+LANES = ["kick", "snare", "rim", "hatc", "hato", "ride", "click", "crash", "tomh", "toml"]
 # A sample's velocity: 1..9, or g/x/X for 3/6/9.
 LEVELS = dict({"g": 3, "x": 6, "X": 9}, **{str(v): v for v in range(1, 10)})
 MAX_PER_LANE = 4

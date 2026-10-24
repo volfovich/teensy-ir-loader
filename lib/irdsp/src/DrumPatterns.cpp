@@ -1,7 +1,8 @@
 // DrumPatterns.cpp - the built-in drum styles (see DrumMachine.h for the
 // lane format). The table stays in flash on the Teensy.
 //
-// Lanes:  kick, snare, rim, closed hat, open hat, ride, click, crash
+// Lanes:  kick, snare, rim, closed hat, open hat, ride, click, crash, rack
+// tom, floor tom
 // (a lane left out is empty; crash accents come from setCrashEvery()).
 #include <stdlib.h>
 
