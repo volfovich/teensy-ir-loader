@@ -440,27 +440,29 @@ static void testRealKits() {
     }
   }
   check(ok, "samples start and end at 0, onset within 2 ms", irdsp::drumKitCount());
-  check(irdsp::findDrumKit("ROCK") == 1 && irdsp::findDrumKit("1") == 0 && irdsp::findDrumKit("jazz") == -1,
+  check(irdsp::findDrumKit("ROCK") == 1 && irdsp::findDrumKit("pearl") == 2 && irdsp::findDrumKit("1") == 0 &&
+            irdsp::findDrumKit("jazz") == -1,
         "find a kit by name (any case) or number", 0);
 
   // Every style with the crash every 2 bars, at volume 100: below the clip
   // knee, and about as loud as the synth kit.
-  double peak = 0, rmsSampled = 0, rmsSynth = 0;
+  std::vector<double> energy(irdsp::drumKitCount(), 0.0), peak(irdsp::drumKitCount(), 0.0);
   for (int s = 1; s < irdsp::drumStyleCount(); s++) {
-    for (int k = 0; k < 2; k++) {
+    for (int k = 0; k < irdsp::drumKitCount(); k++) {
       Rig r(irdsp::drumStyle(s).name, 120, false, &irdsp::drumKit(k));
       r.d->setCrashEvery(2);
       r.d->start();
       r.run(8.0);
-      double e = 0;
-      for (float x : r.out) e += x * x;
-      (k ? rmsSampled : rmsSynth) += e;
-      if (k) for (float x : r.out) peak = std::max(peak, (double)std::fabs(x));
+      for (float x : r.out) energy[k] += x * x, peak[k] = std::max(peak[k], (double)std::fabs(x));
     }
   }
-  const double ratioDb = 10 * std::log10(rmsSampled / rmsSynth);
-  check(peak < 0.95, "rock kit, every style, volume 100: peak below clipping", peak);
-  check(std::fabs(ratioDb) < 3.0, "  ... loudness within 3 dB of the synth kit (dB)", ratioDb);
+  for (int k = 1; k < irdsp::drumKitCount(); k++) {
+    const double ratioDb = 10 * std::log10(energy[k] / energy[0]);
+    char what[64];
+    std::snprintf(what, sizeof(what), "%s kit, every style, volume 100: below clipping", irdsp::drumKit(k).name);
+    check(peak[k] < 0.95, what, peak[k]);
+    check(std::fabs(ratioDb) < 3.0, "  ... loudness within 3 dB of the synth kit (dB)", ratioDb);
+  }
 }
 
 int main() {

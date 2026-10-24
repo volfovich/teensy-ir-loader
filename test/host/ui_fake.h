@@ -26,6 +26,10 @@ struct FakeHost : ui::MenuHost {
                                   "triplets",  "pop",           "blues shuffle", "6/8 ballad"};
     return names[i < 0 || i > 7 ? 0 : i];
   }
+  static const char* kitName(int i) {
+    static const char* names[] = {"synth", "rock (AVL)", "black pearl"};
+    return names[i < 0 || i > 2 ? 0 : i];
+  }
   int get(uint8_t id) override {
     if (id == ui::kIsStudioDelay) return v[ui::kDelayType] == 1;
     return v[id];
@@ -35,12 +39,12 @@ struct FakeHost : ui::MenuHost {
     (void)lo;
     if (id == ui::kDelayTime) *hi = timeMax;
     if (id == ui::kDrumStyle) *hi = 7;
-    if (id == ui::kDrumKit) *hi = 1;
+    if (id == ui::kDrumKit) *hi = 2;
   }
   bool valueText(uint8_t id, char* buf, int n) override {
     if (id == ui::kScreenIR) std::snprintf(buf, n, "3/12");
     else if (id == ui::kDrumStyle) std::snprintf(buf, n, "%s", styleName(v[id]));
-    else if (id == ui::kDrumKit) std::snprintf(buf, n, "%s", v[id] ? "rock (AVL)" : "synth");
+    else if (id == ui::kDrumKit) std::snprintf(buf, n, "%s", kitName(v[id]));
     else return false;
     return true;
   }

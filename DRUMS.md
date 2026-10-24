@@ -2,8 +2,9 @@
 
 A small drum machine to practice along with. It plays one of eight built-in styles at 40–240 BPM. A count-in, a speed trainer and crash accents are built in.
 
-- **Two kits:**
+- **Three kits:**
   - **rock** (default): a recorded acoustic kit, the AVL Drumkits "Red Zeppelin". Its samples are compiled into the firmware and played straight from flash.
+  - **pearl**: the AVL Drumkits "Black Pearl", a smaller, tighter recorded kit, played the same way.
   - **synth**: every sound generated in code, in the spirit of the classic analog drum machines.
 - **Crash accents:** a crash cymbal on the first beat of every 2, 4, 8 or 16 bars, so you always know where the phrase starts.
 - **Kept apart from the guitar:** the drums are mixed into both outputs (line out and headphones), centered, **after** the IR, delay and reverb. They never go through your guitar effects, and they have their own volume.
@@ -29,7 +30,7 @@ Over USB serial at 115200:
 ```
 drum style          list the styles
 drum style shuffle  choose one (by name or number)
-drum kit rock       the recorded kit (or: drum kit synth)
+drum kit rock       a recorded kit (or: drum kit pearl, drum kit synth)
 drum crash 4        a crash every 4 bars (0 = off)
 bpm 90              set the tempo
 drum                start: one bar of count-in clicks, then the groove
@@ -47,7 +48,7 @@ Playing is never saved, so the drums are always stopped after power-up. Everythi
 | `drum style` | — | — | Lists the styles; `>` marks the current one. |
 | `drum style <n\|name>` | 1–8 or a name | rock | Changes the style. While playing, the change happens at the next bar. |
 | `drum kit` | — | — | Lists the kits; `>` marks the current one. |
-| `drum kit <n\|name>` | 1–2 or a name | rock | Changes the kit at once. Hits still ringing fade out over 5 ms. |
+| `drum kit <n\|name>` | 1–3 or a name | rock | Changes the kit at once. Hits still ringing fade out over 5 ms. |
 | `drum crash <0\|2\|4\|8\|16>` | off, 2, 4, 8, 16 bars | 4 | A crash on beat 1 of every N bars (see [Crash accents](#crash-accents)). `drum crash` alone shows the setting. |
 | `drum vol` | 0–100 | 60 | Drum volume: 100 = 0 dB, 60 ≈ −8 dB, 0 = silent. |
 | `drum count` | toggle | on | One bar of clicks before the pattern starts. |
@@ -91,7 +92,7 @@ A crash on the first beat of every 2, 4, 8 or 16 bars (`drum crash`, default eve
 - **Replaces the hat:** the crash takes the place of that step's hi-hat or ride hit. The kick and snare stay.
 - **Timing of changes:** a change takes effect from the next bar, in time with the bar count from the start.
 - **Exceptions:** no crash during the count-in or in the metronome style.
-- **Both kits:** the synth kit has a synthesized crash, the rock kit a recorded one. Each crash rings out under the next one; at most two ring at once.
+- **Every kit:** the synth kit has a synthesized crash, the rock and pearl kits recorded ones. Each crash rings out under the next one; at most two ring at once.
 
 ## Styles
 
@@ -188,7 +189,13 @@ To add or change a style, edit the table in `lib/irdsp/src/DrumPatterns.cpp`. Ea
 
 ## Kits and sounds
 
-Every style plays with either kit (`drum kit`). The count-in and metronome click are always synthesized.
+Every style plays with any kit (`drum kit`). The count-in and metronome click are always synthesized.
+
+| # | Kit | What it is | Flash |
+|---|---|---|---|
+| 1 | synth | Synthesized voices | — |
+| 2 | rock (default) | AVL "Red Zeppelin": 26" kick, Porkpie snare, Zildjian A cymbals | 679 KB |
+| 3 | pearl | AVL "Black Pearl": 22" kick, tight Pearl snare, Sabian AA cymbals | 526 KB (+ the hi-hats it shares with rock) |
 
 ### rock (default)
 
@@ -206,12 +213,30 @@ A recorded acoustic kit: the **AVL Drumkits "Red Zeppelin"** by Glen MacArthur (
 
 All samples are 16-bit mono 44.1 kHz: **679 KB** of flash in all.
 
+### pearl
+
+The **AVL Drumkits "Black Pearl"**, by the same author and under the same license; see [kits/pearl/CREDITS.md](kits/pearl/CREDITS.md). It's smaller and tighter than rock, with a jazz-style kick and snare. It uses the same hi-hat recordings as rock, and the firmware stores those only once.
+
+| Lane | Sample (source layer) | Length kept | Size |
+|---|---|---|---|
+| Kick | Pearl 22" kick (4 of 5) | 0.8 s | 69 KB |
+| Snare | Pearl snare (4) | 0.5 s | 43 KB |
+| Rim | sidestick (4) | 0.3 s | 26 KB |
+| Closed hat | Sabian Rock hat: 3 for normal hits, 5 for accents (shared with rock) | 0.3 s each | — |
+| Open hat | Sabian Rock hat, semi-open (4) (shared with rock) | 0.6 s | — |
+| Ride | Sabian AAX 20" ride (4) | 2.0 s | 172 KB |
+| Crash | Sabian AA 16" crash (5) | 2.5 s | 215 KB |
+
+That's **526 KB** of flash beyond the shared hi-hats.
+
+### How the sampled kits play
+
 - **Levels:** each sample plays at its recorded level. A hit on a level with no sample of its own is scaled, as with the synth kit: ghosts at 30 %, normal hits at 70 % of an accent.
 - **Velocity:** every hit varies by ±4 %, so straight 8ths and 16ths don't sound like a machine gun.
 - **Re-struck drums:** a kick, snare, rim or closed hat cuts its previous hit with a 2 ms fade.
 - **Cymbals:** the open hat, ride and crash ring on under a new hit, up to two of each at once; the oldest fades out over 5 ms. A closed hat chokes a ringing open hat in 5 ms, like a real hi-hat.
-- **Tails:** the long cymbal tails were cut and faded to save flash, the crash at 3 s and the ride at 2 s.
-- **Loudness:** the kit is level-matched to the synth kit within 1 dB, so switching kits doesn't change the balance with your guitar.
+- **Tails:** the long cymbal tails were cut and faded to save flash, the crashes at 2.5–3 s and the rides at 2 s.
+- **Loudness:** each kit is level-matched to the synth kit within 1 dB, so switching kits doesn't change the balance with your guitar.
 
 ### synth
 
@@ -227,7 +252,7 @@ All voices synthesized, in the spirit of the classic analog drum machines:
 | Crash (crash accents) | The same metal with more noise, high-passed at 4 kHz | 1.8 s |
 | Click | Metronome and count-in: 2 kHz on accents, 1.2 kHz otherwise | 50 ms |
 
-- **Bus:** in both kits the voices are summed and soft-clipped, so even every voice at once can't exceed full scale.
+- **Bus:** in every kit the voices are summed and soft-clipped, so even every voice at once can't exceed full scale.
 - The rim and ride are there for your own styles: add a lane for them in `DrumPatterns.cpp`.
 
 ## Adding a kit
@@ -236,6 +261,7 @@ A kit is a folder in `kits/` with a `kit.txt` and its WAVs. Every kit there is c
 
 1. **Write `kits/<name>/kit.txt`.** Use [kits/rock/kit.txt](kits/rock/kit.txt) as the template. It has:
    - `name` (at most 9 characters) and `title` (at most 13, shown on the display).
+   - `order`: its place in the kit list. Kit numbers are saved in the settings, so give a new kit the next number to keep the existing ones in place.
    - `source`: the base URL of the original samples.
    - One line per sample: lane (`kick snare rim hatc hato ride crash`), the hit level it's for (`x` normal, `X` accent), the WAV to write, the source file, the length to keep, the fade at its end, and the lane's peak level in dBFS.
    - At most 3 samples per lane. A lane with no samples uses the synthesized voice.
@@ -255,11 +281,11 @@ A kit is a folder in `kits/` with a `kit.txt` and its WAVs. Every kit there is c
 
    Sources must be 44.1 kHz (16 or 24-bit, mono or stereo).
 3. **Build and listen:**
-   - `pio run` compiles the kit in: `tools/make_kits.py` regenerates `lib/irdsp/src/DrumKitData.cpp` whenever a kit changes.
+   - `pio run` compiles the kit in: `tools/make_kits.py` regenerates `lib/irdsp/src/DrumKitData.cpp` whenever a kit changes. A sample that is identical in two kits (same recording, same settings) is stored once.
    - `make -C test/host render` writes every style with every kit to `test/host/out/drums_*_<kit>.wav`.
    - `test_drums` checks that each sample starts and ends at zero, that its hit starts within 2 ms, and that the loudest style stays below clipping.
 
-**Flash budget:** about 1.5 MB is free for kits (88 KB per second of sound), and the rock kit uses 679 KB. Cymbal tails are the expensive part.
+**Flash budget:** the kits use 1,205 KB (rock 679 KB, pearl 526 KB), and 628 KB of flash is left. Keeping some for future code, that's room for one more lean kit of about 350–400 KB (88 KB per second of sound). Cymbal tails are the expensive part; sharing them between kits is free.
 
 ## Timing, levels, CPU and memory
 
@@ -271,12 +297,13 @@ A kit is a folder in `kits/` with a `kit.txt` and its WAVs. Every kit there is c
 - **Levels:** at the default volume (60) the drums peak around −13 dBFS. At 100 the loudest style peaks around −5 dBFS. Set the drum volume against your guitar, and watch `s` for clipped samples, because the drums add to the guitar signal at the output.
 - **CPU** while playing, measured on the Teensy 4.0 with 32-sample blocks:
   - rock kit: 1.6 % at 100 BPM, 2.3 % at 240 BPM with crash accents.
+  - pearl kit: 1.6 % at 100 BPM, 2.0 % at 240 BPM.
   - synth kit: up to 3.3 % at 240 BPM.
   - Once stopped and silent it uses almost nothing (0.1 %), and the output is the guitar alone, bit for bit.
 - **Sample reads:** samples are read straight from flash in the audio interrupt, which needs only a few percent of the flash's bandwidth. Switching IRs while the drums play peaks at the same 55 % CPU as without them, with no dropouts.
 - **Memory:**
   - RAM1: about 2.4 KB of data (two pattern buffers, the synth voices' state and 16 sample voices) and about 5.4 KB of code (the real-time part).
-  - Flash: the kits' samples (679 KB for rock), setup, parsing and the style and kit tables.
+  - Flash: the kits' samples (1,205 KB for rock and pearl), setup, parsing and the style and kit tables.
 
 ## Defaults (`config.h`)
 
@@ -286,7 +313,7 @@ A kit is a folder in `kits/` with a `kit.txt` and its WAVs. Every kit there is c
 | `DEFAULT_DRUM_TEMPO` | 100 | BPM |
 | `DEFAULT_DRUM_VOLUME` | 60 | 0–100 |
 | `DEFAULT_DRUM_COUNT_IN` | 1 | Count-in on |
-| `DEFAULT_DRUM_KIT` | 2 | Kit number, 1-based (1 = synth, 2 = rock) |
+| `DEFAULT_DRUM_KIT` | 2 | Kit number, 1-based (1 = synth, 2 = rock, 3 = pearl) |
 | `DEFAULT_DRUM_CRASH` | 4 | Crash every 4 bars (0 = off, or 2, 4, 8, 16) |
 | `DEFAULT_TRAINER_ON` | 0 | Trainer off |
 | `DEFAULT_TRAINER_STEP` / `_EVERY` / `_TARGET` | 5 / 4 / 140 | +5 BPM every 4 bars, up to 140 BPM |
@@ -301,7 +328,7 @@ These are used when the EEPROM is blank, and when settings saved by older firmwa
 | `lib/irdsp/src/DrumPatterns.cpp` | The style table (in flash on the Teensy). |
 | `lib/irdsp/src/DrumKit.h` | The kit format: per lane, up to 3 samples by hit level. |
 | `lib/irdsp/src/DrumKitData.cpp` | Generated from `kits/*/` by `tools/make_kits.py` (not in git): the samples and kit table, in flash. |
-| `kits/rock/` | The rock kit: WAVs, `kit.txt`, credits. |
+| `kits/rock/`, `kits/pearl/` | The recorded kits: WAVs, `kit.txt`, credits. |
 | `tools/import_kit.py`, `tools/make_kits.py`, `tools/pio_kits.py` | Build a kit's WAVs from its sources; compile the kits in (run by PlatformIO and the host Makefile). |
 | `src/AudioConvolverIR.h` | Runs the drums each block and adds them to both outputs. |
 | `src/AudioGraph.cpp`, `src/SerialUI.cpp`, `src/Settings.cpp` | Setters, the `drum` and `bpm` commands, EEPROM. |
@@ -330,7 +357,7 @@ These are used when the EEPROM is blank, and when settings saved by older firmwa
   - Not in the count-in or the metronome style.
   - A change waits for the next bar.
   - The synth crash rings and dies away.
-- **The real kits:** each sample starts and ends at zero with its hit within 2 ms. Every style with the rock kit stays below clipping at volume 100, and within 3 dB of the synth kit's loudness.
+- **The real kits:** each sample starts and ends at zero with its hit within 2 ms. Every style with each recorded kit stays below clipping at volume 100, and within 3 dB of the synth kit's loudness.
 
 To listen on your computer, `make -C test/host render` writes 8 bars of every style with every kit, with the count-in and a crash every 4 bars, to `test/host/out/drums_<n>_<style>_<kit>.wav`.
 
@@ -340,7 +367,7 @@ None of these are built yet. They're practice features worth adding next:
 
 1. **Swing amount:** a 0–66 % swing control, so offbeat 8ths or rock can go from straight, to a light swing, to a full shuffle. The sequencer would delay every second subdivision by the swing amount.
 2. **Gap trainer:** the drums drop out for 1–2 bars out of every 4 (or another chosen ratio), then come back. If you're still on the grid when they return, your timing is solid.
-3. **Fills:** a short fill at the end of every 4 or 8 bars, before the crash accent, so you don't lose your place in a song form. The rock kit's source has toms (floor tom and rack tom) that could be added as lanes.
+3. **Fills:** a short fill at the end of every 4 or 8 bars, before the crash accent, so you don't lose your place in a song form. The AVL kits' sources have toms (floor tom and rack tom) that could be added as lanes.
 4. **12-bar blues mode:** the shuffle with a bar counter (1–12) in `s` and on the display, plus a fill on the turnaround (bars 11–12), for practicing blues changes.
 5. **Tap tempo:** tap `t` over serial, or later a key on the display, a few times to set the tempo from a song.
 6. **More meters:** a 3/4 waltz and a 12/8 slow blues, a very common practice groove. Both fit the existing style format (3 beats x 4 steps, and 4 beats x 3 steps).

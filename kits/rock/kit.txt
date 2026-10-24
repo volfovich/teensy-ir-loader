@@ -3,6 +3,10 @@
 # tools/import_kit.py builds the WAVs here from the source samples;
 # tools/make_kits.py compiles the WAVs into the firmware.
 #
+#   name     command name (at most 9 characters); title: display name (13)
+#   order    position in the kit list (kit numbers are saved in settings,
+#            so a new kit goes last)
+#
 #   lane     kick snare rim hatc hato ride crash
 #   level    the hit level the sample is for: x (normal) or X (accent). With
 #            one sample for a lane it plays every hit, scaled by level.
@@ -11,6 +15,7 @@
 #            other samples keep their level relative to it
 
 name   rock
+order  1
 title  rock (AVL)
 source https://raw.githubusercontent.com/studiorack/avl-drumkits/main/Samples/
 

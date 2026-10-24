@@ -108,7 +108,7 @@ static const MenuItem UI_PROGMEM kLevelItems[] = {
 static const MenuItem UI_PROGMEM kDrumItems[] = {
     {kLPlay, K::kToggle, kDrumsPlay, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
     {kLStyle, K::kValue, kDrumStyle, 0, 0, 7, 1, U::kOneBased, kNoItem, nullptr},
-    {kLKit, K::kValue, kDrumKit, 0, 0, 1, 1, U::kOneBased, kNoItem, nullptr},
+    {kLKit, K::kValue, kDrumKit, 0, 0, 2, 1, U::kOneBased, kNoItem, nullptr},
     {kLCrash, K::kChoice, kDrumCrash, 0, 0, 4, 1, U::kNone, kNoItem, kCrashNames},
     {kLTempo, K::kValue, kDrumTempo, 0, 40, 240, 1, U::kBpm, kNoItem, nullptr},
     {kLVolume, K::kValue, kDrumVolume, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},

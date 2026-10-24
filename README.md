@@ -33,8 +33,8 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
   - Switching an effect off is click-free and lets its tail ring out. When the tail has died away, the effect stops using CPU and passes its input through bit-identically.
 - **Practice drum machine** (details in [DRUMS.md](DRUMS.md)):
   - Eight styles at 40–240 BPM, with sample-accurate timing: metronome, rock, three practice beats (hat only on the offbeat 8ths, offbeat 16ths, or triplets), pop, blues shuffle and 6/8 ballad.
-  - Two kits:
-    - a recorded acoustic rock kit: the AVL Drumkits "Red Zeppelin" samples (CC BY-SA 3.0), played from flash.
+  - Three kits:
+    - two recorded acoustic kits, played from flash: the AVL Drumkits "Red Zeppelin" (rock) and "Black Pearl" (CC BY-SA 3.0).
     - a synthesized kit.
   - Crash accents on beat 1 of every 2, 4, 8 or 16 bars.
   - A count-in bar, and a speed trainer that raises the tempo every few bars up to a target.
@@ -107,7 +107,7 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `drum` | Start / stop the drum machine (count-in, then the groove). All drum commands are explained in [DRUMS.md](DRUMS.md#controls). |
 | `bpm 40..240` | Drum tempo |
 | `drum style [n\|name]` | List the styles / choose one (from the next bar while playing) |
-| `drum kit [n\|name]` | List the kits / choose one (rock, synth) |
+| `drum kit [n\|name]` | List the kits / choose one (synth, rock, pearl) |
 | `drum crash 0\|2\|4\|8\|16` | Crash on beat 1 of every N bars, 0 = off |
 | `drum vol 0..100` | Drum volume |
 | `drum count` | Toggle the count-in bar |
@@ -194,7 +194,7 @@ lib/irdsp/src/              portable DSP core (no Arduino dependencies)
   irdsp_blocks.h            shared shelving filter, biquad filters, Hermite read, LFO and mix law
   irdsp_fft.h               small radix-2 FFT
   IRLoader.{h,cpp}          WAV parser, resampler, IR trimming and normalization
-kits/rock/                  the rock drum kit (WAVs, kit.txt, credits)
+kits/rock/, kits/pearl/     the recorded drum kits (WAVs, kit.txt, credits)
 tools/                      drum kit tools: import_kit.py (build a kit's WAVs), make_kits.py (compile kits in)
 test/host/                  PC tests for the DSP core
 ```

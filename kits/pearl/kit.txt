@@ -1,0 +1,21 @@
+# The "pearl" kit: AVL Drumkits "Black Pearl" (CC-BY-SA 3.0, see CREDITS.md).
+# A smaller, tighter kit than "rock": 22" kick, tight snare, Sabian AA
+# cymbals. The hi-hats are the same recordings as in "rock" (and the same
+# settings), so the firmware stores them once.
+#
+# Format: see kits/rock/kit.txt.
+
+name   pearl
+order  2
+title  black pearl
+source https://raw.githubusercontent.com/studiorack/avl-drumkits/main/Samples/
+
+# lane  level  file                    source                          max   fade  peak
+kick    x      kick.wav                36-Pearl22Kick-4.flac           0.80  0.30  -3
+snare   x      snare.wav               38-PearlSnare-4.flac            0.50  0.15  -4
+rim     x      rim.wav                 37-SideStick-4.flac             0.30  0.10  -10
+hatc    x      hat-closed.wav          42-SabianRockHatClosed-3.flac   0.30  0.10  -12
+hatc    X      hat-closed-accent.wav   42-SabianRockHatClosed-5.flac   0.30  0.10  -12
+hato    x      hat-open.wav            46-SabianRockHatSemiOpen-4.flac 0.60  0.15  -12
+ride    x      ride.wav                51-SabianAAX20Ride-4.flac       2.00  0.60  -14
+crash   X      crash.wav               49-SabianAA16Crash-5.flac       2.50  0.70  -8
