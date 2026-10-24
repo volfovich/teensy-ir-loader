@@ -17,7 +17,7 @@ float decayK(float t60, float fs) { return expf(-6.9078f / (t60 * fs)); }
 
 // Mix levels of the voices on the bus (before the soft clip and volume).
 constexpr float kKickGain = 0.9f, kSnareBody = 0.45f, kSnareNoise = 0.5f, kRimGain = 0.45f;
-constexpr float kHatGain = 0.4f, kRideGain = 0.35f, kCrashGain = 0.4f, kClickGain = 0.9f, kBusGain = 1.1f;
+constexpr float kHatGain = 0.4f, kRideGain = 0.35f, kCrashGain = 0.2f, kClickGain = 0.9f, kBusGain = 1.1f;
 // Samples are int16 and already level-matched (kits/*/kit.txt).
 constexpr float kSampleGain = 1.0f / 32768.0f;
 // Fades when a sample is cut off: retriggered, choked, replaced, kit change.

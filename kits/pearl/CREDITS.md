@@ -9,7 +9,7 @@ They are licensed under the **Creative Commons Attribution-ShareAlike 3.0 Unport
 
 This folder's WAVs are an adaptation, and they are shared under the same license. They were changed as follows:
 
-- **Selection:** two velocity layers for the kick, three for the snare, four for the closed hi-hat and one for each other sound (rim, open hat, ride, crash, rack tom, floor tom). The hi-hats are the same recordings, and files, as in `kits/rock`. The source files are listed in `kit.txt`.
+- **Selection:** two velocity layers for the kick, three for the snare, four for the closed hi-hat and one for each other sound (rim, open hat, ride, crash, rack tom, floor tom). The hi-hats and the crash are the same recordings, and files, as in `kits/rock` (the crash is the Red Zeppelin set's Zildjian K 17"). The source files are listed in `kit.txt`.
 - **Trimming:** the leading silence was cut, and the tails were shortened with a fade-out (lengths in `kit.txt`).
 - **Levels:** each sample was scaled to its drum's peak level in `kit.txt` times its velocity.
 - **Format:** 16-bit mono 44.1 kHz WAV.

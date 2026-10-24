@@ -317,12 +317,12 @@ Every style plays with any kit (`drum kit`). The count-in and metronome click ar
 | # | Kit | What it is | Flash |
 |---|---|---|---|
 | 1 | synth | Synthesized voices | — |
-| 2 | rock (default) | AVL "Red Zeppelin": 26" kick, Porkpie snare, Ludwig toms, Zildjian A cymbals | 981 KB |
-| 3 | pearl | AVL "Black Pearl": 22" kick, tight Pearl snare, Pearl toms, Sabian AA cymbals | 758 KB (+ the hi-hats it shares with rock) |
+| 2 | rock (default) | AVL "Red Zeppelin": 26" kick, Porkpie snare, Ludwig toms, Zildjian A ride, Zildjian K crash | 938 KB |
+| 3 | pearl | AVL "Black Pearl": 22" kick, tight Pearl snare, Pearl toms, Sabian AAX ride | 543 KB (+ the hi-hats and crash it shares with rock) |
 
 ### rock (default)
 
-A recorded acoustic kit: the **AVL Drumkits "Red Zeppelin"** by Glen MacArthur (a 26" Ludwig kick, a Porkpie snare, Sabian Rock hats, Zildjian A cymbals). It's licensed CC BY-SA 3.0; see [kits/rock/CREDITS.md](kits/rock/CREDITS.md).
+A recorded acoustic kit: the **AVL Drumkits "Red Zeppelin"** by Glen MacArthur (a 26" Ludwig kick, a Porkpie snare, Sabian Rock hats, a Zildjian A ride and a Zildjian K crash). It's licensed CC BY-SA 3.0; see [kits/rock/CREDITS.md](kits/rock/CREDITS.md).
 
 The source has 5 velocity layers per drum; layers 1–5 are velocities 1, 3, 5, 7 and 9 here.
 
@@ -334,15 +334,15 @@ The source has 5 velocity layers per drum; layers 1–5 are velocities 1, 3, 5, 
 | Closed hat | Sabian Rock hat (2, 3, 4, 5 → 3, 5, 7, 9) | 0.3 s | 103 KB |
 | Open hat | Sabian Rock hat, semi-open (4 → 7) | 0.6 s | 50 KB |
 | Ride | Zildjian A 24" ride (4 → 7) | 2.0 s | 172 KB |
-| Crash | Zildjian A20 crash (5 → 9) | 3.0 s | 258 KB |
+| Crash | Zildjian K 17" crash (4 → 7), dark and smooth, levelled 12 dB below the kick | 2.5 s | 215 KB |
 | Rack tom | Ludwig 14" tom (4 → 7) | 0.45 s | 39 KB |
 | Floor tom | Ludwig 16" floor tom (4 → 7) | 0.45 s | 39 KB |
 
-All samples are 16-bit mono 44.1 kHz: **981 KB** of flash in all.
+All samples are 16-bit mono 44.1 kHz: **938 KB** of flash in all.
 
 ### pearl
 
-The **AVL Drumkits "Black Pearl"**, by the same author and under the same license; see [kits/pearl/CREDITS.md](kits/pearl/CREDITS.md). It's smaller and tighter than rock, with a jazz-style kick and snare. It uses the same hi-hat recordings as rock, and the firmware stores those only once.
+The **AVL Drumkits "Black Pearl"**, by the same author and under the same license; see [kits/pearl/CREDITS.md](kits/pearl/CREDITS.md). It's smaller and tighter than rock, with a jazz-style kick and snare. It uses the same hi-hat and crash recordings as rock, and the firmware stores those only once.
 
 | Lane | Sample (source layers → velocities) | Length kept | Size |
 |---|---|---|---|
@@ -352,11 +352,11 @@ The **AVL Drumkits "Black Pearl"**, by the same author and under the same licens
 | Closed hat | Sabian Rock hat (2, 3, 4, 5 → 3, 5, 7, 9), shared with rock | 0.3 s | — |
 | Open hat | Sabian Rock hat, semi-open (4 → 7), shared with rock | 0.6 s | — |
 | Ride | Sabian AAX 20" ride (4 → 7) | 2.0 s | 172 KB |
-| Crash | Sabian AA 16" crash (5 → 9) | 2.5 s | 215 KB |
+| Crash | Zildjian K 17" crash (4 → 7), shared with rock | 2.5 s | — |
 | Rack tom | Pearl 12" tom (4 → 7) | 0.45 s | 39 KB |
 | Floor tom | Pearl 16" floor tom (4 → 7) | 0.45 s | 39 KB |
 
-That's **758 KB** of flash beyond the shared hi-hats.
+That's **543 KB** of flash beyond the shared hi-hats and crash.
 
 ### How the sampled kits play
 
@@ -364,7 +364,7 @@ That's **758 KB** of flash beyond the shared hi-hats.
 - **Balance:** the hi-hats sit about 18 dB below the kick and snare in the rock groove (measured on the energy of each).
 - **Re-struck drums:** a kick, snare, rim or closed hat cuts its previous hit with a 2 ms fade.
 - **Cymbals:** the open hat, ride and crash ring on under a new hit, up to two of each at once; the oldest fades out over 5 ms. A closed hat chokes a ringing open hat in 5 ms, like a real hi-hat.
-- **Tails:** the long cymbal tails were cut and faded to save flash, the crashes at 2.5–3 s and the rides at 2 s.
+- **Tails:** the long cymbal tails were cut and faded to save flash, the crash at 2.5 s and the rides at 2 s.
 - **Loudness:** both recorded kits are within about 2 dB of the synth kit, so switching kits barely changes the balance with your guitar.
 
 ### synth
@@ -378,7 +378,7 @@ All voices synthesized, in the spirit of the classic analog drum machines:
 | Rim (not in the built-in styles) | Cross-stick: 1.7 kHz and 830 Hz sines plus a high-passed noise tick | 60 ms |
 | Closed / open hat | TR-808-style metal (six square waves at 205–800 Hz, inharmonic) mixed with noise, then high-passed at 7 kHz | 90 ms / 0.7 s; a closed hat cuts off a ringing open one, like a real hi-hat |
 | Ride (not in the built-in styles) | The same metal and noise, band-passed around 4.5 kHz | 2.5 s |
-| Crash (crash accents) | The same metal with more noise, high-passed at 4 kHz | 1.8 s |
+| Crash (crash accents) | The same metal with more noise, high-passed at 4 kHz, kept well below the drums | 1.8 s |
 | Rack / floor tom (songs) | Sines falling from 1.5× to 150 Hz / 92 Hz, plus a short noise attack | 0.45 s / 0.6 s |
 | Click | Metronome and count-in: 2 kHz on accents, 1.2 kHz otherwise | 50 ms |
 
@@ -420,7 +420,7 @@ A kit is a folder in `kits/` with a `kit.txt` and its WAVs. Every kit there is c
    - `make -C test/host render` writes every style with every kit to `test/host/out/drums_*_<kit>.wav`.
    - `test_drums` checks that each sample starts and ends at zero, that its hit starts within 2 ms, and that the loudest style stays below clipping.
 
-**Flash budget:** the kits use 1,739 KB (rock 981 KB, pearl 758 KB), and about 50 KB of flash is left, which is kept for future code such as the OLED display. A new kit would mean trimming tails or layers elsewhere (88 KB per second of sound). Cymbal tails are the expensive part; sharing samples between kits is free.
+**Flash budget:** the kits use 1,480 KB (rock 938 KB, pearl 543 KB beyond what it shares), and about 310 KB of flash is left. Keep some of it for future code such as the OLED display. A new kit would mean trimming tails or layers elsewhere (88 KB per second of sound). Cymbal tails are the expensive part; sharing samples between kits is free.
 
 ## Drum bus
 
@@ -459,7 +459,7 @@ The settings are fixed voicing (constants in `DrumMachine.cpp`), like the delay'
 - **Memory:**
   - RAM1: about 3 KB of data (two pattern buffers, the synth voices' state, 16 sample voices and the bus's 1.5 ms lookahead) and about 6.8 KB of code (the real-time part).
   - RAM2: 22 KB for a song loaded from the SD card (hits and bar table) and the `/DRUMS` file list.
-  - Flash: the kits' samples (1,739 KB for rock and pearl), the built-in songs (about 9 KB), setup, the MIDI reader, and the style and kit tables.
+  - Flash: the kits' samples (1,480 KB for rock and pearl), the built-in songs (about 9 KB), setup, the MIDI reader, and the style and kit tables.
 
 ## Defaults (`config.h`)
 
