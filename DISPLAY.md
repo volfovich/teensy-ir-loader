@@ -249,6 +249,13 @@ Every serial command has a place:
 | | Mix | 0–100 %, 1 | `setReverbMix` | `mix` |
 | | Size | 0–100 %, 1 | `setReverbSize` | `size` |
 | | Tone | 0–100 %, 1 | `setReverbTone` | `tone` |
+| **Drums** | Play | toggle | `setDrumsPlaying` | `drum` |
+| | Style | 1–10, shown by name | `setDrumStyle` | `drum style` |
+| | Tempo | 40–240 BPM, 1 | `setDrumTempo` | `bpm` |
+| | Volume | 0–100 %, 1 | `setDrumVolume` | `drum vol` |
+| | Count-in | toggle | `setDrumCountIn` | `drum count` |
+| | Trainer | toggle | `setDrumTrainer` | `drum train` |
+| | Step / Every / Target | 1–20 BPM / 1–16 bars / 40–240 BPM (shown while the trainer is on) | `setDrumTrainer` | `drum train s e t` |
 | **Levels** | Output gain | −60 to +24 dB, 0.5 | `setOutputGainDb` | `g` |
 | | Line-in sens | 0–15 | `setLineInLevel` | `in` |
 | | Line-out | 13–31 (13 = loudest) | `setLineOutLevel` | `out` |

@@ -7,6 +7,7 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
                                                 (IR from SD card)    (studio 80s or        (stereo)
                                                                       ping-pong, stereo)
                                                                      each effect: dry/wet mix, on/off
+                                                         + drum machine (synthesized, added to both outputs)
 ```
 
 ## Features
@@ -30,7 +31,11 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
 - **Both effects:**
   - They run in 32-bit float in the same audio object as the convolution, so the path from the IR through the delay and reverb never drops to 16 bits.
   - Switching an effect off is click-free and lets its tail ring out. When the tail has died away, the effect stops using CPU and passes its input through bit-identically.
-- **Remembers settings:** the last IR, your levels and the delay and reverb settings are stored in EEPROM.
+- **Practice drum machine** (details in [DRUMS.md](DRUMS.md)):
+  - Ten synthesized styles (metronome, rock, half-time, blues shuffle, funk, metal, pop, 6/8 ballad, reggae, disco) at 40–240 BPM, with sample-accurate timing.
+  - A count-in bar, and a speed trainer that raises the tempo every few bars up to a target.
+  - Mixed into both outputs after the effects, with its own volume, so the drums never go through your guitar effects.
+- **Remembers settings:** the last IR, your levels and the delay, reverb and drum settings are stored in EEPROM.
 - **Controls:** USB serial commands, plus optional *next*, *previous*, *bypass*, *reverb* and *delay* buttons.
 
 ## Hardware
@@ -94,6 +99,12 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `dduck 0..100` | Studio 80s: how far the repeats duck while you play (100 = −24 dB) |
 | `ddrive 0..100` | Studio 80s: input preamp grit |
 | `dera 0..100` | Studio 80s: converter era, 0 = 16-bit / 16 kHz, 100 = 10-bit / 6 kHz |
+| `drum` | Start / stop the drum machine (count-in, then the groove). All drum commands are explained in [DRUMS.md](DRUMS.md#controls). |
+| `bpm 40..240` | Drum tempo |
+| `drum style [n\|name]` | List the styles / choose one (from the next bar while playing) |
+| `drum vol 0..100` | Drum volume |
+| `drum count` | Toggle the count-in bar |
+| `drum train [step every target]` | Toggle / set the speed trainer (+step BPM every `every` bars, up to `target`) |
 | `rv` | Toggle the reverb on/off (the tail rings out) |
 | `mix 0..100` | Reverb dry/wet blend (0 = dry only, 100 = reverb only). Equal-power crossfade. |
 | `size 0..100` | Reverb time (about 1.1 to 6 s) |
@@ -121,7 +132,7 @@ The codec's ADC and DAC add their own fixed delay on top of the buffering. To me
 
 CPU cost scales with IR length. A typical 2048-sample cabinet IR uses about a quarter of the figures above.
 
-The reverb adds about 6 % CPU (measured with 32-sample blocks), the ping-pong delay about 3 % and the studio 80s delay about 4.5 %, while each is on or still ringing out. Neither uses any CPU once its tail has died away. Run `s` to see the current values. The fixed voicing of both effects (diffusion, damping, filters, modulation rate, time glide) is set in `include/config.h`; see [DELAY.md](DELAY.md#fixed-voicing-configh) for the delay's.
+The reverb adds about 6 % CPU (measured with 32-sample blocks), the ping-pong delay about 3 %, the studio 80s delay about 4.5 % and the drum machine about 2 %, while each is on (or playing) or still ringing out. None of them uses any CPU once its tail has died away. Run `s` to see the current values. The fixed voicing of both effects (diffusion, damping, filters, modulation rate, time glide) is set in `include/config.h`; see [DELAY.md](DELAY.md#fixed-voicing-configh) for the delay's.
 
 Smaller blocks cost more CPU because the same IR is split into more partitions, and every partition is processed each block. At 16 samples there is still plenty of headroom, so try it if you want the lowest possible latency.
 
@@ -143,7 +154,7 @@ The convolution uses **uniformly partitioned overlap-save** (UPOLS):
 
 When switching IRs, the new IR's spectra are computed in the background into a second buffer. For 25 ms both IRs are evaluated against the same input history and crossfaded. That is why switching causes no click and no tail cut-off.
 
-The two delay types and how they work are described in [DELAY.md](DELAY.md).
+The two delay types and how they work are described in [DELAY.md](DELAY.md), the drum machine in [DRUMS.md](DRUMS.md).
 
 The reverb is an FV-1-style plate:
 
@@ -168,9 +179,11 @@ lib/irdsp/src/              portable DSP core (no Arduino dependencies)
   PartitionedConvolver.h    the UPOLS convolution engine
   StereoDelay.h             the ping-pong delay (port of HexeFX)
   StudioDelay.h             the studio 80s dual delay
+  DrumMachine.{h,cpp}       the drum machine (voices, sequencer, count-in, trainer)
+  DrumPatterns.cpp          the drum styles
   PlateReverb.h             the stereo plate reverb (port of HexeFX)
   FxSlot.h                  on/off with trails, dry/wet mix and idle detection per effect
-  irdsp_blocks.h            shared shelving filter, biquad lowpass, Hermite read, LFO and mix law
+  irdsp_blocks.h            shared shelving filter, biquad filters, Hermite read, LFO and mix law
   irdsp_fft.h               small radix-2 FFT
   IRLoader.{h,cpp}          WAV parser, resampler, IR trimming and normalization
 test/host/                  PC tests for the DSP core
@@ -190,6 +203,7 @@ The tests check:
 - Convolution against a direct (time-domain) reference for block sizes 16–128 and IR lengths 1–8192.
 - That crossfades are exact.
 - Both delay types: repeat timing and gains, stability, time changes, tails, clearing, and the studio 80s ducking, drive and era (see [DELAY.md](DELAY.md#code-and-tests)).
+- The drum machine: sample-accurate timing, count-in, speed trainer, style and tempo change points, the shuffle grid, stopping, and every style's lanes and level (see [DRUMS.md](DRUMS.md#code-and-tests)).
 - That the reverb stays stable at maximum size, its decay time rises with size, its tail dies out, its left and right channels are decorrelated, its wet level matches the dry level, and the mix law behaves correctly.
 - WAV decoding for every supported format.
 - Resampling accuracy at 22.05, 32, 48, 88.2, 96 and 192 kHz.
