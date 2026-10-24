@@ -10,25 +10,28 @@
 
 namespace irdsp {
 
+// Velocities follow a drummer's hands: the hat strongest on 1 and 3, a bit
+// less on the "&", softer under the snare on 2 and 4, softest on the 16th
+// "e" and "a"; the kick strongest on 1, the snare a touch harder on 4.
 static const DrumStyle IRDSP_PROGMEM kStyles[] = {
     {"metronome", "metronome", 4, 4,
-     {"", "", "", "", "", "", "X...x...x...x..."}},
+     {"", "", "", "", "", "", "9...6...6...6..."}},
     {"rock", "rock", 4, 4,
-     {"x.......x.x.....", "....x.......x...", "", "X.x.X.x.X.x.X.x.", "", "", ""}},
+     {"9.......8.7.....", "....8.......9...", "", "9.6.5.6.8.6.5.6.", "", "", ""}},
     // Straight beats for practice: kick on 1 and 3, snare on 2 and 4, the
     // hat on every subdivision except the beat itself.
     {"offbeat8", "offbeat 8ths", 4, 4,
-     {"x.......x.......", "....x.......x...", "", "..x...x...x...x.", "", "", ""}},
+     {"9.......8.......", "....8.......9...", "", "..7...6...7...6.", "", "", ""}},
     {"offbeat16", "offbeat 16ths", 4, 4,
-     {"x.......x.......", "....x.......x...", "", ".xXx.xXx.xXx.xXx", "", "", ""}},
+     {"9.......8.......", "....8.......9...", "", ".474.474.474.474", "", "", ""}},
     {"triplets", "triplets", 4, 3,
-     {"x.....x.....", "...x.....x..", "", ".xx.xx.xx.xx", "", "", ""}},
+     {"9.....8.....", "...8.....9..", "", ".65.65.65.65", "", "", ""}},
     {"pop", "pop", 4, 4,
-     {"x.....x.x.......", "....x.......x...", "", "x.x.x.x.x.x.x...", "..............x.", "", ""}},
+     {"9.....7.8.......", "....8.......9...", "", "9.6.5.6.8.6.5...", "..............7.", "", ""}},
     {"shuffle", "blues shuffle", 4, 3,
-     {"x.....x.....", "...x.....x..", "", "X.xx.xX.xx.x", "", "", ""}},
+     {"9.....8.....", "...8.....9..", "", "9.65.68.65.6", "", "", ""}},
     {"ballad", "6/8 ballad", 2, 3,
-     {"x.....", "...x..", "", "XxxXxx", "", "", ""}},
+     {"9.....", "...9..", "", "966566", "", "", ""}},
 };
 
 IRDSP_COLD int drumStyleCount() { return (int)(sizeof(kStyles) / sizeof(kStyles[0])); }

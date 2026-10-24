@@ -10,8 +10,9 @@ decodes it (FLAC needs the `flac` tool: brew install flac), and writes a
     before the onset, faded in)
   - the tail is cut at `max` seconds (or where it falls below -60 dB) with
     a raised-cosine fade over the last `fade` seconds
-  - the lane's loudest sample peaks at `peak` dBFS; the lane's other samples
-    keep their level relative to it
+  - each sample peaks at the lane's `peak` (dBFS) x velocity / 9, so a layer
+    played at its own velocity has that velocity's level (the engine scales
+    a hit by its velocity / the layer's)
 
   python3 tools/import_kit.py kits/rock [--cache DIR]
 
@@ -92,13 +93,9 @@ def main():
         if rate != FS:
             sys.exit("%s: %d Hz; only %d Hz sources for now" % (s["source"], rate, FS))
         shaped.append(shape(x, rate, s))
-    # Per lane: one gain, so the loudest sample hits `peak`.
-    for lane in set(s["lane"] for s in samples):
-        idx = [i for i, s in enumerate(samples) if s["lane"] == lane]
-        top = max(max(abs(v) for v in shaped[i]) for i in idx)
-        gain = 10 ** (samples[idx[0]]["peak"] / 20) / top
-        for i in idx:
-            shaped[i] = [v * gain for v in shaped[i]]
+    for i, s in enumerate(samples):
+        gain = 10 ** (s["peak"] / 20) * s["vel"] / 9 / max(abs(v) for v in shaped[i])
+        shaped[i] = [v * gain for v in shaped[i]]
     total = 0
     for s, y in zip(samples, shaped):
         pcm = bytearray()

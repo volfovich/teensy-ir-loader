@@ -1,6 +1,6 @@
 // Renders 8 bars of every drum style (with the count-in and a crash every
-// 4 bars) with every kit to 16-bit WAV files, to listen to the sounds on a
-// computer.
+// 4 bars) with every kit to 16-bit stereo WAV files, to listen to the sounds
+// on a computer.
 //   make -C test/host render_drums && ./test/host/render_drums [out_dir]
 #include <cstdint>
 #include <cstdio>
@@ -12,6 +12,7 @@
 #include "DrumKit.h"
 #include "DrumMachine.h"
 
+// x: interleaved stereo.
 static bool writeWav(const std::string& path, const std::vector<float>& x, int fs) {
   FILE* f = std::fopen(path.c_str(), "wb");
   if (!f) return false;
@@ -19,7 +20,7 @@ static bool writeWav(const std::string& path, const std::vector<float>& x, int f
   auto u16 = [&](uint16_t v) { std::fwrite(&v, 2, 1, f); };
   const uint32_t bytes = (uint32_t)x.size() * 2;
   std::fwrite("RIFF", 1, 4, f); u32(36 + bytes); std::fwrite("WAVEfmt ", 1, 8, f);
-  u32(16); u16(1); u16(1); u32(fs); u32(fs * 2); u16(2); u16(16);
+  u32(16); u16(1); u16(2); u32(fs); u32(fs * 4); u16(4); u16(16);
   std::fwrite("data", 1, 4, f); u32(bytes);
   for (float s : x) {
     const float c = s > 1.0f ? 1.0f : (s < -1.0f ? -1.0f : s);
@@ -48,10 +49,10 @@ int main(int argc, char** argv) {
       d->start();
       const double seconds = 9 * st.beats * 60.0 / bpm + 1.0;  // count-in + 8 bars + tail
       std::vector<float> out;
-      float buf[B];
+      float bl[B], br[B];
       for (int i = 0; i < (int)(seconds * fs) / B; i++) {
-        if (!d->process(buf, B)) for (float& x : buf) x = 0;
-        out.insert(out.end(), buf, buf + B);
+        if (!d->process(bl, br, B)) for (int j = 0; j < B; j++) bl[j] = br[j] = 0;
+        for (int j = 0; j < B; j++) out.push_back(bl[j]), out.push_back(br[j]);
       }
       char name[64];
       std::snprintf(name, sizeof(name), "/drums_%02d_%s_%s.wav", s + 1, st.name, irdsp::drumKit(k).name);

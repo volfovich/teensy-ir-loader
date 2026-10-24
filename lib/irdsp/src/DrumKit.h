@@ -14,13 +14,14 @@ enum DrumVoice : uint8_t { kKick, kSnare, kRim, kHatClosed, kHatOpen, kRide, kCl
 struct DrumSample {
   const int16_t* data;
   uint32_t len;
-  uint8_t level;  // the hit level it was chosen for: 1 ghost, 2 normal, 3 accent
+  uint8_t vel;  // the velocity (1..9) it was recorded / levelled for
 };
 
 struct DrumKit {
   char name[10];   // command name ("rock")
   char title[14];  // display name ("rock (AVL)")
-  // Per lane, the range in samples[] (sorted by level); count 0 = synthesized.
+  // Per lane, the range in samples[] (sorted by velocity); count 0 =
+  // synthesized.
   uint8_t first[kDrumVoices], count[kDrumVoices];
   const DrumSample* samples;
 };

@@ -8,23 +8,29 @@
 #            so a new kit goes last)
 #
 #   lane     kick snare rim hatc hato ride crash
-#   level    the hit level the sample is for: x (normal) or X (accent). With
-#            one sample for a lane it plays every hit, scaled by level.
+#   vel      the velocity the sample is for, 1..9 (the AVL layers 1..5 are
+#            velocities 1, 3, 5, 7, 9). A hit plays the sample nearest its
+#            velocity, scaled by hit velocity / sample velocity.
 #   max/fade the length kept and the fade-out at its end, in seconds
-#   peak     the lane's loudest sample is set to this peak (dBFS); a lane's
-#            other samples keep their level relative to it
+#   peak     the lane's level at velocity 9 (dBFS); each sample peaks at
+#            peak x vel / 9
 
 name   rock
 order  1
 title  rock (AVL)
 source https://raw.githubusercontent.com/studiorack/avl-drumkits/main/Samples/
 
-# lane  level  file                    source                          max   fade  peak
-kick    x      kick.wav                36-Ludwig26Kick-4.flac          0.80  0.30  -3
-snare   x      snare.wav               38-PorkpieSnare-4.flac          0.60  0.20  -4
-rim     x      rim.wav                 37-Sidestick2-4.flac            0.30  0.10  -10
-hatc    x      hat-closed.wav          42-SabianRockHatClosed-3.flac   0.30  0.10  -12
-hatc    X      hat-closed-accent.wav   42-SabianRockHatClosed-5.flac   0.30  0.10  -12
-hato    x      hat-open.wav            46-SabianRockHatSemiOpen-4.flac 0.60  0.15  -12
-ride    x      ride.wav                51-ZildjianA24Ride-4.flac       2.00  0.60  -14
-crash   X      crash.wav               49-ZildjianA20Crash-5.flac      3.00  0.80  -8
+# lane  vel  file              source                          max   fade  peak
+kick    7    kick-7.wav        36-Ludwig26Kick-4.flac          0.80  0.30  -3
+kick    9    kick-9.wav        36-Ludwig26Kick-5.flac          0.80  0.30  -3
+snare   5    snare-5.wav       38-PorkpieSnare-3.flac          0.60  0.20  -4
+snare   7    snare-7.wav       38-PorkpieSnare-4.flac          0.60  0.20  -4
+snare   9    snare-9.wav       38-PorkpieSnare-5.flac          0.60  0.20  -4
+rim     7    rim-7.wav         37-Sidestick2-4.flac            0.30  0.10  -10
+hatc    3    hat-closed-3.wav  42-SabianRockHatClosed-2.flac   0.30  0.10  -14
+hatc    5    hat-closed-5.wav  42-SabianRockHatClosed-3.flac   0.30  0.10  -14
+hatc    7    hat-closed-7.wav  42-SabianRockHatClosed-4.flac   0.30  0.10  -14
+hatc    9    hat-closed-9.wav  42-SabianRockHatClosed-5.flac   0.30  0.10  -14
+hato    7    hat-open-7.wav    46-SabianRockHatSemiOpen-4.flac 0.60  0.15  -14
+ride    7    ride-7.wav        51-ZildjianA24Ride-4.flac       2.00  0.60  -14
+crash   9    crash-9.wav       49-ZildjianA20Crash-5.flac      3.00  0.80  -8

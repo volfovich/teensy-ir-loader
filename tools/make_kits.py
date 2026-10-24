@@ -23,8 +23,9 @@ OUT = os.path.join(ROOT, "lib", "irdsp", "src", "DrumKitData.cpp")
 # Lane names in kit.txt, in DrumVoice order (DrumMachine.h). The click has no
 # samples: it is always synthesized.
 LANES = ["kick", "snare", "rim", "hatc", "hato", "ride", "click", "crash"]
-LEVELS = {"g": 1, "x": 2, "X": 3}
-MAX_PER_LANE = 3
+# A sample's velocity: 1..9, or g/x/X for 3/6/9.
+LEVELS = dict({"g": 3, "x": 6, "X": 9}, **{str(v): v for v in range(1, 10)})
+MAX_PER_LANE = 4
 FS = 44100
 
 
@@ -44,7 +45,7 @@ def read_kit(folder):
                 continue
             if len(words) != 7 or words[0] not in LANES or words[0] == "click" or words[1] not in LEVELS:
                 sys.exit("%s:%d: expected: lane level file source max fade peak" % (path, n))
-            samples.append({"lane": LANES.index(words[0]), "level": LEVELS[words[1]], "file": words[2],
+            samples.append({"lane": LANES.index(words[0]), "vel": LEVELS[words[1]], "file": words[2],
                             "source": words[3], "max": float(words[4]), "fade": float(words[5]),
                             "peak": float(words[6])})
     if len(kit["name"]) > 9 or len(kit["title"]) > 13:
@@ -82,7 +83,7 @@ def generate():
     for folder in kit_folders():
         kit, samples = read_kit(folder)
         ident = "".join(c for c in kit["name"].title() if c.isalnum())
-        samples.sort(key=lambda s: (s["lane"], s["level"]))
+        samples.sort(key=lambda s: (s["lane"], s["vel"]))
         first = [0] * len(LANES)
         count = [0] * len(LANES)
         entries = []
@@ -100,7 +101,7 @@ def generate():
                 for j in range(0, len(pcm), 16):
                     out.append("    " + ",".join(str(v) for v in pcm[j:j + 16]) + ",")
                 out.append("};")
-            entries.append("{%s, %d, %d}" % (name, len(pcm), s["level"]))
+            entries.append("{%s, %d, %d}" % (name, len(pcm), s["vel"]))
         out.append("IRDSP_PROGMEM const DrumSample k%sSamples[] = {%s};" % (ident, ", ".join(entries)))
         out.append("")
         tables.append('{"%s", "%s", {%s}, {%s}, k%sSamples}' % (

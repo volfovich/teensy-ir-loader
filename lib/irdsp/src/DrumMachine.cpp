@@ -17,7 +17,7 @@ float decayK(float t60, float fs) { return expf(-6.9078f / (t60 * fs)); }
 
 // Mix levels of the voices on the bus (before the soft clip and volume).
 constexpr float kKickGain = 0.9f, kSnareBody = 0.45f, kSnareNoise = 0.5f, kRimGain = 0.45f;
-constexpr float kHatGain = 0.5f, kRideGain = 0.35f, kCrashGain = 0.4f, kClickGain = 0.9f, kBusGain = 0.55f;
+constexpr float kHatGain = 0.4f, kRideGain = 0.35f, kCrashGain = 0.4f, kClickGain = 0.9f, kBusGain = 0.55f;
 // Samples are int16 and already level-matched (kits/*/kit.txt).
 constexpr float kSampleGain = 1.0f / 32768.0f;
 // Fades when a sample is cut off: retriggered, choked, replaced, kit change.
@@ -28,8 +28,16 @@ constexpr int kCymbalVoices = 2;
 // TR-808 cymbal / hi-hat oscillator frequencies.
 constexpr float kMetalHz[6] = {205.3f, 304.4f, 369.6f, 522.7f, 540.0f, 800.0f};
 
-// Velocity of a lane character's level: ghost, normal, accent.
-constexpr float kLevelVel[4] = {0.0f, 0.3f, 0.7f, 1.0f};
+// Random velocity spread per lane (DrumVoice order), +-: hats and cymbals
+// vary the most, kick and snare less, the click not at all.
+constexpr float kSpread[kDrumVoices] = {0.08f, 0.08f, 0.08f, 0.15f, 0.15f, 0.15f, 0.0f, 0.08f};
+// Pan per lane, -1 left .. +1 right, from the drummer's seat: hats and crash
+// left, ride right. Balance law: the near side stays at full level.
+constexpr float kPan[kDrumVoices] = {0.0f, -0.1f, -0.1f, -0.35f, -0.35f, 0.4f, 0.0f, -0.3f};
+constexpr float panL(int v) { return kPan[v] > 0.0f ? 1.0f - kPan[v] : 1.0f; }
+constexpr float panR(int v) { return kPan[v] < 0.0f ? 1.0f + kPan[v] : 1.0f; }
+// A sample plays at most this much above its layer's own velocity.
+constexpr float kMaxLayerGain = 1.4f;
 
 // Cubic soft clip: unity gain at 0, reaches +-1 at |x| = 1.5.
 inline float softClip(float x) {
@@ -97,7 +105,7 @@ IRDSP_COLD void DrumMachine::setStyle(int idx) {
     const int len = (int)strlen(lane);
     for (int i = 0; i < kMaxSteps; i++) {
       const char c = i < len && i < p.steps ? lane[i] : '.';
-      p.vel[v][i] = c == 'X' ? 3 : (c == 'x' ? 2 : (c == 'g' ? 1 : 0));
+      p.vel[v][i] = c >= '1' && c <= '9' ? c - '0' : (c == 'X' ? 9 : (c == 'x' ? 6 : (c == 'g' ? 3 : 0)));
     }
     if (v != kClick && len > 0) p.drums = true;
   }
@@ -144,15 +152,16 @@ void DrumMachine::swapPattern() {
   swapReq_ = false;
 }
 
-void DrumMachine::trigger(int voice, int level, uint64_t sample) {
-  if (hook_) hook_(hookCtx_, voice, level, sample);
-  // +-4 % per hit so repeated notes don't sound like a machine gun.
-  const float jitter = 1.0f + 0.04f * noise();
+void DrumMachine::trigger(int voice, int code, uint64_t sample) {
+  if (hook_) hook_(hookCtx_, voice, code, sample);
+  // Humanize: triangular noise, so small changes are common, big ones rare.
+  const float t = 0.5f * (noise() + noise());
+  float vel = (float)code * (1.0f / 9.0f) * (1.0f + kSpread[voice] * humanize_ * t);
+  if (vel < 0.0f) vel = 0.0f;
   if (kit_ && voice != kClick && kit_->count[voice]) {
-    startSample(voice, level, jitter);
+    startSample(voice, vel);
     return;
   }
-  const float vel = kLevelVel[level] * jitter;
   switch (voice) {
     case kKick:
       kickAmp_ = vel;
@@ -185,7 +194,7 @@ void DrumMachine::trigger(int voice, int level, uint64_t sample) {
       break;
     case kClick:
       clickAmp_ = vel;
-      clickInc_ = level == 3 ? clickHi_ : clickLo_;
+      clickInc_ = code == 9 ? clickHi_ : clickLo_;
       clickPhase_ = 0;
       break;
   }
@@ -200,12 +209,12 @@ void DrumMachine::fireStep(uint64_t sample) {
   }
   const Pattern& p = pat_[cur_];
   if (countIn_) {
-    if (step_ % p.stepsPerBeat == 0) trigger(kClick, step_ == 0 ? 3 : 2, sample);
+    if (step_ % p.stepsPerBeat == 0) trigger(kClick, step_ == 0 ? 9 : 6, sample);
   } else {
     // A crash accent replaces the bar's first hat or ride hit.
     const int every = crashEvery_;
     const bool crash = step_ == 0 && every > 0 && p.drums && bar_ % every == 0;
-    if (crash) trigger(kCrash, 3, sample);
+    if (crash) trigger(kCrash, 9, sample);
     for (int v = 0; v < kDrumVoices; v++) {
       const int lvl = p.vel[v][step_];
       if (!lvl || (crash && (v == kHatClosed || v == kHatOpen || v == kRide || v == kCrash))) continue;
@@ -229,13 +238,15 @@ void DrumMachine::endBar() {
   if (swapReq_) swapPattern();
 }
 
-void DrumMachine::renderVoices(float* out, int n) {
+void DrumMachine::renderVoices(float* outL, float* outR, int n) {
   for (int i = 0; i < n; i++) {
-    float s = 0.0f;
+    float l = 0.0f, r = 0.0f;
     if (kickAmp_ > 0.0f || kickClick_ > 0.0f) {
       kickPhase_ += inc(50.0f + 110.0f * kickPitch_);
       kickPitch_ *= kickPitchK_;
-      s += kKickGain * (sine(kickPhase_) * kickAmp_ + 0.4f * noise() * kickClick_);
+      const float x = kKickGain * (sine(kickPhase_) * kickAmp_ + 0.4f * noise() * kickClick_);
+      l += panL(kKick) * x;
+      r += panR(kKick) * x;
       kickAmp_ *= kickAmpK_;
       kickClick_ *= kickClickK_;
       if (kickAmp_ < kOff) kickAmp_ = 0.0f;
@@ -244,7 +255,9 @@ void DrumMachine::renderVoices(float* out, int n) {
     if (snBody_ > 0.0f || snNoise_ > 0.0f) {
       snPhase_ += snInc_;
       const float nz = snLp_.process(snHp_.process(noise()));
-      s += kSnareBody * sine(snPhase_) * snBody_ + kSnareNoise * 1.6f * nz * snNoise_;
+      const float x = kSnareBody * sine(snPhase_) * snBody_ + kSnareNoise * 1.6f * nz * snNoise_;
+      l += panL(kSnare) * x;
+      r += panR(kSnare) * x;
       snBody_ *= snBodyK_;
       snNoise_ *= snNoiseK_;
       if (snBody_ < kOff) snBody_ = 0.0f;
@@ -253,8 +266,10 @@ void DrumMachine::renderVoices(float* out, int n) {
     if (rimAmp_ > 0.0f || rimTick_ > 0.0f) {
       rimPhase1_ += rimInc1_;
       rimPhase2_ += rimInc2_;
-      s += kRimGain * ((sine(rimPhase1_) + 0.6f * sine(rimPhase2_)) * 0.6f * rimAmp_ +
-                       rimHp_.process(noise()) * rimTick_);
+      const float x = kRimGain * ((sine(rimPhase1_) + 0.6f * sine(rimPhase2_)) * 0.6f * rimAmp_ +
+                                  rimHp_.process(noise()) * rimTick_);
+      l += panL(kRim) * x;
+      r += panR(kRim) * x;
       rimAmp_ *= rimAmpK_;
       rimTick_ *= rimTickK_;
       if (rimAmp_ < kOff) rimAmp_ = 0.0f;
@@ -270,33 +285,44 @@ void DrumMachine::renderVoices(float* out, int n) {
       const float nz = noise();
       if (hatC_ > 0.0f || hatO_ > 0.0f) {
         const float hat = hatHp2_.process(hatHp1_.process(0.6f * metal + 0.5f * nz));
-        s += kHatGain * 1.8f * hat * (hatC_ + hatO_);
+        const float x = kHatGain * 1.8f * hat * (hatC_ + hatO_);
+        l += panL(kHatClosed) * x;
+        r += panR(kHatClosed) * x;
         hatC_ *= hatCK_;
         hatO_ *= hatOK_;
         if (hatC_ < kOff) hatC_ = 0.0f;
         if (hatO_ < kOff) hatO_ = 0.0f;
       }
       if (ride_ > 0.0f) {
-        s += kRideGain * 1.5f * rideBp_.process(metal + 0.25f * nz) * ride_;
+        const float x = kRideGain * 1.5f * rideBp_.process(metal + 0.25f * nz) * ride_;
+        l += panL(kRide) * x;
+        r += panR(kRide) * x;
         ride_ *= rideK_;
         if (ride_ < kOff) ride_ = 0.0f;
       }
       if (crash_ > 0.0f) {
-        s += kCrashGain * 1.8f * crashHp2_.process(crashHp1_.process(0.5f * metal + 0.8f * nz)) * crash_;
+        const float x = kCrashGain * 1.8f * crashHp2_.process(crashHp1_.process(0.5f * metal + 0.8f * nz)) * crash_;
+        l += panL(kCrash) * x;
+        r += panR(kCrash) * x;
         crash_ *= crashK_;
         if (crash_ < kOff) crash_ = 0.0f;
       }
     }
     if (clickAmp_ > 0.0f) {
-      clickPhase_ += clickInc_;
-      s += kClickGain * sine(clickPhase_) * clickAmp_;
+      const float x = kClickGain * sine(clickPhase_ += clickInc_) * clickAmp_;
+      l += x;  // centered
+      r += x;
       clickAmp_ *= clickAmpK_;
       if (clickAmp_ < kOff) clickAmp_ = 0.0f;
     }
-    out[i] = s;
+    outL[i] = l;
+    outR[i] = r;
   }
-  renderSamples(out, n);
-  for (int i = 0; i < n; i++) out[i] = softClip(kBusGain * out[i]);
+  renderSamples(outL, outR, n);
+  for (int i = 0; i < n; i++) {
+    outL[i] = softClip(kBusGain * outL[i]);
+    outR[i] = softClip(kBusGain * outR[i]);
+  }
 }
 
 // ---- Sample voices ---------------------------------------------------------------
@@ -323,13 +349,14 @@ void DrumMachine::fadeLane(int voice, float ms, int keep) {
   }
 }
 
-void DrumMachine::startSample(int voice, int level, float jitter) {
+void DrumMachine::startSample(int voice, float vel) {
   const DrumKit& k = *kit_;
-  // The loudest layer made for this level or below, else the softest.
+  // The layer recorded nearest this velocity (the softer one on a tie).
+  const float v9 = vel * 9.0f;
   const DrumSample* s = &k.samples[k.first[voice]];
   for (int j = 1; j < k.count[voice]; j++) {
     const DrumSample& c = k.samples[k.first[voice] + j];
-    if (c.level <= level) s = &c;
+    if (fabsf((float)c.vel - v9) < fabsf((float)s->vel - v9)) s = &c;
   }
   // A drum is re-struck (its last hit cut short); cymbals ring on under it.
   const bool cymbal = voice == kHatOpen || voice == kRide || voice == kCrash;
@@ -352,21 +379,30 @@ void DrumMachine::startSample(int voice, int level, float jitter) {
   v.len = s->len;
   v.pos = 0;
   v.age = ++svAge_;
-  v.gain = kSampleGain * kLevelVel[level] / kLevelVel[s->level] * jitter;
+  const float g = v9 / (float)s->vel;
+  v.gain = kSampleGain * (g > kMaxLayerGain ? kMaxLayerGain : g);
   v.fade = 0.0f;
+  v.panL = panL(voice);
+  v.panR = panR(voice);
   v.lane = (uint8_t)voice;
 }
 
-void DrumMachine::renderSamples(float* out, int n) {
+void DrumMachine::renderSamples(float* outL, float* outR, int n) {
   for (SampleVoice& v : sv_) {
     if (!v.p) continue;
     const int16_t* p = v.p + v.pos;
     const uint32_t left = v.len - v.pos;
     int m = left < (uint32_t)n ? (int)left : n;
     float g = v.gain;
+    const float pl = v.panL, pr = v.panR;
     bool done = (uint32_t)m == left;
     if (v.fade == 0.0f) {
-      for (int i = 0; i < m; i++) out[i] += g * (float)p[i];
+      const float gl = g * pl, gr = g * pr;
+      for (int i = 0; i < m; i++) {
+        const float x = (float)p[i];
+        outL[i] += gl * x;
+        outR[i] += gr * x;
+      }
     } else {
       for (int i = 0; i < m; i++) {
         g -= v.fade;
@@ -374,7 +410,9 @@ void DrumMachine::renderSamples(float* out, int n) {
           done = true;
           break;
         }
-        out[i] += g * (float)p[i];
+        const float x = g * (float)p[i];
+        outL[i] += pl * x;
+        outR[i] += pr * x;
       }
       v.gain = g;
     }
@@ -383,7 +421,7 @@ void DrumMachine::renderSamples(float* out, int n) {
   }
 }
 
-bool DrumMachine::process(float* out, int n) {
+bool DrumMachine::process(float* outL, float* outR, int n) {
   if (startReq_) {
     startReq_ = false;
     if (swapReq_) swapPattern();
@@ -394,6 +432,7 @@ bool DrumMachine::process(float* out, int n) {
     bpmNow_ = baseBpm_;
     tempoReq_ = false;
     toNext_ = 0.0;
+    if (!active_) volCur_ = volTarget_;  // from silence: no ramp needed
     playing_ = true;
   }
   if (stopReq_) {
@@ -431,7 +470,7 @@ bool DrumMachine::process(float* out, int n) {
       const int k = (int)ceil(toNext_);
       if (k < run) run = k;
     }
-    renderVoices(out + i, run);
+    renderVoices(outL + i, outR + i, run);
     toNext_ -= run;
     i += run;
   }
@@ -440,7 +479,11 @@ bool DrumMachine::process(float* out, int n) {
 
   // Volume, ramped across the block.
   const float v0 = volCur_, v1 = volTarget_;
-  for (int j = 0; j < n; j++) out[j] *= v0 + (v1 - v0) * (float)(j + 1) / (float)n;
+  for (int j = 0; j < n; j++) {
+    const float g = v0 + (v1 - v0) * (float)(j + 1) / (float)n;
+    outL[j] *= g;
+    outR[j] *= g;
+  }
   volCur_ = v1;
   return true;
 }

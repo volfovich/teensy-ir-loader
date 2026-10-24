@@ -1,8 +1,8 @@
 // DrumMachine.h - a small drum machine for practicing along.
 //
 //   styles (DrumPatterns.cpp) -> sample-accurate step sequencer -> voices
-//   (count-in, speed trainer, crash accents)                         |
-//                                                     mono drum bus x volume
+//   (count-in, speed trainer, crash accents)    humanized velocity   |
+//                                              panned stereo drum bus x volume
 //
 // Voices come from the kit (DrumKit.h): either recorded samples, played
 // straight from flash, or these synthesized ones. A lane a kit has no
@@ -24,6 +24,11 @@
 // Crash accents: a crash on the first beat of every N bars (counted from the
 // first bar after the count-in), in place of that step's hat or ride hit.
 //
+// Dynamics: every hit has a velocity 1..9 from its lane, varied at random
+// per lane (hats and cymbals the most, the click not at all). A sampled
+// lane plays the layer recorded nearest that velocity. Each lane has a fixed
+// pan (drummer's view: hats and crash left, ride right).
+//
 // Threading model: process() runs in the audio interrupt; everything else is
 // called from the background and only writes single values or the spare
 // pattern buffer, which the interrupt swaps in at a bar boundary.
@@ -37,7 +42,7 @@
 namespace irdsp {
 
 // A built-in style. Each lane has one character per step:
-//   '.' rest, 'g' ghost, 'x' normal, 'X' accent.
+//   '.' rest, '1'..'9' velocity (9 = hardest); 'g' 'x' 'X' mean 3, 6, 9.
 // An empty lane is unused. Lanes are beats x stepsPerBeat long.
 struct DrumStyle {
   char name[10];    // command name ("shuffle")
@@ -68,6 +73,8 @@ class DrumMachine {
   void setKit(const DrumKit* kit) { kitReq_ = kit; }
   // A crash on the first beat of every `bars` bars; 0 = off.
   void setCrashEvery(int bars) { crashEvery_ = bars < 0 ? 0 : bars; }
+  // Scales the random velocity spread (1 = as designed, 0 = every hit exact).
+  void setHumanize(float amount) { humanize_ = amount < 0.0f ? 0.0f : amount; }
   // Speed trainer: every `everyBars` bars the tempo rises by `stepBpm`, up
   // to `targetBpm`, starting from the set tempo.
   void setTrainer(bool on, int stepBpm, int everyBars, int targetBpm);
@@ -83,13 +90,14 @@ class DrumMachine {
   int samplesPlaying() const;  // sample voices sounding (for tests)
 
   // ---- Audio ------------------------------------------------------------------
-  // Writes n samples of the drum bus to out. Returns false, writing nothing,
+  // Writes n samples of the stereo drum bus. Returns false, writing nothing,
   // while idle (stopped and silent).
-  bool process(float* out, int n);
+  bool process(float* outL, float* outR, int n);
 
-  // Called (in the audio interrupt) for every hit, with the sample it lands
-  // on, counted across process() calls. For tests and beat displays.
-  using HitHook = void (*)(void* ctx, int voice, int level, uint64_t sample);
+  // Called (in the audio interrupt) for every hit, with its velocity code
+  // (1..9, before humanizing) and the sample it lands on, counted across
+  // process() calls. For tests and beat displays.
+  using HitHook = void (*)(void* ctx, int voice, int vel, uint64_t sample);
   void setHitHook(HitHook hook, void* ctx) { hookCtx_ = ctx; hook_ = hook; }
 
  private:
@@ -98,20 +106,20 @@ class DrumMachine {
   struct Pattern {
     uint8_t steps = 16, beats = 4, stepsPerBeat = 4;
     bool drums = false;  // has lanes other than the click (crash accents)
-    uint8_t vel[kDrumVoices][kMaxSteps] = {};
+    uint8_t vel[kDrumVoices][kMaxSteps] = {};  // 0 = rest, 1..9
   };
 
   void init();  // the constructor's work, kept in flash (IRDSP_COLD)
   void fireStep(uint64_t sample);
   void endBar();
   void swapPattern();
-  void trigger(int voice, int level, uint64_t sample);
+  void trigger(int voice, int code, uint64_t sample);
   bool voicesActive() const;
-  void renderVoices(float* out, int n);
-  void startSample(int voice, int level, float vel);
+  void renderVoices(float* outL, float* outR, int n);
+  void startSample(int voice, float vel);
   void fadeLane(int voice, float ms, int keep);
   void fadeVoice(int i, float ms);
-  void renderSamples(float* out, int n);
+  void renderSamples(float* outL, float* outR, int n);
   inline float noise() {
     rng_ ^= rng_ << 13;
     rng_ ^= rng_ >> 17;
@@ -144,6 +152,7 @@ class DrumMachine {
   HitHook hook_ = nullptr;
   void* hookCtx_ = nullptr;
   volatile int crashEvery_ = 0;
+  volatile float humanize_ = 1.0f;
   volatile float volTarget_ = 0.0f;
   float volCur_ = 0.0f;
 
@@ -170,6 +179,7 @@ class DrumMachine {
     const int16_t* p = nullptr;
     uint32_t pos = 0, len = 0, age = 0;
     float gain = 0.0f, fade = 0.0f;
+    float panL = 1.0f, panR = 1.0f;
     uint8_t lane = 0;
   };
   const DrumKit* volatile kitReq_ = nullptr;

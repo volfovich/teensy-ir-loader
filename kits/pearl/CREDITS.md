@@ -9,9 +9,9 @@ They are licensed under the **Creative Commons Attribution-ShareAlike 3.0 Unport
 
 This folder's WAVs are an adaptation, and they are shared under the same license. They were changed as follows:
 
-- **Selection:** one velocity layer per drum, and two for the closed hi-hat (the hi-hats are the same recordings, and files, as in `kits/rock`). The source files are listed in `kit.txt`.
+- **Selection:** two velocity layers for the kick, three for the snare, four for the closed hi-hat and one for each other sound. The hi-hats are the same recordings, and files, as in `kits/rock`. The source files are listed in `kit.txt`.
 - **Trimming:** the leading silence was cut, and the tails were shortened with a fade-out (lengths in `kit.txt`).
-- **Levels:** each drum was scaled to the peak level given in `kit.txt`.
+- **Levels:** each sample was scaled to its drum's peak level in `kit.txt` times its velocity.
 - **Format:** 16-bit mono 44.1 kHz WAV.
 
 To rebuild them from the originals, run `python3 tools/import_kit.py kits/pearl`.

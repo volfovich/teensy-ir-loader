@@ -10,12 +10,17 @@ order  2
 title  black pearl
 source https://raw.githubusercontent.com/studiorack/avl-drumkits/main/Samples/
 
-# lane  level  file                    source                          max   fade  peak
-kick    x      kick.wav                36-Pearl22Kick-4.flac           0.80  0.30  -3
-snare   x      snare.wav               38-PearlSnare-4.flac            0.50  0.15  -4
-rim     x      rim.wav                 37-SideStick-4.flac             0.30  0.10  -10
-hatc    x      hat-closed.wav          42-SabianRockHatClosed-3.flac   0.30  0.10  -12
-hatc    X      hat-closed-accent.wav   42-SabianRockHatClosed-5.flac   0.30  0.10  -12
-hato    x      hat-open.wav            46-SabianRockHatSemiOpen-4.flac 0.60  0.15  -12
-ride    x      ride.wav                51-SabianAAX20Ride-4.flac       2.00  0.60  -14
-crash   X      crash.wav               49-SabianAA16Crash-5.flac       2.50  0.70  -8
+# lane  vel  file              source                          max   fade  peak
+kick    7    kick-7.wav        36-Pearl22Kick-4.flac           0.80  0.30  -3
+kick    9    kick-9.wav        36-Pearl22Kick-5.flac           0.80  0.30  -3
+snare   5    snare-5.wav       38-PearlSnare-3.flac            0.50  0.15  -4
+snare   7    snare-7.wav       38-PearlSnare-4.flac            0.50  0.15  -4
+snare   9    snare-9.wav       38-PearlSnare-5.flac            0.50  0.15  -4
+rim     7    rim-7.wav         37-SideStick-4.flac             0.30  0.10  -10
+hatc    3    hat-closed-3.wav  42-SabianRockHatClosed-2.flac   0.30  0.10  -14
+hatc    5    hat-closed-5.wav  42-SabianRockHatClosed-3.flac   0.30  0.10  -14
+hatc    7    hat-closed-7.wav  42-SabianRockHatClosed-4.flac   0.30  0.10  -14
+hatc    9    hat-closed-9.wav  42-SabianRockHatClosed-5.flac   0.30  0.10  -14
+hato    7    hat-open-7.wav    46-SabianRockHatSemiOpen-4.flac 0.60  0.15  -14
+ride    7    ride-7.wav        51-SabianAAX20Ride-4.flac       2.00  0.60  -14
+crash   9    crash-9.wav       49-SabianAA16Crash-5.flac       2.50  0.70  -8
