@@ -19,6 +19,8 @@ UI_LABEL(kTrainerTitle, "TRAINER");
 UI_LABEL(kLDrums, "Drums");
 UI_LABEL(kLPlay, "Play");
 UI_LABEL(kLStyle, "Style");
+UI_LABEL(kLKit, "Kit");
+UI_LABEL(kLCrash, "Crash");
 UI_LABEL(kLTempo, "Tempo");
 UI_LABEL(kLVolume, "Volume");
 UI_LABEL(kLCountIn, "Count-in");
@@ -50,9 +52,15 @@ UI_LABEL(kLLineOut, "Line-out");
 UI_LABEL(kLPhones, "Headphones");
 UI_LABEL(kCPing, "ping-pong");
 UI_LABEL(kC80s, "studio 80s");
+UI_LABEL(kCOff, "off");
+UI_LABEL(kC2Bars, "2 bars");
+UI_LABEL(kC4Bars, "4 bars");
+UI_LABEL(kC8Bars, "8 bars");
+UI_LABEL(kC16Bars, "16 bars");
 #undef UI_LABEL
 
 static const char* const UI_PROGMEM kTypeNames[] = {kCPing, kC80s};
+static const char* const UI_PROGMEM kCrashNames[] = {kCOff, kC2Bars, kC4Bars, kC8Bars, kC16Bars};
 
 using K = Kind;
 using U = Unit;
@@ -95,11 +103,13 @@ static const MenuItem UI_PROGMEM kLevelItems[] = {
     {kLPhones, K::kValue, kHeadphones, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
 };
 
-// The style's range end comes from MenuHost::limits (the number of styles),
-// its name from MenuHost::valueText.
+// The style's and kit's range ends come from MenuHost::limits (how many
+// there are), their names from MenuHost::valueText.
 static const MenuItem UI_PROGMEM kDrumItems[] = {
     {kLPlay, K::kToggle, kDrumsPlay, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
     {kLStyle, K::kValue, kDrumStyle, 0, 0, 7, 1, U::kOneBased, kNoItem, nullptr},
+    {kLKit, K::kValue, kDrumKit, 0, 0, 1, 1, U::kOneBased, kNoItem, nullptr},
+    {kLCrash, K::kChoice, kDrumCrash, 0, 0, 4, 1, U::kNone, kNoItem, kCrashNames},
     {kLTempo, K::kValue, kDrumTempo, 0, 40, 240, 1, U::kBpm, kNoItem, nullptr},
     {kLVolume, K::kValue, kDrumVolume, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
     {kLCountIn, K::kToggle, kDrumCountIn, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},

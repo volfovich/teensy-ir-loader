@@ -19,7 +19,7 @@ struct FakeHost : ui::MenuHost {
     v[ui::kOutGain] = -12; v[ui::kLineIn] = 0; v[ui::kLineOut] = 29; v[ui::kHeadphones] = 50;
     v[ui::kDrumsPlay] = 1; v[ui::kDrumStyle] = 1; v[ui::kDrumTempo] = 100; v[ui::kDrumVolume] = 60;
     v[ui::kDrumCountIn] = 1; v[ui::kTrainerOn] = 0; v[ui::kTrainerStep] = 5; v[ui::kTrainerEvery] = 4;
-    v[ui::kTrainerTarget] = 140;
+    v[ui::kTrainerTarget] = 140; v[ui::kDrumKit] = 1; v[ui::kDrumCrash] = 2;
   }
   static const char* styleName(int i) {
     static const char* names[] = {"metronome", "rock",          "offbeat 8ths", "offbeat 16ths",
@@ -35,10 +35,12 @@ struct FakeHost : ui::MenuHost {
     (void)lo;
     if (id == ui::kDelayTime) *hi = timeMax;
     if (id == ui::kDrumStyle) *hi = 7;
+    if (id == ui::kDrumKit) *hi = 1;
   }
   bool valueText(uint8_t id, char* buf, int n) override {
     if (id == ui::kScreenIR) std::snprintf(buf, n, "3/12");
     else if (id == ui::kDrumStyle) std::snprintf(buf, n, "%s", styleName(v[id]));
+    else if (id == ui::kDrumKit) std::snprintf(buf, n, "%s", v[id] ? "rock (AVL)" : "synth");
     else return false;
     return true;
   }

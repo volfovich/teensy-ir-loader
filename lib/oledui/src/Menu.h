@@ -29,7 +29,9 @@ enum ItemId : uint8_t {
   kOutGain,  // half-dB steps
   kLineIn, kLineOut, kHeadphones,
   kBypass,
-  kDrumsPlay, kDrumStyle, kDrumTempo, kDrumVolume, kDrumCountIn,
+  kDrumsPlay, kDrumStyle, kDrumKit,
+  kDrumCrash,  // 0 off, 1..4 = every 2, 4, 8, 16 bars
+  kDrumTempo, kDrumVolume, kDrumCountIn,
   kTrainerOn, kTrainerStep, kTrainerEvery, kTrainerTarget,
   // Read-only, for visibility.
   kIsStudioDelay,  // 1 when the delay type is studio 80s
@@ -77,7 +79,7 @@ class MenuHost {
   // Overrides an item's range (e.g. the delay time's maximum from config.h).
   virtual void limits(uint8_t id, int* lo, int* hi) { (void)id; (void)lo; (void)hi; }
   // Value text instead of the number, for kScreen rows ("3/12" next to IR)
-  // and named values (the drum style). Returns false to use the number.
+  // and named values (drum style and kit). Returns false to use the number.
   virtual bool valueText(uint8_t id, char* buf, int n) { (void)id; (void)buf; (void)n; return false; }
 
  protected:
