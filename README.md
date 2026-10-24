@@ -7,7 +7,7 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
                                                 (IR from SD card)    (studio 80s or        (stereo)
                                                                       ping-pong, stereo)
                                                                      each effect: dry/wet mix, on/off
-                                                         + drum machine (sampled or synthesized kit, added to both outputs)
+                                                         + drum machine (sampled or synthesized kit, stereo, added to the outputs)
 ```
 
 ## Features
@@ -37,8 +37,9 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
     - two recorded acoustic kits, played from flash: the AVL Drumkits "Red Zeppelin" (rock) and "Black Pearl" (CC BY-SA 3.0).
     - a synthesized kit.
   - Crash accents on beat 1 of every 2, 4, 8 or 16 bars.
+  - Played like a drummer: velocities that follow the groove (softer hats under the snare), recorded velocity layers, a little random variation, and stereo panning from the drummer's seat.
   - A count-in bar, and a speed trainer that raises the tempo every few bars up to a target.
-  - Mixed into both outputs after the effects, with its own volume, so the drums never go through your guitar effects.
+  - Mixed into the outputs in stereo after the effects, with its own volume, so the drums never go through your guitar effects.
 - **Remembers settings:** the last IR, your levels and the delay, reverb and drum settings are stored in EEPROM.
 - **Controls:** USB serial commands, plus optional *next*, *previous*, *bypass*, *reverb* and *delay* buttons.
 
@@ -213,7 +214,7 @@ The tests check:
 - Convolution against a direct (time-domain) reference for block sizes 16–128 and IR lengths 1–8192.
 - That crossfades are exact.
 - Both delay types: repeat timing and gains, stability, time changes, tails, clearing, and the studio 80s ducking, drive and era (see [DELAY.md](DELAY.md#code-and-tests)).
-- The drum machine: sample-accurate timing, count-in, speed trainer, style and tempo change points, the shuffle grid, stopping, every style's lanes and level, sampled-kit playback (onsets, layers, fades, cymbal voices), crash accents and the real kit's samples and levels (see [DRUMS.md](DRUMS.md#code-and-tests)).
+- The drum machine: sample-accurate timing, count-in, speed trainer, style and tempo change points, the shuffle grid, stopping, every style's lanes and level, sampled-kit playback (onsets, velocity layers, fades, cymbal voices), crash accents, dynamics, humanize and panning, and the real kits' samples, layers and balance (see [DRUMS.md](DRUMS.md#code-and-tests)).
 - That the reverb stays stable at maximum size, its decay time rises with size, its tail dies out, its left and right channels are decorrelated, its wet level matches the dry level, and the mix law behaves correctly.
 - WAV decoding for every supported format.
 - Resampling accuracy at 22.05, 32, 48, 88.2, 96 and 192 kHz.

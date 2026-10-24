@@ -7,7 +7,8 @@ A small drum machine to practice along with. It plays one of eight built-in styl
   - **pearl**: the AVL Drumkits "Black Pearl", a smaller, tighter recorded kit, played the same way.
   - **synth**: every sound generated in code, in the spirit of the classic analog drum machines.
 - **Crash accents:** a crash cymbal on the first beat of every 2, 4, 8 or 16 bars, so you always know where the phrase starts.
-- **Kept apart from the guitar:** the drums are mixed into both outputs (line out and headphones), centered, **after** the IR, delay and reverb. They never go through your guitar effects, and they have their own volume.
+- **Like a drummer:** hits have velocities 1–9 that follow a drummer's hands, vary at random a little (more on the hats), play recorded velocity layers, and are panned like a real kit.
+- **Kept apart from the guitar:** the drums are mixed into the outputs (line out and headphones), in stereo, **after** the IR, delay and reverb. They never go through your guitar effects, and they have their own volume.
 
 ## Contents
 
@@ -16,6 +17,7 @@ A small drum machine to practice along with. It plays one of eight built-in styl
 - [Count-in and speed trainer](#count-in-and-speed-trainer)
 - [Crash accents](#crash-accents)
 - [Styles](#styles)
+- [Dynamics, humanize and panning](#dynamics-humanize-and-panning)
 - [Kits and sounds](#kits-and-sounds)
 - [Adding a kit](#adding-a-kit)
 - [Timing, levels, CPU and memory](#timing-levels-cpu-and-memory)
@@ -96,7 +98,7 @@ A crash on the first beat of every 2, 4, 8 or 16 bars (`drum crash`, default eve
 
 ## Styles
 
-Each grid is one bar. Steps are 16ths, or triplet 8ths for the triplets, the shuffle and the 6/8 ballad. `X` = accent, `x` = normal, `g` = ghost note, `.` = rest. The numbers above the grid are the beats.
+Each grid is one bar. Steps are 16ths, or triplet 8ths for the triplets, the shuffle and the 6/8 ballad. `1`–`9` = a hit's velocity (9 hardest), `.` = rest. The numbers above the grid are the beats. The velocities follow a drummer's hands; see [Dynamics, humanize and panning](#dynamics-humanize-and-panning).
 
 ### 1. metronome (`metronome`)
 
@@ -104,7 +106,7 @@ A plain click, higher on beat 1.
 
 ```
          1    2    3    4
-Click    X... x... x... x...
+Click    9... 6... 6... 6...
 ```
 
 ### 2. rock (`rock`)
@@ -113,9 +115,9 @@ Straight 8ths on the hat, with a pushed kick on the "&" of 3.
 
 ```
          1    2    3    4
-Kick     x... .... x.x. ....
-Snare    .... x... .... x...
-Hat      X.x. X.x. X.x. X.x.
+Kick     9... .... 8.7. ....
+Snare    .... 8... .... 9...
+Hat      9.6. 5.6. 8.6. 5.6.
 ```
 
 ### 3. offbeat 8ths (`offbeat8`)
@@ -124,20 +126,20 @@ A straight beat with the hat only on the "&" of each beat.
 
 ```
          1    2    3    4
-Kick     x... .... x... ....
-Snare    .... x... .... x...
-Hat      ..x. ..x. ..x. ..x.
+Kick     9... .... 8... ....
+Snare    .... 8... .... 9...
+Hat      ..7. ..6. ..7. ..6.
 ```
 
 ### 4. offbeat 16ths (`offbeat16`)
 
-The same beat with the hat on "e & a", leaving the beat itself to the kick and snare. The "&" is accented.
+The same beat with the hat on "e & a", leaving the beat itself to the kick and snare. The "&" is the strongest of the three.
 
 ```
          1    2    3    4
-Kick     x... .... x... ....
-Snare    .... x... .... x...
-Hat      .xXx .xXx .xXx .xXx
+Kick     9... .... 8... ....
+Snare    .... 8... .... 9...
+Hat      .474 .474 .474 .474
 ```
 
 ### 5. triplets (`triplets`)
@@ -146,9 +148,9 @@ The same beat in triplets: kick or snare, hat, hat on every beat.
 
 ```
          1   2   3   4
-Kick     x.. ... x.. ...
-Snare    ... x.. ... x..
-Hat      .xx .xx .xx .xx
+Kick     9.. ... 8.. ...
+Snare    ... 8.. ... 9..
+Hat      .65 .65 .65 .65
 ```
 
 ### 6. pop (`pop`)
@@ -157,10 +159,10 @@ Straight 8ths with an open hat at the end of the bar.
 
 ```
          1    2    3    4
-Kick     x... ..x. x... ....
-Snare    .... x... .... x...
-Hat      x.x. x.x. x.x. x...
-Open hat .... .... .... ..x.
+Kick     9... ..7. 8... ....
+Snare    .... 8... .... 9...
+Hat      9.6. 5.6. 8.6. 5...
+Open hat .... .... .... ..7.
 ```
 
 ### 7. blues shuffle (`shuffle`)
@@ -169,9 +171,9 @@ Swung 8ths on the triplet grid.
 
 ```
          1   2   3   4
-Kick     x.. ... x.. ...
-Snare    ... x.. ... x..
-Hat      X.x x.x X.x x.x
+Kick     9.. ... 8.. ...
+Snare    ... 8.. ... 9..
+Hat      9.6 5.6 8.6 5.6
 ```
 
 ### 8. 6/8 ballad (`ballad`)
@@ -180,12 +182,48 @@ Hat      X.x x.x X.x x.x
 
 ```
          1   2
-Kick     x.. ...
-Snare    ... x..
-Hat      Xxx Xxx
+Kick     9.. ...
+Snare    ... 9..
+Hat      966 566
 ```
 
-To add or change a style, edit the table in `lib/irdsp/src/DrumPatterns.cpp`. Each lane is one string per voice, and `test_drums` checks that every lane fits its style.
+To add or change a style, edit the table in `lib/irdsp/src/DrumPatterns.cpp`. Each lane is one string per voice, with `.` for a rest and `1`–`9` for a hit (`g`, `x` and `X` still work, as 3, 6 and 9). `test_drums` checks that every lane fits its style.
+
+## Dynamics, humanize and panning
+
+**Velocity.** Every hit has a velocity from 1 to 9, written in the style's lanes. A hit's loudness is proportional to its velocity (9 = full, 5 = −5 dB, 3 = −10 dB). The built-in styles follow how a drummer plays:
+
+- **Hi-hat:**
+  - strongest on 1 and 3
+  - a bit softer on the "&"
+  - softer still under the snare on 2 and 4, where the hand lightens as the other one hits the snare
+  - softest on the 16th "e" and "a"
+- **Kick:** strongest on 1, a little less on 3 and on pushed beats.
+- **Snare:** a touch harder on 4 than on 2.
+
+**Velocity layers.** In the recorded kits, a hit plays the recording made nearest its velocity (2 for the kick, 3 for the snare, 4 for the closed hat). So a soft hat is a softer stroke, darker and with less attack, not just the loud one turned down. Between layers the level is scaled to the exact velocity.
+
+**Humanize.** On top of that, every hit's velocity varies at random, like a real drummer's hands. Small changes are common and big ones rare (a triangular spread):
+
+| Lanes | Spread |
+|---|---|
+| Hi-hats, ride | ±15 % |
+| Kick, snare, rim, crash | ±8 % |
+| Click (metronome, count-in) | none |
+
+As the velocity moves, a hit sometimes crosses into the next layer, so repeated hats also vary a little in tone. Timing is never humanized: every hit stays sample-exact.
+
+**Panning** is from the drummer's seat, kept moderate like a real kit in a mix:
+
+| Lane | Pan |
+|---|---|
+| Kick, click | center |
+| Snare, rim | 10 % left |
+| Hi-hats | 35 % left |
+| Crash | 30 % left |
+| Ride | 40 % right |
+
+The near side stays at full level and the far side is turned down: a hat 35 % left plays at 65 % (−3.7 dB) on the right. Centered drums are as loud as before, so panning never adds clipping. The pans apply to every kit, including synth.
 
 ## Kits and sounds
 
@@ -194,49 +232,51 @@ Every style plays with any kit (`drum kit`). The count-in and metronome click ar
 | # | Kit | What it is | Flash |
 |---|---|---|---|
 | 1 | synth | Synthesized voices | — |
-| 2 | rock (default) | AVL "Red Zeppelin": 26" kick, Porkpie snare, Zildjian A cymbals | 679 KB |
-| 3 | pearl | AVL "Black Pearl": 22" kick, tight Pearl snare, Sabian AA cymbals | 526 KB (+ the hi-hats it shares with rock) |
+| 2 | rock (default) | AVL "Red Zeppelin": 26" kick, Porkpie snare, Zildjian A cymbals | 903 KB |
+| 3 | pearl | AVL "Black Pearl": 22" kick, tight Pearl snare, Sabian AA cymbals | 680 KB (+ the hi-hats it shares with rock) |
 
 ### rock (default)
 
 A recorded acoustic kit: the **AVL Drumkits "Red Zeppelin"** by Glen MacArthur (a 26" Ludwig kick, a Porkpie snare, Sabian Rock hats, Zildjian A cymbals). It's licensed CC BY-SA 3.0; see [kits/rock/CREDITS.md](kits/rock/CREDITS.md).
 
-| Lane | Sample (source layer) | Length kept | Size |
-|---|---|---|---|
-| Kick | Ludwig 26" kick (4 of 5) | 0.8 s | 69 KB |
-| Snare | Porkpie snare (4) | 0.6 s | 52 KB |
-| Rim | sidestick (4) | 0.3 s | 26 KB |
-| Closed hat | Sabian Rock hat: 3 for normal hits, 5 for accents | 0.3 s each | 52 KB |
-| Open hat | Sabian Rock hat, semi-open (4) | 0.6 s | 50 KB |
-| Ride | Zildjian A 24" ride (4) | 2.0 s | 172 KB |
-| Crash | Zildjian A20 crash (5) | 3.0 s | 258 KB |
+The source has 5 velocity layers per drum; layers 1–5 are velocities 1, 3, 5, 7 and 9 here.
 
-All samples are 16-bit mono 44.1 kHz: **679 KB** of flash in all.
+| Lane | Sample (source layers → velocities) | Length kept | Size |
+|---|---|---|---|
+| Kick | Ludwig 26" kick (4, 5 → 7, 9) | 0.8 s | 138 KB |
+| Snare | Porkpie snare (3, 4, 5 → 5, 7, 9) | 0.6 s | 155 KB |
+| Rim | sidestick (4 → 7) | 0.3 s | 26 KB |
+| Closed hat | Sabian Rock hat (2, 3, 4, 5 → 3, 5, 7, 9) | 0.3 s | 103 KB |
+| Open hat | Sabian Rock hat, semi-open (4 → 7) | 0.6 s | 50 KB |
+| Ride | Zildjian A 24" ride (4 → 7) | 2.0 s | 172 KB |
+| Crash | Zildjian A20 crash (5 → 9) | 3.0 s | 258 KB |
+
+All samples are 16-bit mono 44.1 kHz: **903 KB** of flash in all.
 
 ### pearl
 
 The **AVL Drumkits "Black Pearl"**, by the same author and under the same license; see [kits/pearl/CREDITS.md](kits/pearl/CREDITS.md). It's smaller and tighter than rock, with a jazz-style kick and snare. It uses the same hi-hat recordings as rock, and the firmware stores those only once.
 
-| Lane | Sample (source layer) | Length kept | Size |
+| Lane | Sample (source layers → velocities) | Length kept | Size |
 |---|---|---|---|
-| Kick | Pearl 22" kick (4 of 5) | 0.8 s | 69 KB |
-| Snare | Pearl snare (4) | 0.5 s | 43 KB |
-| Rim | sidestick (4) | 0.3 s | 26 KB |
-| Closed hat | Sabian Rock hat: 3 for normal hits, 5 for accents (shared with rock) | 0.3 s each | — |
-| Open hat | Sabian Rock hat, semi-open (4) (shared with rock) | 0.6 s | — |
-| Ride | Sabian AAX 20" ride (4) | 2.0 s | 172 KB |
-| Crash | Sabian AA 16" crash (5) | 2.5 s | 215 KB |
+| Kick | Pearl 22" kick (4, 5 → 7, 9) | 0.8 s | 138 KB |
+| Snare | Pearl snare (3, 4, 5 → 5, 7, 9) | 0.5 s | 129 KB |
+| Rim | sidestick (4 → 7) | 0.3 s | 26 KB |
+| Closed hat | Sabian Rock hat (2, 3, 4, 5 → 3, 5, 7, 9), shared with rock | 0.3 s | — |
+| Open hat | Sabian Rock hat, semi-open (4 → 7), shared with rock | 0.6 s | — |
+| Ride | Sabian AAX 20" ride (4 → 7) | 2.0 s | 172 KB |
+| Crash | Sabian AA 16" crash (5 → 9) | 2.5 s | 215 KB |
 
-That's **526 KB** of flash beyond the shared hi-hats.
+That's **680 KB** of flash beyond the shared hi-hats.
 
 ### How the sampled kits play
 
-- **Levels:** each sample plays at its recorded level. A hit on a level with no sample of its own is scaled, as with the synth kit: ghosts at 30 %, normal hits at 70 % of an accent.
-- **Velocity:** every hit varies by ±4 %, so straight 8ths and 16ths don't sound like a machine gun.
+- **Velocity:** a hit plays the layer nearest its velocity, scaled to the exact velocity (see [Dynamics, humanize and panning](#dynamics-humanize-and-panning)). Each sample was levelled to its velocity: at velocity 9 a drum peaks at its `peak` in `kit.txt`.
+- **Balance:** the hi-hats sit about 18 dB below the kick and snare in the rock groove (measured on the energy of each).
 - **Re-struck drums:** a kick, snare, rim or closed hat cuts its previous hit with a 2 ms fade.
 - **Cymbals:** the open hat, ride and crash ring on under a new hit, up to two of each at once; the oldest fades out over 5 ms. A closed hat chokes a ringing open hat in 5 ms, like a real hi-hat.
 - **Tails:** the long cymbal tails were cut and faded to save flash, the crashes at 2.5–3 s and the rides at 2 s.
-- **Loudness:** each kit is level-matched to the synth kit within 1 dB, so switching kits doesn't change the balance with your guitar.
+- **Loudness:** both recorded kits are within about 2 dB of the synth kit, so switching kits barely changes the balance with your guitar.
 
 ### synth
 
@@ -263,8 +303,13 @@ A kit is a folder in `kits/` with a `kit.txt` and its WAVs. Every kit there is c
    - `name` (at most 9 characters) and `title` (at most 13, shown on the display).
    - `order`: its place in the kit list. Kit numbers are saved in the settings, so give a new kit the next number to keep the existing ones in place.
    - `source`: the base URL of the original samples.
-   - One line per sample: lane (`kick snare rim hatc hato ride crash`), the hit level it's for (`x` normal, `X` accent), the WAV to write, the source file, the length to keep, the fade at its end, and the lane's peak level in dBFS.
-   - At most 3 samples per lane. A lane with no samples uses the synthesized voice.
+   - One line per sample:
+     - the lane (`kick snare rim hatc hato ride crash`)
+     - the velocity it stands for (1–9)
+     - the WAV to write and the source file
+     - the length to keep and the fade at its end
+     - the lane's peak level at velocity 9, in dBFS
+   - At most 4 samples per lane. A lane with no samples uses the synthesized voice.
 2. **Build the WAVs from the originals:**
 
    ```
@@ -276,7 +321,7 @@ A kit is a folder in `kits/` with a `kit.txt` and its WAVs. Every kit there is c
    - Downloads it.
    - Trims the silence before the hit, keeping 0.5 ms, faded in.
    - Cuts the tail at −60 dB or at the length given, with a raised-cosine fade.
-   - Sets the lane's level.
+   - Levels it to the lane's peak × velocity / 9.
    - Writes 16-bit mono 44.1 kHz WAVs.
 
    Sources must be 44.1 kHz (16 or 24-bit, mono or stereo).
@@ -285,7 +330,7 @@ A kit is a folder in `kits/` with a `kit.txt` and its WAVs. Every kit there is c
    - `make -C test/host render` writes every style with every kit to `test/host/out/drums_*_<kit>.wav`.
    - `test_drums` checks that each sample starts and ends at zero, that its hit starts within 2 ms, and that the loudest style stays below clipping.
 
-**Flash budget:** the kits use 1,205 KB (rock 679 KB, pearl 526 KB), and 628 KB of flash is left. Keeping some for future code, that's room for one more lean kit of about 350–400 KB (88 KB per second of sound). Cymbal tails are the expensive part; sharing them between kits is free.
+**Flash budget:** the kits use 1,583 KB (rock 903 KB, pearl 680 KB), and 240 KB of flash is left, which is best kept for future code such as the OLED display. A new kit would mean trimming tails or layers elsewhere (88 KB per second of sound). Cymbal tails are the expensive part; sharing samples between kits is free.
 
 ## Timing, levels, CPU and memory
 
@@ -296,14 +341,13 @@ A kit is a folder in `kits/` with a `kit.txt` and its WAVs. Every kit there is c
   - stopping cuts the sequencer at once, but the last hits ring out
 - **Levels:** at the default volume (60) the drums peak around −13 dBFS. At 100 the loudest style peaks around −5 dBFS. Set the drum volume against your guitar, and watch `s` for clipped samples, because the drums add to the guitar signal at the output.
 - **CPU** while playing, measured on the Teensy 4.0 with 32-sample blocks:
-  - rock kit: 1.6 % at 100 BPM, 2.3 % at 240 BPM with crash accents.
-  - pearl kit: 1.6 % at 100 BPM, 2.0 % at 240 BPM.
+  - rock and pearl kits: 1.8 % at 100 BPM, 2.3 % at 240 BPM with crash accents (stereo, humanized).
   - synth kit: up to 3.3 % at 240 BPM.
   - Once stopped and silent it uses almost nothing (0.1 %), and the output is the guitar alone, bit for bit.
 - **Sample reads:** samples are read straight from flash in the audio interrupt, which needs only a few percent of the flash's bandwidth. Switching IRs while the drums play peaks at the same 55 % CPU as without them, with no dropouts.
 - **Memory:**
-  - RAM1: about 2.4 KB of data (two pattern buffers, the synth voices' state and 16 sample voices) and about 5.4 KB of code (the real-time part).
-  - Flash: the kits' samples (1,205 KB for rock and pearl), setup, parsing and the style and kit tables.
+  - RAM1: about 2.5 KB of data (two pattern buffers, the synth voices' state and 16 sample voices) and about 5.8 KB of code (the real-time part).
+  - Flash: the kits' samples (1,583 KB for rock and pearl), setup, parsing and the style and kit tables.
 
 ## Defaults (`config.h`)
 
@@ -345,7 +389,7 @@ These are used when the EEPROM is blank, and when settings saved by older firmwa
 - **Every style:** its lanes fit, it stays below full scale and it is clearly audible.
 - **Sampled kits** (with a test kit made of impulses and steady values):
   - Every hit starts at its exact step sample, at 120 and 97 BPM.
-  - The accent layer plays on `X`.
+  - Each hit plays the velocity layer nearest its velocity, scaled by hit / layer velocity.
   - A re-struck snare's old hit fades within 2 ms.
   - A closed hat chokes the open hat smoothly within 5 ms.
   - At most two cymbal hits ring at once.
@@ -357,9 +401,17 @@ These are used when the EEPROM is blank, and when settings saved by older firmwa
   - Not in the count-in or the metronome style.
   - A change waits for the next bar.
   - The synth crash rings and dies away.
-- **The real kits:** each sample starts and ends at zero with its hit within 2 ms. Every style with each recorded kit stays below clipping at volume 100, and within 3 dB of the synth kit's loudness.
+- **Dynamics, humanize and panning:**
+  - The rock hats play 9, 6, 5, 6, 8, 6, 5, 6, the kick 9/8/7 and the snare 8/9.
+  - The humanize spread measures about ±8 % on the kick and ±15 % on the hats, and none when turned off.
+  - The hats and crash are panned left and the kick centered, by the exact amounts.
+- **The real kits:**
+  - Each sample starts and ends at zero with its hit within 2 ms.
+  - Layers: 2 kick, 3 snare, 4 closed hat, each levelled to its velocity.
+  - The hats sit more than 6 dB below the kick and snare.
+  - Every style with each recorded kit stays below clipping at volume 100, and within 3 dB of the synth kit's loudness.
 
-To listen on your computer, `make -C test/host render` writes 8 bars of every style with every kit, with the count-in and a crash every 4 bars, to `test/host/out/drums_<n>_<style>_<kit>.wav`.
+To listen on your computer, `make -C test/host render` writes 8 bars of every style with every kit, with the count-in and a crash every 4 bars, to `test/host/out/drums_<n>_<style>_<kit>.wav` (stereo).
 
 ## Ideas for later
 
