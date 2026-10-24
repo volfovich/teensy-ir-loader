@@ -7,7 +7,7 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
                                                 (IR from SD card)    (studio 80s or        (stereo)
                                                                       ping-pong, stereo)
                                                                      each effect: dry/wet mix, on/off
-                                                         + drum machine (synthesized, added to both outputs)
+                                                         + drum machine (sampled or synthesized kit, added to both outputs)
 ```
 
 ## Features
@@ -32,7 +32,11 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
   - They run in 32-bit float in the same audio object as the convolution, so the path from the IR through the delay and reverb never drops to 16 bits.
   - Switching an effect off is click-free and lets its tail ring out. When the tail has died away, the effect stops using CPU and passes its input through bit-identically.
 - **Practice drum machine** (details in [DRUMS.md](DRUMS.md)):
-  - Eight synthesized styles at 40–240 BPM, with sample-accurate timing: metronome, rock, three practice beats (hat only on the offbeat 8ths, offbeat 16ths, or triplets), pop, blues shuffle and 6/8 ballad.
+  - Eight styles at 40–240 BPM, with sample-accurate timing: metronome, rock, three practice beats (hat only on the offbeat 8ths, offbeat 16ths, or triplets), pop, blues shuffle and 6/8 ballad.
+  - Two kits:
+    - a recorded acoustic rock kit: the AVL Drumkits "Red Zeppelin" samples (CC BY-SA 3.0), played from flash.
+    - a synthesized kit.
+  - Crash accents on beat 1 of every 2, 4, 8 or 16 bars.
   - A count-in bar, and a speed trainer that raises the tempo every few bars up to a target.
   - Mixed into both outputs after the effects, with its own volume, so the drums never go through your guitar effects.
 - **Remembers settings:** the last IR, your levels and the delay, reverb and drum settings are stored in EEPROM.
@@ -74,6 +78,7 @@ Hidden files (such as macOS `._name.wav` files) are ignored. Files are listed al
    ```
    pio run -t upload
    ```
+   The build also compiles the drum kits in `kits/` into the firmware (a pre-build step that needs only Python, which PlatformIO already has).
 4. Open the serial monitor:
    ```
    pio device monitor
@@ -102,6 +107,8 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `drum` | Start / stop the drum machine (count-in, then the groove). All drum commands are explained in [DRUMS.md](DRUMS.md#controls). |
 | `bpm 40..240` | Drum tempo |
 | `drum style [n\|name]` | List the styles / choose one (from the next bar while playing) |
+| `drum kit [n\|name]` | List the kits / choose one (rock, synth) |
+| `drum crash 0\|2\|4\|8\|16` | Crash on beat 1 of every N bars, 0 = off |
 | `drum vol 0..100` | Drum volume |
 | `drum count` | Toggle the count-in bar |
 | `drum train [step every target]` | Toggle / set the speed trainer (+step BPM every `every` bars, up to `target`) |
@@ -132,7 +139,7 @@ The codec's ADC and DAC add their own fixed delay on top of the buffering. To me
 
 CPU cost scales with IR length. A typical 2048-sample cabinet IR uses about a quarter of the figures above.
 
-The reverb adds about 6 % CPU (measured with 32-sample blocks), the ping-pong delay about 3 %, the studio 80s delay about 4.5 % and the drum machine about 2 %, while each is on (or playing) or still ringing out. None of them uses any CPU once its tail has died away. Run `s` to see the current values. The fixed voicing of both effects (diffusion, damping, filters, modulation rate, time glide) is set in `include/config.h`; see [DELAY.md](DELAY.md#fixed-voicing-configh) for the delay's.
+The reverb adds about 6 % CPU (measured with 32-sample blocks), the ping-pong delay about 3 %, the studio 80s delay about 4.5 % and the drum machine about 1.5–2.5 % (rock kit), while each is on (or playing) or still ringing out. None of them uses any CPU once its tail has died away. Run `s` to see the current values. The fixed voicing of both effects (diffusion, damping, filters, modulation rate, time glide) is set in `include/config.h`; see [DELAY.md](DELAY.md#fixed-voicing-configh) for the delay's.
 
 Smaller blocks cost more CPU because the same IR is split into more partitions, and every partition is processed each block. At 16 samples there is still plenty of headroom, so try it if you want the lowest possible latency.
 
@@ -179,13 +186,16 @@ lib/irdsp/src/              portable DSP core (no Arduino dependencies)
   PartitionedConvolver.h    the UPOLS convolution engine
   StereoDelay.h             the ping-pong delay (port of HexeFX)
   StudioDelay.h             the studio 80s dual delay
-  DrumMachine.{h,cpp}       the drum machine (voices, sequencer, count-in, trainer)
+  DrumMachine.{h,cpp}       the drum machine (synth and sample voices, sequencer, count-in, trainer, crash accents)
   DrumPatterns.cpp          the drum styles
+  DrumKit.h                 the drum kit format (DrumKitData.cpp is generated from kits/)
   PlateReverb.h             the stereo plate reverb (port of HexeFX)
   FxSlot.h                  on/off with trails, dry/wet mix and idle detection per effect
   irdsp_blocks.h            shared shelving filter, biquad filters, Hermite read, LFO and mix law
   irdsp_fft.h               small radix-2 FFT
   IRLoader.{h,cpp}          WAV parser, resampler, IR trimming and normalization
+kits/rock/                  the rock drum kit (WAVs, kit.txt, credits)
+tools/                      drum kit tools: import_kit.py (build a kit's WAVs), make_kits.py (compile kits in)
 test/host/                  PC tests for the DSP core
 ```
 
@@ -203,7 +213,7 @@ The tests check:
 - Convolution against a direct (time-domain) reference for block sizes 16–128 and IR lengths 1–8192.
 - That crossfades are exact.
 - Both delay types: repeat timing and gains, stability, time changes, tails, clearing, and the studio 80s ducking, drive and era (see [DELAY.md](DELAY.md#code-and-tests)).
-- The drum machine: sample-accurate timing, count-in, speed trainer, style and tempo change points, the shuffle grid, stopping, and every style's lanes and level (see [DRUMS.md](DRUMS.md#code-and-tests)).
+- The drum machine: sample-accurate timing, count-in, speed trainer, style and tempo change points, the shuffle grid, stopping, every style's lanes and level, sampled-kit playback (onsets, layers, fades, cymbal voices), crash accents and the real kit's samples and levels (see [DRUMS.md](DRUMS.md#code-and-tests)).
 - That the reverb stays stable at maximum size, its decay time rises with size, its tail dies out, its left and right channels are decorrelated, its wet level matches the dry level, and the mix law behaves correctly.
 - WAV decoding for every supported format.
 - Resampling accuracy at 22.05, 32, 48, 88.2, 96 and 192 kHz.
