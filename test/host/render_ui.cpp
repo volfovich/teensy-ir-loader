@@ -132,16 +132,16 @@ int main(int argc, char** argv) {
   snap("11_status");
 
   host.v[ui::kTrainerOn] = 1;
-  menu.open(); menu.turn(3, 0); menu.push(); menu.turn(7, 0);  // Drums > Trainer
+  menu.open(); menu.turn(3, 0); menu.push(); menu.turn(8, 0);  // Drums > Trainer
   menu.draw(c);
   snap("12_menu_drums");
 
-  menu.turn(-6, 0); menu.push();  // Style
+  menu.turn(-7, 0); menu.push();  // Style
   menu.draw(c);
   snap("13_edit_drum_style");
   menu.back();
 
-  menu.turn(1, 0); menu.push();  // Kit
+  menu.turn(2, 0); menu.push();  // Kit (after Song)
   menu.draw(c);
   snap("16_edit_drum_kit");
   menu.back();
@@ -153,6 +153,16 @@ int main(int argc, char** argv) {
   menu.turn(1, 0); menu.push();  // Target
   menu.draw(c);
   snap("15_edit_trainer_target");
+
+  host.v[ui::kDrumSong] = 4;
+  host.v[ui::kDrumLoopFrom] = 9;
+  host.v[ui::kDrumLoopTo] = 16;
+  menu.open(); menu.turn(3, 0); menu.push(); menu.turn(2, 0);  // Drums > Song
+  menu.draw(c);
+  snap("19_menu_drums_song");
+  host.v[ui::kDrumSong] = 0;
+  host.v[ui::kDrumLoopFrom] = 0;
+  host.v[ui::kDrumLoopTo] = 32;
 
   menu.open(); menu.turn(2, 0); menu.push(); menu.turn(1, 0);  // Reverb > Type (80s hall)
   menu.draw(c);

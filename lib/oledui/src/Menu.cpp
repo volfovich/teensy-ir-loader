@@ -20,6 +20,9 @@ UI_LABEL(kLDrums, "Drums");
 UI_LABEL(kLPlay, "Play");
 UI_LABEL(kLStyle, "Style");
 UI_LABEL(kLKit, "Kit");
+UI_LABEL(kLSong, "Song");
+UI_LABEL(kLLoopFrom, "Loop from");
+UI_LABEL(kLLoopTo, "Loop to");
 UI_LABEL(kLCrash, "Crash");
 UI_LABEL(kLTempo, "Tempo");
 UI_LABEL(kLVolume, "Volume");
@@ -123,11 +126,15 @@ static const MenuItem UI_PROGMEM kLevelItems[] = {
     {kLPhones, K::kValue, kHeadphones, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
 };
 
-// The style's and kit's range ends come from MenuHost::limits (how many
-// there are), their names from MenuHost::valueText.
+// The style's, kit's and song's range ends come from MenuHost::limits (how
+// many there are), their names from MenuHost::valueText; so do the loop's
+// bars (the song's length; "off" for from = 0).
 static const MenuItem UI_PROGMEM kDrumItems[] = {
     {kLPlay, K::kToggle, kDrumsPlay, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
     {kLStyle, K::kValue, kDrumStyle, 0, 0, 7, 1, U::kOneBased, kNoItem, nullptr},
+    {kLSong, K::kValue, kDrumSong, 0, 0, 5, 1, U::kNone, kNoItem, nullptr},
+    {kLLoopFrom, K::kValue, kDrumLoopFrom, 0, 0, 32, 1, U::kNone, kIsDrumSong, nullptr},
+    {kLLoopTo, K::kValue, kDrumLoopTo, 0, 1, 32, 1, U::kNone, kIsDrumSong, nullptr},
     {kLKit, K::kValue, kDrumKit, 0, 0, 2, 1, U::kOneBased, kNoItem, nullptr},
     {kLCrash, K::kChoice, kDrumCrash, 0, 0, 4, 1, U::kNone, kNoItem, kCrashNames},
     {kLTempo, K::kValue, kDrumTempo, 0, 40, 240, 1, U::kBpm, kNoItem, nullptr},
@@ -366,7 +373,16 @@ UI_COLD void Menu::drawList(Canvas& c) {
     } else {
       val[0] = 0;
     }
-    if (val[0]) c.textRight(Canvas::kW - 2, page, val);
+    if (val[0]) {
+      // A value too long for the space after the label is cut short with a
+      // '~' (the editor shows it in full).
+      const int room = (Canvas::kW - 2 - (12 + Canvas::width(it->label) + Canvas::kCharW)) / Canvas::kCharW;
+      if (room > 1 && (int)strlen(val) > room) {
+        val[room - 1] = '~';
+        val[room] = 0;
+      }
+      c.textRight(Canvas::kW - 2, page, val);
+    }
     if (n == lv.cursor) c.invertPage(page);
   }
 }

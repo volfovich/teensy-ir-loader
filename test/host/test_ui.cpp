@@ -136,6 +136,37 @@ static void testReverbPage() {
   check(h.v[ui::kReverbType] == 1 && m.current()->id == ui::kReverbType, "push on Type: plate -> 80s", h.v[ui::kReverbType]);
 }
 
+static void testSongRows() {
+  std::printf("Drums page: songs\n");
+  FakeHost h;
+  ui::Menu m(ui::menuPages(), h);
+  m.open();
+  m.turn(3, 0);
+  m.push();
+  m.turn(2, 0);
+  check(m.current()->id == ui::kDrumSong, "Song after Style", m.current()->id);
+  m.turn(1, 0);
+  check(m.current()->id == ui::kDrumKit, "  ... no song: the Loop rows are hidden", m.current()->id);
+  m.turn(-1, 0);
+  m.push();
+  m.turn(4, 1000);
+  m.push();
+  check(h.v[ui::kDrumSong] == 4, "  ... pick song 4 by turning", h.v[ui::kDrumSong]);
+  m.turn(1, 0);
+  check(m.current()->id == ui::kDrumLoopFrom, "  ... with a song: Loop from, Loop to", m.current()->id);
+  char b[24];
+  h.valueText(ui::kDrumLoopFrom, b, sizeof(b));
+  check(!std::strcmp(b, "off"), "  ... Loop from 0 reads off", 0);
+  m.push();
+  m.turn(9, 1000);
+  m.push();
+  m.turn(1, 0);
+  m.push();
+  m.turn(-16, 2000);
+  m.push();
+  check(h.v[ui::kDrumLoopFrom] == 9 && h.v[ui::kDrumLoopTo] == 16, "  ... loop bars 9-16", h.v[ui::kDrumLoopTo]);
+}
+
 static void testDrumsPage() {
   std::printf("Drums page\n");
   FakeHost h;
@@ -170,8 +201,8 @@ static void testDrumsPage() {
   check(h.v[ui::kDrumStyle] == 7, "  ... up to the last style (MenuHost::limits)", h.v[ui::kDrumStyle]);
   m.back();
   check(h.v[ui::kDrumStyle] == 1, "  ... back restores rock", h.v[ui::kDrumStyle]);
-  m.turn(1, 0);
-  check(m.current()->id == ui::kDrumKit, "Kit after Style", m.current()->id);
+  m.turn(2, 0);
+  check(m.current()->id == ui::kDrumKit, "Kit after Style and Song", m.current()->id);
   m.push();
   m.turn(5, 1000);
   check(h.v[ui::kDrumKit] == 2, "  ... kit range from MenuHost::limits (3 kits)", h.v[ui::kDrumKit]);
@@ -268,6 +299,7 @@ int main() {
   testMenu();
   testReverbPage();
   testDrumsPage();
+  testSongRows();
   testFormat();
   testMeter();
   testCanvas();

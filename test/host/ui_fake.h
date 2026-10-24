@@ -18,6 +18,7 @@ struct FakeHost : ui::MenuHost {
     v[ui::kReverbOn] = 1; v[ui::kReverbMix] = 25; v[ui::kReverbSize] = 50; v[ui::kReverbTone] = 50;
     v[ui::kReverbType] = 1; v[ui::kReverbMode] = 0; v[ui::kReverbPreDelay] = 40; v[ui::kReverbMod] = 40;
     v[ui::kReverbEra] = 40; v[ui::kReverbGate] = 300;
+    v[ui::kDrumSong] = 0; v[ui::kDrumLoopFrom] = 0; v[ui::kDrumLoopTo] = 32;
     v[ui::kOutGain] = -12; v[ui::kLineIn] = 0; v[ui::kLineOut] = 29; v[ui::kHeadphones] = 50;
     v[ui::kDrumsPlay] = 1; v[ui::kDrumStyle] = 1; v[ui::kDrumTempo] = 100; v[ui::kDrumVolume] = 60;
     v[ui::kDrumCountIn] = 2; v[ui::kTrainerOn] = 0; v[ui::kTrainerStep] = 5; v[ui::kTrainerEvery] = 4;
@@ -28,6 +29,11 @@ struct FakeHost : ui::MenuHost {
                                   "triplets",  "pop",           "blues shuffle", "6/8 ballad"};
     return names[i < 0 || i > 7 ? 0 : i];
   }
+  static const char* songName(int i) {
+    static const char* names[] = {"off", "Back in Black-ish", "Sweet Child-ish", "Livin on a Prayer-ish",
+                                  "Enter Sandman-ish", "Smoke on Water-ish"};
+    return names[i < 0 || i > 5 ? 0 : i];
+  }
   static const char* kitName(int i) {
     static const char* names[] = {"synth", "rock (AVL)", "black pearl"};
     return names[i < 0 || i > 2 ? 0 : i];
@@ -37,6 +43,7 @@ struct FakeHost : ui::MenuHost {
     if (id == ui::kIsReverb80) return v[ui::kReverbType] == 1;
     if (id == ui::kIsReverbHall) return v[ui::kReverbType] == 1 && v[ui::kReverbMode] == 0;
     if (id == ui::kIsReverbGated) return v[ui::kReverbType] == 1 && v[ui::kReverbMode] == 1;
+    if (id == ui::kIsDrumSong) return v[ui::kDrumSong] != 0;
     return v[id];
   }
   void set(uint8_t id, int value) override { v[id] = value; sets++; }
@@ -45,11 +52,15 @@ struct FakeHost : ui::MenuHost {
     if (id == ui::kDelayTime) *hi = timeMax;
     if (id == ui::kDrumStyle) *hi = 7;
     if (id == ui::kDrumKit) *hi = 2;
+    if (id == ui::kDrumSong) *hi = 5;
+    if (id == ui::kDrumLoopFrom || id == ui::kDrumLoopTo) *hi = 32;
   }
   bool valueText(uint8_t id, char* buf, int n) override {
     if (id == ui::kScreenIR) std::snprintf(buf, n, "3/12");
     else if (id == ui::kDrumStyle) std::snprintf(buf, n, "%s", styleName(v[id]));
     else if (id == ui::kDrumKit) std::snprintf(buf, n, "%s", kitName(v[id]));
+    else if (id == ui::kDrumSong) std::snprintf(buf, n, "%s", songName(v[id]));
+    else if (id == ui::kDrumLoopFrom && v[id] == 0) std::snprintf(buf, n, "off");
     else return false;
     return true;
   }
