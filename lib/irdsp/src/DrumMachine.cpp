@@ -17,7 +17,7 @@ float decayK(float t60, float fs) { return expf(-6.9078f / (t60 * fs)); }
 
 // Mix levels of the voices on the bus (before the soft clip and volume).
 constexpr float kKickGain = 0.9f, kSnareBody = 0.45f, kSnareNoise = 0.5f, kRimGain = 0.45f;
-constexpr float kHatGain = 0.4f, kRideGain = 0.35f, kCrashGain = 0.4f, kClickGain = 0.9f, kBusGain = 0.55f;
+constexpr float kHatGain = 0.4f, kRideGain = 0.35f, kCrashGain = 0.4f, kClickGain = 0.9f, kBusGain = 1.1f;
 // Samples are int16 and already level-matched (kits/*/kit.txt).
 constexpr float kSampleGain = 1.0f / 32768.0f;
 // Fades when a sample is cut off: retriggered, choked, replaced, kit change.
@@ -39,12 +39,30 @@ constexpr float panR(int v) { return kPan[v] < 0.0f ? 1.0f + kPan[v] : 1.0f; }
 // A sample plays at most this much above its layer's own velocity.
 constexpr float kMaxLayerGain = 1.4f;
 
-// Cubic soft clip: unity gain at 0, reaches +-1 at |x| = 1.5.
-inline float softClip(float x) {
-  if (x > 1.5f) return 1.0f;
-  if (x < -1.5f) return -1.0f;
-  return x - (4.0f / 27.0f) * x * x * x;
+// Drum-bus compressor: stereo-linked peak detector with a lookahead
+// (DrumMachine::kLatency), 1 ms attack, 100 ms release, 4:1 above -24 dBFS
+// with a 6 dB soft knee, and +16 dB makeup. It raises the drums' average
+// level by about 9 dB (raw, their crest factor is 17-19 dB) so they sit
+// with a dense guitar. A lookahead peak limiter keeps the bus at -0.5 dBFS.
+constexpr float kCompThresholdDb = -24.0f, kCompRatio = 4.0f, kCompKneeDb = 6.0f, kCompMakeupDb = 16.0f;
+constexpr float kCompAttackMs = 1.0f, kCompReleaseMs = 100.0f;
+constexpr float kLimitCeiling = 0.94f, kLimitReleaseMs = 60.0f;  // -0.5 dBFS
+constexpr int kCompEvery = 8;  // samples between gain computations (interpolated)
+
+// The compressor's gain (linear, makeup included) for an envelope level.
+float compGain(float env) {
+  const float db = env > 1e-6f ? 20.0f * log10f(env) : -120.0f;
+  const float over = db - kCompThresholdDb;
+  float gr = 0.0f;  // gain reduction, dB (<= 0)
+  if (over >= 0.5f * kCompKneeDb) {
+    gr = over * (1.0f / kCompRatio - 1.0f);
+  } else if (over > -0.5f * kCompKneeDb) {
+    const float k = over + 0.5f * kCompKneeDb;
+    gr = (1.0f / kCompRatio - 1.0f) * k * k / (2.0f * kCompKneeDb);
+  }
+  return powf(10.0f, (gr + kCompMakeupDb) * (1.0f / 20.0f));
 }
+
 
 }  // namespace
 
@@ -81,6 +99,10 @@ IRDSP_COLD void DrumMachine::init() {
   clickAmpK_ = decayK(0.05f, fs_);
   clickHi_ = inc(2000.0f);
   clickLo_ = inc(1200.0f);
+  limRel_ = 1.0f - expf(-1.0f / (kLimitReleaseMs * 0.001f * fs_));
+  compAtt_ = 1.0f - expf(-1.0f / (kCompAttackMs * 0.001f * fs_));
+  compRel_ = 1.0f - expf(-1.0f / (kCompReleaseMs * 0.001f * fs_));
+  resetComp();
   setVolume(0.6f);
   setStyle(0);
   swapPattern();
@@ -326,10 +348,74 @@ void DrumMachine::renderVoices(float* outL, float* outR, int n) {
     outR[i] = r;
   }
   renderSamples(outL, outR, n);
-  for (int i = 0; i < n; i++) {
-    outL[i] = softClip(kBusGain * outL[i]);
-    outR[i] = softClip(kBusGain * outR[i]);
+  // Bus: gain, compressor, peak limiter. The compressor's detector hears
+  // the bus kLatency samples before it is played (a lookahead delay), so its
+  // gain is already coming down when a hit arrives. The gain is recomputed
+  // every few samples and ramped in between.
+  if (!busDynamics_) {  // tests: the plain bus, still delayed
+    for (int i = 0; i < n; i++) {
+      const float inL = kBusGain * outL[i], inR = kBusGain * outR[i];
+      laQuiet_ = inL == 0.0f && inR == 0.0f ? (laQuiet_ < kLatency ? laQuiet_ + 1 : kLatency) : 0;
+      outL[i] = laL_[laPos_];
+      outR[i] = laR_[laPos_];
+      laL_[laPos_] = inL;
+      laR_[laPos_] = inR;
+      if (++laPos_ == kLatency) laPos_ = 0;
+    }
+    return;
   }
+  for (int i = 0; i < n; i++) {
+    const float inL = kBusGain * outL[i], inR = kBusGain * outR[i];
+    const float x = fmaxf(fabsf(inL), fabsf(inR));
+    laQuiet_ = x == 0.0f ? (laQuiet_ < kLatency ? laQuiet_ + 1 : kLatency) : 0;
+    compEnv_ += (x > compEnv_ ? compAtt_ : compRel_) * (x - compEnv_);
+    if (--compCount_ <= 0) {
+      compCount_ = kCompEvery;
+      compStep_ = (compGain(compEnv_) - compGainNow_) * (1.0f / kCompEvery);
+    }
+    compGainNow_ += compStep_;
+    // Limiter, also looking ahead: a sample that will be too loud when it
+    // plays (at the compressor's gain now, which only falls further) ramps
+    // the gain down to what it needs by the time it arrives, then holds.
+    const float pred = x * compGainNow_;
+    if (pred > kLimitCeiling) {
+      const float need = kLimitCeiling / pred;
+      if (need < limTarget_) {
+        limTarget_ = need;
+        limStep_ = (need - limGain_) * (1.0f / kLatency);
+      }
+      limHold_ = kLatency;
+    }
+    if (limHold_ > 0) {
+      limHold_--;
+      if (limGain_ > limTarget_) limGain_ = fmaxf(limGain_ + limStep_, limTarget_);
+    } else {
+      limTarget_ = 1.0f;
+      limGain_ += (1.0f - limGain_) * limRel_;
+    }
+    const float l = compGainNow_ * laL_[laPos_], r = compGainNow_ * laR_[laPos_];
+    laL_[laPos_] = inL;
+    laR_[laPos_] = inR;
+    if (++laPos_ == kLatency) laPos_ = 0;
+    // Safety net: never above the ceiling, even if the prediction was low.
+    const float peak = fmaxf(fabsf(l), fabsf(r)) * limGain_;
+    if (peak > kLimitCeiling) limGain_ *= kLimitCeiling / peak;
+    outL[i] = limGain_ * l;
+    outR[i] = limGain_ * r;
+  }
+}
+
+void DrumMachine::resetComp() {
+  compEnv_ = 0.0f;
+  compGainNow_ = compGain(0.0f);
+  compStep_ = 0.0f;
+  compCount_ = 0;
+  limGain_ = limTarget_ = 1.0f;
+  limStep_ = 0.0f;
+  limHold_ = 0;
+  for (int i = 0; i < kLatency; i++) laL_[i] = laR_[i] = 0.0f;
+  laPos_ = 0;
+  laQuiet_ = kLatency;
 }
 
 // ---- Sample voices ---------------------------------------------------------------
@@ -460,9 +546,10 @@ bool DrumMachine::process(float* outL, float* outR, int n) {
     bpmNow_ = baseBpm_;
     trBars_ = 0;
   }
-  if (!playing_ && !voicesActive()) {
+  if (!playing_ && !voicesActive() && laQuiet_ >= kLatency) {
     active_ = false;
     volCur_ = volTarget_;
+    resetComp();
     time_ += n;
     return false;
   }

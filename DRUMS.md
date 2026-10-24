@@ -20,6 +20,7 @@ A small drum machine to practice along with. It plays one of eight built-in styl
 - [Dynamics, humanize and panning](#dynamics-humanize-and-panning)
 - [Kits and sounds](#kits-and-sounds)
 - [Adding a kit](#adding-a-kit)
+- [Drum bus](#drum-bus)
 - [Timing, levels, CPU and memory](#timing-levels-cpu-and-memory)
 - [Defaults (`config.h`)](#defaults-configh)
 - [Code and tests](#code-and-tests)
@@ -296,7 +297,7 @@ All voices synthesized, in the spirit of the classic analog drum machines:
 | Crash (crash accents) | The same metal with more noise, high-passed at 4 kHz | 1.8 s |
 | Click | Metronome and count-in: 2 kHz on accents, 1.2 kHz otherwise | 50 ms |
 
-- **Bus:** in every kit the voices are summed and soft-clipped, so even every voice at once can't exceed full scale.
+- **Bus:** in every kit the voices are summed into the drum bus (see [Drum bus](#drum-bus)), so even every voice at once can't exceed full scale.
 - The rim and ride are there for your own styles: add a lane for them in `DrumPatterns.cpp`.
 
 ## Adding a kit
@@ -336,6 +337,27 @@ A kit is a folder in `kits/` with a `kit.txt` and its WAVs. Every kit there is c
 
 **Flash budget:** the kits use 1,583 KB (rock 903 KB, pearl 680 KB), and 240 KB of flash is left, which is best kept for future code such as the OLED display. A new kit would mean trimming tails or layers elsewhere (88 KB per second of sound). Cymbal tails are the expensive part; sharing samples between kits is free.
 
+## Drum bus
+
+Recorded drums are spiky: a hit is loud for a few milliseconds and then decays, so raw drums average 17–19 dB below their peaks. A distorted guitar is dense and loud all the time, so raw drums disappear next to it. The drum bus does what a mixing desk's drum compressor does:
+
+```
+voices (stereo) -> bus gain -> compressor -> peak limiter -> drum volume -> added to the outputs
+```
+
+- **Compressor:**
+  - Threshold −24 dBFS, ratio 4:1, soft 6 dB knee.
+  - Attack 1 ms, release 100 ms.
+  - +16 dB makeup.
+  - Both channels share one detector, so the stereo image doesn't shift.
+- **Peak limiter:** keeps the bus at −0.5 dBFS. It's smooth rather than clipping: it sees each peak coming and turns down over 1.5 ms before it arrives.
+- **Lookahead:** both look 1.5 ms ahead, because the drums are delayed by 1.5 ms. That doesn't matter for a drum machine, since there's nothing to play in time with but the drums themselves.
+- **Result:** the drums' average level is about 9 dB higher than before the bus existed (around −15 dBFS RMS at volume 100 in the rock groove). Peaks are at −0.5 dBFS, and the kick and snare still snap (12–16 dB of crest factor is left).
+- **The volume comes after the bus**, so the drums sound the same at any volume.
+- **Idle:** when the drums go idle the bus resets, and the output is exactly the guitar again.
+
+The settings are fixed voicing (constants in `DrumMachine.cpp`), like the delay's.
+
 ## Timing, levels, CPU and memory
 
 - **Timing is sample-accurate.** Steps fire at their exact sample inside an audio block. A fractional sample counter keeps odd tempos such as 97 BPM from drifting: after 16 bars the beats are still within one sample (23 µs) of the ideal grid.
@@ -343,14 +365,14 @@ A kit is a folder in `kits/` with a `kit.txt` and its WAVs. Every kit there is c
   - a tempo change applies from the next step
   - a style change and each trainer step from the next bar line
   - stopping cuts the sequencer at once, but the last hits ring out
-- **Levels:** at the default volume (60) the drums peak around −13 dBFS. At 100 the loudest style peaks around −5 dBFS. Set the drum volume against your guitar, and watch `s` for clipped samples, because the drums add to the guitar signal at the output.
+- **Levels:** see [Drum bus](#drum-bus). At volume 100 the drums peak at −0.5 dBFS with an average (RMS) of about −14 to −16 dBFS for the recorded kits; at the default 60 everything is about 7.6 dB lower. Set the drum volume against your guitar, and watch `s` for clipped samples, because the drums add to the guitar signal at the output.
 - **CPU** while playing, measured on the Teensy 4.0 with 32-sample blocks:
-  - rock and pearl kits: 1.8 % at 100 BPM, 2.3 % at 240 BPM with crash accents (stereo, humanized).
+  - rock and pearl kits: about 2.5 % at 100 BPM, including the drum bus (stereo, humanized, compressed).
   - synth kit: up to 3.3 % at 240 BPM.
   - Once stopped and silent it uses almost nothing (0.1 %), and the output is the guitar alone, bit for bit.
 - **Sample reads:** samples are read straight from flash in the audio interrupt, which needs only a few percent of the flash's bandwidth. Switching IRs while the drums play peaks at the same 55 % CPU as without them, with no dropouts.
 - **Memory:**
-  - RAM1: about 2.5 KB of data (two pattern buffers, the synth voices' state and 16 sample voices) and about 5.8 KB of code (the real-time part).
+  - RAM1: about 3 KB of data (two pattern buffers, the synth voices' state, 16 sample voices and the bus's 1.5 ms lookahead) and about 6.8 KB of code (the real-time part).
   - Flash: the kits' samples (1,583 KB for rock and pearl), setup, parsing and the style and kit tables.
 
 ## Defaults (`config.h`)
@@ -394,6 +416,10 @@ These are used when the EEPROM is blank, and when settings saved by older firmwa
 - **Practice beats:** in the offbeat 8ths, offbeat 16ths and triplets styles the hat lands only on its offbeat positions, never on the beat, with the kick on 1 and 3 and the snare on 2 and 4.
 - **Stop:** no hits after stopping, and exact silence and idle once the sound has died away.
 - **Every style:** its lanes fit, it stays below full scale and it is clearly audible.
+- **Drum bus:**
+  - At volume 100 every style's average level is in range for each kit: −18.5 to −13 dBFS for the recorded kits, −21 to −15 for synth.
+  - Peaks stay at the limiter's −0.5 dBFS ceiling, and at least 12 dB of crest factor is left.
+  - After stopping, the output is exactly silent and the machine idle.
 - **Sampled kits** (with a test kit made of impulses and steady values):
   - Every hit starts at its exact step sample, at 120 and 97 BPM.
   - Each hit plays the velocity layer nearest its velocity, scaled by hit / layer velocity.

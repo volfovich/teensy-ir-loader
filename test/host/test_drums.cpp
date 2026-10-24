@@ -28,7 +28,8 @@ struct Rig {
   std::vector<float> out, outR;  // left (out) and right channels
   Rig(const char* style, float bpm, bool countIn, const irdsp::DrumKit* kit = nullptr) {
     d->setKit(kit);
-    d->setHumanize(0.0f);  // exact velocities; the humanize tests turn it on
+    d->setHumanize(0.0f);       // exact velocities; the humanize tests turn it on
+    d->setBusDynamics(false);   // exact levels; the loudness tests turn it on
     d->setStyle(irdsp::findDrumStyle(style));
     d->setTempo(bpm);
     d->setCountIn(countIn ? 1 : 0);
@@ -36,6 +37,7 @@ struct Rig {
     d->setHitHook([](void* ctx, int v, int l, uint64_t t) { ((Rig*)ctx)->hits.push_back({v, l, t}); }, this);
   }
   int maxVoices = 0;  // most sample voices sounding after a block
+  int skip = irdsp::DrumMachine::kLatency;  // the bus delay, dropped so out[t] is hit time t
   void run(double seconds) {
     const int n = (int)(seconds * kFs) / kB;
     float buf[kB], bufR[kB];
@@ -44,8 +46,10 @@ struct Rig {
         std::memset(buf, 0, sizeof(buf));
         std::memset(bufR, 0, sizeof(bufR));
       }
-      out.insert(out.end(), buf, buf + kB);
-      outR.insert(outR.end(), bufR, bufR + kB);
+      const int from = std::min(skip, kB);
+      skip -= from;
+      out.insert(out.end(), buf + from, buf + kB);
+      outR.insert(outR.end(), bufR + from, bufR + kB);
       maxVoices = std::max(maxVoices, d->samplesPlaying());
     }
   }
@@ -261,6 +265,7 @@ static void testStyles() {
     }
     lanesOk = lanesOk && irdsp::findDrumStyle(st.name) == s;
     Rig r(st.name, 120, true);
+    r.d->setBusDynamics(true);
     r.d->start();
     r.run(10.0);
     const double pk = r.peak();
@@ -330,7 +335,7 @@ static void testSampledTiming() {
     if (h.voice != irdsp::kHatClosed) continue;
     const int layer = h.vel <= 4 ? 3 : (h.vel <= 6 ? 5 : (h.vel <= 8 ? 7 : 9));
     const double imp = (layer - 1) / 2 * 1000.0 / 32768.0;  // that layer's impulse
-    const double expect = 0.55 * imp * h.vel / layer;
+    const double expect = 1.1 * imp * h.vel / layer;  // bus gain 1.1
     ok = ok && std::fabs(r.out[h.t] - expect) < 0.01 * expect;
   }
   check(ok, "hat layers: nearest velocity, scaled by hit/layer", r.vels(irdsp::kHatClosed).size());
@@ -551,26 +556,47 @@ static void testRealKits() {
             irdsp::findDrumKit("jazz") == -1,
         "find a kit by name (any case) or number", 0);
 
-  // Every style with the crash every 2 bars, at volume 100: below the clip
-  // knee, and about as loud as the synth kit.
-  std::vector<double> energy(irdsp::drumKitCount(), 0.0), peak(irdsp::drumKitCount(), 0.0);
-  for (int s = 1; s < irdsp::drumStyleCount(); s++) {
-    for (int k = 0; k < irdsp::drumKitCount(); k++) {
+}
+
+// The drum bus (compressor + limiter) at volume 100: every style with each
+// kit, crash every 4, sits at a level that holds up next to a guitar, with
+// peaks at the limiter's ceiling and some punch left.
+static void testBusLoudness() {
+  std::printf("Drum bus loudness (volume 100)\n");
+  for (int k = 0; k < irdsp::drumKitCount(); k++) {
+    double lo = 0, hi = -100, peak = 0, crest = 100;
+    for (int s = 1; s < irdsp::drumStyleCount(); s++) {
       Rig r(irdsp::drumStyle(s).name, 120, false, &irdsp::drumKit(k));
-      r.d->setCrashEvery(2);
+      r.d->setBusDynamics(true);
+      r.d->setCrashEvery(4);
       r.d->start();
-      r.run(8.0);
-      for (size_t i = 0; i < r.out.size(); i++) energy[k] += r.out[i] * r.out[i] + r.outR[i] * r.outR[i];
-      peak[k] = std::max(peak[k], r.peak());
+      r.run(12.0);
+      double e = 0;
+      for (size_t i = 0; i < r.out.size(); i++) e += r.out[i] * r.out[i] + r.outR[i] * r.outR[i];
+      const double rms = 10 * std::log10(e / (2.0 * (double)r.out.size()));
+      lo = std::min(lo, rms), hi = std::max(hi, rms);
+      peak = std::max(peak, r.peak());
+      crest = std::min(crest, 20 * std::log10(r.peak()) - rms);
     }
+    const bool sampled = irdsp::drumKit(k).samples != nullptr;
+    const double minDb = sampled ? -18.5 : -21.0, maxDb = sampled ? -13.0 : -15.0;
+    char what[80];
+    std::snprintf(what, sizeof(what), "%s kit: RMS of every style %.1f..%.1f dBFS", irdsp::drumKit(k).name, lo, hi);
+    check(lo >= minDb && hi <= maxDb, what, hi);
+    check(peak <= 0.945, "  ... peaks at the limiter's ceiling (-0.5 dBFS)", peak);
+    check(crest >= 12.0, "  ... crest factor >= 12 dB (still punchy)", crest);
   }
-  for (int k = 1; k < irdsp::drumKitCount(); k++) {
-    const double ratioDb = 10 * std::log10(energy[k] / energy[0]);
-    char what[64];
-    std::snprintf(what, sizeof(what), "%s kit, every style, volume 100: below clipping", irdsp::drumKit(k).name);
-    check(peak[k] < 0.95, what, peak[k]);
-    check(std::fabs(ratioDb) < 3.0, "  ... loudness within 3 dB of the synth kit (dB)", ratioDb);
-  }
+  // Stopping: silence is exact and the machine goes idle (compressor reset).
+  Rig r("rock", 120, false, &irdsp::drumKit(1));
+  r.d->setBusDynamics(true);
+  r.d->start();
+  r.run(1.0);
+  r.d->stop();
+  r.run(4.0);
+  double tail = 0;
+  for (size_t i = r.out.size() - 22050; i < r.out.size(); i++)
+    tail = std::max(tail, (double)std::max(std::fabs(r.out[i]), std::fabs(r.outR[i])));
+  check(tail == 0.0 && !r.d->active(), "after stop: exact silence and idle", tail);
 }
 
 // ---- Dynamics, humanize and panning ------------------------------------------------
@@ -646,6 +672,7 @@ int main() {
   testCrashAccents();
   testDynamics();
   testRealKits();
+  testBusLoudness();
   std::printf(failures ? "\n%d FAILURE(S)\n" : "\nALL TESTS PASSED\n", failures);
   return failures ? 1 : 0;
 }

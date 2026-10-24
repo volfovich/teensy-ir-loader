@@ -2,7 +2,8 @@
 //
 //   styles (DrumPatterns.cpp) -> sample-accurate step sequencer -> voices
 //   (count-in, speed trainer, crash accents)    humanized velocity   |
-//                                              panned stereo drum bus x volume
+//          panned stereo drum bus -> compressor + limiter (1.5 ms lookahead)
+//                                                                  x volume
 //
 // Voices come from the kit (DrumKit.h): either recorded samples, played
 // straight from flash, or these synthesized ones. A lane a kit has no
@@ -64,6 +65,9 @@ class DrumMachine {
  public:
   static constexpr int kMaxSteps = 24;
   static constexpr float kMinBpm = 40.0f, kMaxBpm = 240.0f;
+  // The drum bus is delayed by this many samples (1.5 ms at 44.1 kHz), the
+  // drum-bus compressor's lookahead.
+  static constexpr int kLatency = 64;
 
   explicit DrumMachine(float sampleRate = 44100.0f);
 
@@ -79,6 +83,9 @@ class DrumMachine {
   void setCrashEvery(int bars) { crashEvery_ = bars < 0 ? 0 : bars; }
   // Scales the random velocity spread (1 = as designed, 0 = every hit exact).
   void setHumanize(float amount) { humanize_ = amount < 0.0f ? 0.0f : amount; }
+  // The drum-bus compressor and limiter (on by default; tests turn them off
+  // to measure exact levels).
+  void setBusDynamics(bool on) { busDynamics_ = on; }
   // Speed trainer: every `everyBars` bars the tempo rises by `stepBpm`, up
   // to `targetBpm`, starting from the set tempo.
   void setTrainer(bool on, int stepBpm, int everyBars, int targetBpm);
@@ -124,6 +131,7 @@ class DrumMachine {
   void fadeLane(int voice, float ms, int keep);
   void fadeVoice(int i, float ms);
   void renderSamples(float* outL, float* outR, int n);
+  void resetComp();
   inline float noise() {
     rng_ ^= rng_ << 13;
     rng_ ^= rng_ >> 17;
@@ -158,8 +166,17 @@ class DrumMachine {
   void* hookCtx_ = nullptr;
   volatile int crashEvery_ = 0;
   volatile float humanize_ = 1.0f;
+  volatile bool busDynamics_ = true;
   volatile float volTarget_ = 0.0f;
   float volCur_ = 0.0f;
+
+  // Drum-bus compressor: envelope, gain (with makeup) and its ramp.
+  float compAtt_, compRel_, compEnv_ = 0.0f, compGainNow_ = 1.0f, compStep_ = 0.0f;
+  float limRel_, limGain_ = 1.0f, limTarget_ = 1.0f, limStep_ = 0.0f;  // peak limiter
+  int limHold_ = 0;
+  float laL_[kLatency] = {}, laR_[kLatency] = {};  // lookahead delay
+  int laPos_ = 0, laQuiet_ = kLatency;  // silent input samples, up to kLatency
+  int compCount_ = 0;
 
   // Voices: amplitude envelopes (0 = silent) and their per-sample decay.
   float kickAmp_ = 0, kickPitch_ = 0, kickClick_ = 0, kickAmpK_, kickPitchK_, kickClickK_;
