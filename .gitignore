@@ -5,3 +5,6 @@ test/host/test_reverb
 test/host/test_delay
 test/host/irtool
 test/host/test_studio_delay
+test/host/test_ui
+test/host/render_ui
+test/host/out/

@@ -1,0 +1,160 @@
+// Renders every OLED screen to PNG (6x scale, like screenshots/), from the
+// real UI code with a fake model, plus an overview sheet.
+//   make -C test/host render_ui && ./test/host/render_ui [out_dir]
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <string>
+#include <vector>
+
+#include "Canvas.h"
+#include "Menu.h"
+#include "Screens.h"
+#include "ui_fake.h"
+
+// ---- Minimal PNG writer (8-bit grayscale, stored deflate blocks) -------------
+
+static uint32_t crc32(const uint8_t* p, size_t n, uint32_t c = 0xFFFFFFFFu) {
+  for (size_t i = 0; i < n; i++) {
+    c ^= p[i];
+    for (int k = 0; k < 8; k++) c = (c >> 1) ^ (0xEDB88320u & (0u - (c & 1)));
+  }
+  return c;
+}
+
+static void put32(std::vector<uint8_t>& v, uint32_t x) {
+  for (int s = 24; s >= 0; s -= 8) v.push_back((uint8_t)(x >> s));
+}
+
+static void chunk(std::vector<uint8_t>& out, const char* type, const std::vector<uint8_t>& data) {
+  put32(out, (uint32_t)data.size());
+  std::vector<uint8_t> td(type, type + 4);
+  td.insert(td.end(), data.begin(), data.end());
+  out.insert(out.end(), td.begin(), td.end());
+  put32(out, crc32(td.data(), td.size()) ^ 0xFFFFFFFFu);
+}
+
+static bool writePng(const std::string& path, int w, int h, const std::vector<uint8_t>& gray) {
+  std::vector<uint8_t> raw;
+  for (int y = 0; y < h; y++) {
+    raw.push_back(0);  // filter: none
+    raw.insert(raw.end(), gray.begin() + (size_t)y * w, gray.begin() + (size_t)(y + 1) * w);
+  }
+  std::vector<uint8_t> z = {0x78, 0x01};
+  uint32_t a = 1, b = 0;
+  for (uint8_t c : raw) { a = (a + c) % 65521; b = (b + a) % 65521; }
+  for (size_t i = 0; i < raw.size(); i += 65535) {
+    const size_t n = std::min<size_t>(65535, raw.size() - i);
+    z.push_back(i + n == raw.size() ? 1 : 0);
+    z.push_back((uint8_t)n); z.push_back((uint8_t)(n >> 8));
+    z.push_back((uint8_t)~n); z.push_back((uint8_t)(~n >> 8));
+    z.insert(z.end(), raw.begin() + i, raw.begin() + i + n);
+  }
+  put32(z, (b << 16) | a);
+  std::vector<uint8_t> png = {0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A}, ihdr;
+  put32(ihdr, w); put32(ihdr, h);
+  ihdr.insert(ihdr.end(), {8, 0, 0, 0, 0});
+  chunk(png, "IHDR", ihdr);
+  chunk(png, "IDAT", z);
+  chunk(png, "IEND", {});
+  FILE* f = std::fopen(path.c_str(), "wb");
+  if (!f) return false;
+  std::fwrite(png.data(), 1, png.size(), f);
+  std::fclose(f);
+  return true;
+}
+
+// ---- Screens ---------------------------------------------------------------------
+
+static const int kScale = 6, kBorder = 4;  // OLED pixels of black border
+static const int kImgW = (ui::Canvas::kW + 2 * kBorder) * kScale, kImgH = (ui::Canvas::kH + 2 * kBorder) * kScale;
+
+// One screen as an image: each lit pixel a 5x5 dot on a 6x6 grid.
+static std::vector<uint8_t> image(const ui::Canvas& c) {
+  std::vector<uint8_t> g((size_t)kImgW * kImgH, 0);
+  for (int y = 0; y < ui::Canvas::kH; y++)
+    for (int x = 0; x < ui::Canvas::kW; x++)
+      if (c.get(x, y))
+        for (int j = 0; j < kScale - 1; j++)
+          for (int i = 0; i < kScale - 1; i++)
+            g[(size_t)((y + kBorder) * kScale + j) * kImgW + (x + kBorder) * kScale + i] = 235;
+  return g;
+}
+
+struct Shot { std::string name; std::vector<uint8_t> img; };
+
+int main(int argc, char** argv) {
+  const std::string dir = argc > 1 ? argv[1] : "out";
+  static uint8_t buf[1024];
+  ui::Canvas c(buf);
+  std::vector<Shot> shots;
+  auto snap = [&](const char* name) { shots.push_back({name, image(c)}); };
+
+  ui::UiModel m = fakeModel();
+  FakeHost host;
+  ui::Menu menu(ui::menuPages(), host);
+
+  ui::drawSplash(c, m);
+  snap("01_splash");
+
+  c.clear(); ui::drawHome(c, m, false); ui::drawHomeMeters(c, m);
+  snap("02_home");
+
+  ui::UiModel b = m;
+  b.irShown = 4;
+  c.clear(); ui::drawHome(c, b, true); ui::drawHomeMeters(c, b);
+  snap("03_home_browsing");
+
+  ui::UiModel x = m;
+  x.bypass = true; x.delayOn = false;
+  x.in.update(0.99f, false, 10000);
+  x.out.update(1.0f, true, 10000);
+  c.clear(); ui::drawHome(c, x, false); ui::drawHomeMeters(c, x);
+  snap("04_home_bypass_clip");
+
+  menu.open(); menu.turn(1, 0);
+  menu.draw(c);
+  snap("05_menu");
+
+  menu.push(); menu.turn(3, 0);
+  menu.draw(c);
+  snap("06_menu_delay");
+
+  menu.turn(6, 0);
+  menu.draw(c);
+  snap("06b_menu_delay_scrolled");
+
+  menu.turn(-6, 0); menu.push();
+  menu.draw(c);
+  snap("07_edit_delay_time");
+  menu.back(); menu.back(); menu.back();
+
+  menu.open(); menu.turn(3, 0); menu.push(); menu.push();
+  menu.draw(c);
+  snap("08_edit_output_gain");
+
+  ui::drawIrBrowser(c, m, 2, 0, 0);
+  snap("09_ir_browser");
+
+  ui::drawMeterScreen(c, m);
+  snap("10_meter");
+
+  ui::drawStatus(c, m);
+  snap("11_status");
+
+  int ok = 0;
+  for (auto& s : shots) ok += writePng(dir + "/" + s.name + ".png", kImgW, kImgH, s.img);
+
+  // Overview: 3 columns on a dark grey sheet.
+  const int cols = 3, gap = 18, rows = ((int)shots.size() + cols - 1) / cols;
+  const int ow = cols * kImgW + (cols + 1) * gap, oh = rows * kImgH + (rows + 1) * gap;
+  std::vector<uint8_t> sheet((size_t)ow * oh, 48);
+  for (size_t k = 0; k < shots.size(); k++) {
+    const int ox = gap + (int)(k % cols) * (kImgW + gap), oy = gap + (int)(k / cols) * (kImgH + gap);
+    for (int y = 0; y < kImgH; y++)
+      std::memcpy(&sheet[(size_t)(oy + y) * ow + ox], &shots[k].img[(size_t)y * kImgW], kImgW);
+  }
+  ok += writePng(dir + "/00_overview.png", ow, oh, sheet);
+  std::printf("wrote %d PNGs to %s/\n", ok, dir.c_str());
+  return ok == (int)shots.size() + 1 ? 0 : 1;
+}
