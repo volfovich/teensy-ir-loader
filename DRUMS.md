@@ -1,6 +1,11 @@
 # Drum machine
 
-A small drum machine to practice along with. It plays one of eight built-in styles at 40–240 BPM. A count-in, a speed trainer and crash accents are built in.
+A small drum machine to practice along with. It plays one of eight built-in one-bar styles, or a whole **song**, at 40–240 BPM. A count-in, a speed trainer and crash accents are built in.
+
+- **Songs:** multi-bar drum parts with verses, choruses and fills:
+  - five built-in 32-bar songs in the style of classic rock songs
+  - any General MIDI drum file (`.mid`) you copy to `/DRUMS` on the SD card
+  - loop any section (bars A–B) to practice it
 
 - **Three kits:**
   - **rock** (default): a recorded acoustic kit, the AVL Drumkits "Red Zeppelin". Its samples are compiled into the firmware and played straight from flash.
@@ -17,6 +22,7 @@ A small drum machine to practice along with. It plays one of eight built-in styl
 - [Count-in and speed trainer](#count-in-and-speed-trainer)
 - [Crash accents](#crash-accents)
 - [Styles](#styles)
+- [Songs](#songs)
 - [Dynamics, humanize and panning](#dynamics-humanize-and-panning)
 - [Kits and sounds](#kits-and-sounds)
 - [Adding a kit](#adding-a-kit)
@@ -50,6 +56,9 @@ Playing is never saved, so the drums are always stopped after power-up. Everythi
 | `bpm` | 40–240 | 100 | Tempo, from the next step. If the trainer is on, it starts again from this tempo. For the 6/8 ballad a beat is a dotted quarter, so 60 BPM is a slow ballad. |
 | `drum style` | — | — | Lists the styles; `>` marks the current one. |
 | `drum style <n\|name>` | 1–8 or a name | rock | Changes the style. While playing, the change happens at the next bar. |
+| `drum song` | — | — | Lists the songs: the built-in ones, then the files in `/DRUMS`. |
+| `drum song <n\|name\|off>` | a number or a name | off | Plays a song instead of the style; `off` goes back to the style. See [Songs](#songs). |
+| `drum loop <a> <b>` / `drum loop off` | bars | off | Loops bars a–b of the song, from the next bar line. |
 | `drum kit` | — | — | Lists the kits; `>` marks the current one. |
 | `drum kit <n\|name>` | 1–3 or a name | rock | Changes the kit at once. Hits still ringing fade out over 5 ms. |
 | `drum crash <0\|2\|4\|8\|16>` | off, 2, 4, 8, 16 bars | 4 | A crash on beat 1 of every N bars (see [Crash accents](#crash-accents)). `drum crash` alone shows the setting. |
@@ -65,13 +74,14 @@ Drums:     playing blues shuffle, 105 BPM, bar 9, kit rock, crash every 4 bars, 
 ```
 
 **On the OLED** (once the module is wired), the menu has a **Drums** page:
-- Play, Style, **Kit**, **Crash**, Tempo, Volume, Count-in, and **Trainer**, which opens its own page: On, Step, Every and Target. All four are always shown, so the trainer can be set up before it's switched on. The Trainer row on the Drums page shows ON/OFF.
-- Style and Kit are chosen by turning the encoder and are shown by name.
+- Play, Style, **Song**, **Kit**, **Crash**, Tempo, Volume, Count-in, and **Trainer**, which opens its own page: On, Step, Every and Target. All four are always shown, so the trainer can be set up before it's switched on. The Trainer row on the Drums page shows ON/OFF.
+- **Loop from** and **Loop to** appear under Song while a song is selected (from "off" = the whole song).
+- Style, Song and Kit are chosen by turning the encoder and are shown by name.
 - Each push on Crash steps it: off, 2, 4, 8, 16 bars.
 - Each push on Count-in steps it: off, 1, 2, 3, 4 bars.
 - While the drums play, the home screen shows them on row 5, for example `DRM rock 100   bar 3`.
 
-See [DISPLAY.md](DISPLAY.md#menu-tree) and the renders `screenshots/12_menu_drums.png`, `13_edit_drum_style.png`, `14_menu_trainer.png`, `15_edit_trainer_target.png` and `16_edit_drum_kit.png`.
+See [DISPLAY.md](DISPLAY.md#menu-tree) and the renders `screenshots/12_menu_drums.png`, `13_edit_drum_style.png`, `14_menu_trainer.png`, `15_edit_trainer_target.png`, `16_edit_drum_kit.png` and `19_menu_drums_song.png`.
 
 ## Count-in and speed trainer
 
@@ -194,6 +204,76 @@ Hat      966 566
 
 To add or change a style, edit the table in `lib/irdsp/src/DrumPatterns.cpp`. Each lane is one string per voice, with `.` for a rest and `1`–`9` for a hit (`g`, `x` and `X` still work, as 3, 6 and 9). `test_drums` checks that every lane fits its style.
 
+## Songs
+
+A song is a whole drum part, many bars long, instead of one bar repeating: verses, choruses, fills and endings, and meter changes. It plays with the kit, velocities, humanizing, panning and drum bus of the styles.
+
+```
+drum song               list them
+drum song sandmanish    pick one (by name or number): the tempo becomes the song's
+drum                    start: the count-in, then the song from bar 1
+drum loop 9 16          practice bars 9-16 over and over (from the next bar line)
+drum loop off           the whole song again
+drum song off           back to the style
+```
+
+**How a song plays:**
+- It starts after the count-in (in the first bar's meter) and wraps to bar 1 at the end.
+- With a loop, it starts at the loop's first bar and jumps back to it after the loop's last bar.
+- `s` shows the bar, for example `bar 12/32, loop 9-16`.
+- Changing the song while the drums play stops them, then starts the new song with the count-in.
+- `bpm` still changes the tempo.
+- Crash accents and the speed trainer apply to the styles only; songs have their own crashes.
+- The chosen song is saved and comes back after a power cycle. The loop isn't saved.
+
+### Built-in songs
+
+Five 32-bar arrangements *in the style of* classic rock songs. They capture the grooves, the shape of the song and typical fills, but they aren't transcriptions:
+
+| # | Name | Title | BPM | What's in it |
+|---|---|---|---|---|
+| 1 | `blackish` | Back in Black-ish | 94 | Hi-hat count-in, a laid-back straight-8th groove with pickups, crash choruses |
+| 2 | `childish` | Sweet Child-ish | 125 | Driving 8ths, tom fills down the kit, ride choruses |
+| 3 | `prayerish` | Livin on a Prayer-ish | 122 | 16th hats, a build-up with snare 8ths into big crash choruses |
+| 4 | `sandmanish` | Enter Sandman-ish | 123 | Hi-hat and floor-tom intro, heavy 8th groove, 16th tom fills, double-kick choruses |
+| 5 | `smokeish` | Smoke on Water-ish | 112 | The hi-hat alone for 4 bars, then the band; kick on every beat in the chorus |
+
+They're plain text files in `songs/`, compiled into the firmware on every build. [songs/README.md](songs/README.md) explains the format, so you can change them or write your own.
+
+### MIDI files from the SD card
+
+For a song's real drum part, use a MIDI file. Drum tracks of famous songs are easy to find as `.mid` files.
+
+1. Copy the files to a folder **`/DRUMS`** on the SD card (next to `/IR`). Up to 64 are listed, sorted by name.
+2. `r` rescans the card, or restart. `drum song` lists them after the built-in songs, by file name.
+3. `drum song <number or file name>` loads one, in a few tens of milliseconds, and sets the tempo from the file.
+
+**What's read:**
+- Standard MIDI files, format 0 or 1.
+- The drum notes on MIDI channel 10, the General MIDI drum channel. If a file has none there, the track with the most notes in the drum range is used.
+- The first tempo, and the time signatures, so meter changes come through.
+- **Timing** is rounded to 24 steps per quarter note, which holds 16ths, 16th triplets and 32nds exactly.
+- **Velocity** 1–127 becomes 1–9, which picks the recorded velocity layer as usual.
+- **Limits:** up to 4,096 hits and 512 bars, roughly 150 bars of a busy song. A longer file is refused with a message.
+
+**The General MIDI drum map onto the kit:**
+
+| MIDI notes | Plays |
+|---|---|
+| 35, 36 | kick |
+| 38, 40 (snare, rim shot), 39 (clap) | snare |
+| 37 (side stick) | rim |
+| 42, 44 (closed, pedal hi-hat) | closed hat |
+| 46 | open hat |
+| 49, 52, 55, 57 (crashes, china, splash) | crash |
+| 51, 53, 59 (rides, ride bell) | ride |
+| 47, 48, 50 (mid and high toms) | rack tom |
+| 41, 43, 45 (floor and low toms) | floor tom |
+
+Other notes (cowbell, tambourine, percussion) are skipped, and the load message says how many.
+
+**Copyright:** a note-for-note MIDI file of a famous song is that song's arrangement. Keep such files on your own SD card for practice; don't add them to the repository. The built-in songs are original arrangements in the style of the originals.
+
 ## Dynamics, humanize and panning
 
 **Velocity.** Every hit has a velocity from 1 to 9, written in the style's lanes. A hit's loudness is proportional to its velocity (9 = full, 5 = −5 dB, 3 = −10 dB). The built-in styles follow how a drummer plays:
@@ -237,8 +317,8 @@ Every style plays with any kit (`drum kit`). The count-in and metronome click ar
 | # | Kit | What it is | Flash |
 |---|---|---|---|
 | 1 | synth | Synthesized voices | — |
-| 2 | rock (default) | AVL "Red Zeppelin": 26" kick, Porkpie snare, Zildjian A cymbals | 903 KB |
-| 3 | pearl | AVL "Black Pearl": 22" kick, tight Pearl snare, Sabian AA cymbals | 680 KB (+ the hi-hats it shares with rock) |
+| 2 | rock (default) | AVL "Red Zeppelin": 26" kick, Porkpie snare, Ludwig toms, Zildjian A cymbals | 981 KB |
+| 3 | pearl | AVL "Black Pearl": 22" kick, tight Pearl snare, Pearl toms, Sabian AA cymbals | 758 KB (+ the hi-hats it shares with rock) |
 
 ### rock (default)
 
@@ -255,8 +335,10 @@ The source has 5 velocity layers per drum; layers 1–5 are velocities 1, 3, 5, 
 | Open hat | Sabian Rock hat, semi-open (4 → 7) | 0.6 s | 50 KB |
 | Ride | Zildjian A 24" ride (4 → 7) | 2.0 s | 172 KB |
 | Crash | Zildjian A20 crash (5 → 9) | 3.0 s | 258 KB |
+| Rack tom | Ludwig 14" tom (4 → 7) | 0.45 s | 39 KB |
+| Floor tom | Ludwig 16" floor tom (4 → 7) | 0.45 s | 39 KB |
 
-All samples are 16-bit mono 44.1 kHz: **903 KB** of flash in all.
+All samples are 16-bit mono 44.1 kHz: **981 KB** of flash in all.
 
 ### pearl
 
@@ -271,8 +353,10 @@ The **AVL Drumkits "Black Pearl"**, by the same author and under the same licens
 | Open hat | Sabian Rock hat, semi-open (4 → 7), shared with rock | 0.6 s | — |
 | Ride | Sabian AAX 20" ride (4 → 7) | 2.0 s | 172 KB |
 | Crash | Sabian AA 16" crash (5 → 9) | 2.5 s | 215 KB |
+| Rack tom | Pearl 12" tom (4 → 7) | 0.45 s | 39 KB |
+| Floor tom | Pearl 16" floor tom (4 → 7) | 0.45 s | 39 KB |
 
-That's **680 KB** of flash beyond the shared hi-hats.
+That's **758 KB** of flash beyond the shared hi-hats.
 
 ### How the sampled kits play
 
@@ -295,6 +379,7 @@ All voices synthesized, in the spirit of the classic analog drum machines:
 | Closed / open hat | TR-808-style metal (six square waves at 205–800 Hz, inharmonic) mixed with noise, then high-passed at 7 kHz | 90 ms / 0.7 s; a closed hat cuts off a ringing open one, like a real hi-hat |
 | Ride (not in the built-in styles) | The same metal and noise, band-passed around 4.5 kHz | 2.5 s |
 | Crash (crash accents) | The same metal with more noise, high-passed at 4 kHz | 1.8 s |
+| Rack / floor tom (songs) | Sines falling from 1.5× to 150 Hz / 92 Hz, plus a short noise attack | 0.45 s / 0.6 s |
 | Click | Metronome and count-in: 2 kHz on accents, 1.2 kHz otherwise | 50 ms |
 
 - **Bus:** in every kit the voices are summed into the drum bus (see [Drum bus](#drum-bus)), so even every voice at once can't exceed full scale.
@@ -335,7 +420,7 @@ A kit is a folder in `kits/` with a `kit.txt` and its WAVs. Every kit there is c
    - `make -C test/host render` writes every style with every kit to `test/host/out/drums_*_<kit>.wav`.
    - `test_drums` checks that each sample starts and ends at zero, that its hit starts within 2 ms, and that the loudest style stays below clipping.
 
-**Flash budget:** the kits use 1,583 KB (rock 903 KB, pearl 680 KB), and 240 KB of flash is left, which is best kept for future code such as the OLED display. A new kit would mean trimming tails or layers elsewhere (88 KB per second of sound). Cymbal tails are the expensive part; sharing samples between kits is free.
+**Flash budget:** the kits use 1,739 KB (rock 981 KB, pearl 758 KB), and about 50 KB of flash is left, which is kept for future code such as the OLED display. A new kit would mean trimming tails or layers elsewhere (88 KB per second of sound). Cymbal tails are the expensive part; sharing samples between kits is free.
 
 ## Drum bus
 
@@ -367,13 +452,14 @@ The settings are fixed voicing (constants in `DrumMachine.cpp`), like the delay'
   - stopping cuts the sequencer at once, but the last hits ring out
 - **Levels:** see [Drum bus](#drum-bus). At volume 100 the drums peak at −0.5 dBFS with an average (RMS) of about −14 to −16 dBFS for the recorded kits; at the default 60 everything is about 7.6 dB lower. Set the drum volume against your guitar, and watch `s` for clipped samples, because the drums add to the guitar signal at the output.
 - **CPU** while playing, measured on the Teensy 4.0 with 32-sample blocks:
-  - rock and pearl kits: about 2.5 % at 100 BPM, including the drum bus (stereo, humanized, compressed).
+  - rock and pearl kits: about 2.5 % at 100 BPM, including the drum bus (stereo, humanized, compressed); songs about 3 %.
   - synth kit: up to 3.3 % at 240 BPM.
   - Once stopped and silent it uses almost nothing (0.1 %), and the output is the guitar alone, bit for bit.
 - **Sample reads:** samples are read straight from flash in the audio interrupt, which needs only a few percent of the flash's bandwidth. Switching IRs while the drums play peaks at the same 55 % CPU as without them, with no dropouts.
 - **Memory:**
   - RAM1: about 3 KB of data (two pattern buffers, the synth voices' state, 16 sample voices and the bus's 1.5 ms lookahead) and about 6.8 KB of code (the real-time part).
-  - Flash: the kits' samples (1,583 KB for rock and pearl), setup, parsing and the style and kit tables.
+  - RAM2: 22 KB for a song loaded from the SD card (hits and bar table) and the `/DRUMS` file list.
+  - Flash: the kits' samples (1,739 KB for rock and pearl), the built-in songs (about 9 KB), setup, the MIDI reader, and the style and kit tables.
 
 ## Defaults (`config.h`)
 
@@ -399,12 +485,16 @@ These are used when the EEPROM is blank, and when settings saved by older firmwa
 | `lib/irdsp/src/DrumKit.h` | The kit format: per lane, up to 3 samples by hit level. |
 | `lib/irdsp/src/DrumKitData.cpp` | Generated from `kits/*/` by `tools/make_kits.py` (not in git): the samples and kit table, in flash. |
 | `kits/rock/`, `kits/pearl/` | The recorded kits: WAVs, `kit.txt`, credits. |
+| `lib/irdsp/src/DrumSong.h` | The song format: hits on a 24-per-quarter grid and a bar table. |
+| `songs/*.txt`, `tools/make_songs.py`, `lib/irdsp/src/DrumSongData.cpp` | The built-in songs, compiled (not in git) on every build. |
+| `lib/irdsp/src/MidiDrums.{h,cpp}` | Reads a MIDI file's drum part into a song (in flash on the Teensy). |
+| `src/DrumSongs.{h,cpp}` | The song list (built-in + `/DRUMS`), loading from the SD card, selecting, the loop. |
 | `tools/import_kit.py`, `tools/make_kits.py`, `tools/pio_kits.py` | Build a kit's WAVs from its sources; compile the kits in (run by PlatformIO and the host Makefile). |
 | `src/AudioConvolverIR.h` | Runs the drums each block and adds them to both outputs. |
 | `src/AudioGraph.cpp`, `src/SerialUI.cpp`, `src/Settings.cpp` | Setters, the `drum` and `bpm` commands, EEPROM. |
 | `lib/oledui/src/Menu.cpp`, `Screens.cpp` | The Drums menu page and the home-screen row. |
 
-`make -C test/host test` runs `test_drums`, which checks:
+`make -C test/host test` runs `test_drums` and `test_midi`. They check:
 - **Timing:** the beat grid at 120 and 97 BPM over 16 bars.
 - **Count-in:**
   - With 1 bar: four clicks, then the first kick exactly one bar later.
@@ -444,7 +534,27 @@ These are used when the EEPROM is blank, and when settings saved by older firmwa
   - The hats sit more than 6 dB below the kick and snare.
   - Every style with each recorded kit stays below clipping at volume 100, and within 3 dB of the synth kit's loudness.
 
-To listen on your computer, `make -C test/host render` writes 8 bars of every style with every kit, with a 2-bar count-in and a crash every 4 bars, to `test/host/out/drums_<n>_<style>_<kit>.wav` (stereo).
+- **Songs:**
+  - Hits land on their exact sample on the 24-per-quarter grid, including a 32nd and a 16th triplet.
+  - Bars in 4/4 and 3/4, wrap at the end.
+  - A loop starts at its first bar and jumps back after its last.
+  - The count-in plays before the song.
+  - No crash accents in song mode, and the style comes back after `drum song off`.
+  - The built-in songs are 32 bars with valid hits and bar tables, and stay below the drum bus's ceiling.
+- **Toms:** every recorded kit has a rack and a floor tom.
+- **MIDI files** (`test_midi`, files built in the test):
+  - Format 0 and 1, 96 and 480 PPQ, tempo, running status.
+  - Note-on with velocity 0 counts as a note-off.
+  - Meter changes become the bar table.
+  - The GM map and velocities; a 32nd and off-grid notes rounded to the grid.
+  - Without channel 10, the busiest drum track is used.
+  - Duplicate hits merge.
+  - Too many notes, no drums and garbage give errors, and a truncated file gives the hits before the cut.
+  - 200 randomly corrupted files never crash or overrun.
+
+To listen on your computer, `make -C test/host render` writes, in stereo:
+- 8 bars of every style with every kit, with a 2-bar count-in and a crash every 4 bars, to `test/host/out/drums_<n>_<style>_<kit>.wav`
+- every built-in song once through with the rock kit, to `test/host/out/song_<name>.wav`
 
 ## Ideas for later
 
@@ -452,7 +562,7 @@ None of these are built yet. They're practice features worth adding next:
 
 1. **Swing amount:** a 0–66 % swing control, so offbeat 8ths or rock can go from straight, to a light swing, to a full shuffle. The sequencer would delay every second subdivision by the swing amount.
 2. **Gap trainer:** the drums drop out for 1–2 bars out of every 4 (or another chosen ratio), then come back. If you're still on the grid when they return, your timing is solid.
-3. **Fills:** a short fill at the end of every 4 or 8 bars, before the crash accent, so you don't lose your place in a song form. The AVL kits' sources have toms (floor tom and rack tom) that could be added as lanes.
+3. **Fills for the styles:** a short fill at the end of every 4 or 8 bars, before the crash accent. The toms now exist (the songs use them); the styles would need fill bars.
 4. **12-bar blues mode:** the shuffle with a bar counter (1–12) in `s` and on the display, plus a fill on the turnaround (bars 11–12), for practicing blues changes.
 5. **Tap tempo:** tap `t` over serial, or later a key on the display, a few times to set the tempo from a song.
 6. **More meters:** a 3/4 waltz and a 12/8 slow blues, a very common practice groove. Both fit the existing style format (3 beats x 4 steps, and 4 beats x 3 steps).

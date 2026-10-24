@@ -257,6 +257,8 @@ Every serial command has a place:
 | | Gate (80s gated) | 100–600 ms, 10 | `setReverbGate` | `rgate` |
 | **Drums** | Play | toggle | `setDrumsPlaying` | `drum` |
 | | Style | 1–8, shown by name | `setDrumStyle` | `drum style` |
+| | Song | off or 1–n, shown by name | `selectDrumSong` | `drum song` |
+| | Loop from / Loop to (with a song) | off or 1–bars / 1–bars | `setDrumLoop` | `drum loop` |
 | | Kit | 1–3, shown by name | `setDrumKit` | `drum kit` |
 | | Crash | push steps off / 2 / 4 / 8 / 16 bars | `setDrumCrash` | `drum crash` |
 | | Tempo | 40–240 BPM, 1 | `setDrumTempo` | `bpm` |

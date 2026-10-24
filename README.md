@@ -36,7 +36,8 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
   - They run in 32-bit float in the same audio object as the convolution, so the path from the IR through the delay and reverb never drops to 16 bits.
   - Switching an effect off is click-free and lets its tail ring out. When the tail has died away, the effect stops using CPU and passes its input through bit-identically.
 - **Practice drum machine** (details in [DRUMS.md](DRUMS.md)):
-  - Eight styles at 40–240 BPM, with sample-accurate timing: metronome, rock, three practice beats (hat only on the offbeat 8ths, offbeat 16ths, or triplets), pop, blues shuffle and 6/8 ballad.
+  - **Songs:** five built-in 32-bar songs in the style of classic rock songs, and any General MIDI drum file (`.mid`) copied to `/DRUMS` on the SD card, with section looping.
+  - Eight one-bar styles at 40–240 BPM, with sample-accurate timing: metronome, rock, three practice beats (hat only on the offbeat 8ths, offbeat 16ths, or triplets), pop, blues shuffle and 6/8 ballad.
   - Three kits:
     - two recorded acoustic kits, played from flash: the AVL Drumkits "Red Zeppelin" (rock) and "Black Pearl" (CC BY-SA 3.0).
     - a synthesized kit.
@@ -113,6 +114,8 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `bpm 40..240` | Drum tempo |
 | `drum style [n\|name]` | List the styles / choose one (from the next bar while playing) |
 | `drum kit [n\|name]` | List the kits / choose one (synth, rock, pearl) |
+| `drum song [n\|name\|off]` | List the songs (built-in + `/DRUMS/*.mid`) / play one instead of the style |
+| `drum loop <a> <b>` / `drum loop off` | Loop bars a–b of the song |
 | `drum crash 0\|2\|4\|8\|16` | Crash on beat 1 of every N bars, 0 = off |
 | `drum vol 0..100` | Drum volume |
 | `drum count [0-4]` | Count-in bars (0 = off; alone toggles off / 2), also played at each trainer tempo step |
@@ -184,6 +187,7 @@ include/config.h            all tunable settings (IR length, pins, levels, norma
 src/main.cpp                setup() and loop()
 src/AudioGraph.{h,cpp}      audio objects, codec, level, bypass, delay and reverb controls
 src/IRLibrary.{h,cpp}       SD card scanning and IR loading
+src/DrumSongs.{h,cpp}       drum songs: the built-in ones and MIDI files in /DRUMS
 src/Settings.{h,cpp}        settings saved in EEPROM
 src/SerialUI.{h,cpp}        serial commands and level meter
 src/Buttons.{h,cpp}         next / previous / bypass / reverb / delay buttons
@@ -194,6 +198,7 @@ lib/irdsp/src/              portable DSP core (no Arduino dependencies)
   StudioDelay.h             the studio 80s dual delay
   DrumMachine.{h,cpp}       the drum machine (synth and sample voices, sequencer, count-in, trainer, crash accents)
   DrumPatterns.cpp          the drum styles
+  DrumSong.h, MidiDrums.{h,cpp}  drum songs, and reading them from MIDI files
   DrumKit.h                 the drum kit format (DrumKitData.cpp is generated from kits/)
   PlateReverb.h             the stereo plate reverb (port of HexeFX)
   Reverb80.{h,cpp}          the 80s reverb (Lexicon-style hall, AMS-style gated)
@@ -202,6 +207,7 @@ lib/irdsp/src/              portable DSP core (no Arduino dependencies)
   irdsp_fft.h               small radix-2 FFT
   IRLoader.{h,cpp}          WAV parser, resampler, IR trimming and normalization
 kits/rock/, kits/pearl/     the recorded drum kits (WAVs, kit.txt, credits)
+songs/                      the built-in drum songs (text, compiled in)
 tools/                      drum kit tools: import_kit.py (build a kit's WAVs), make_kits.py (compile kits in)
 test/host/                  PC tests for the DSP core
 ```
