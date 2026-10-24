@@ -14,6 +14,17 @@ UI_LABEL(kMenu, "MENU");
 UI_LABEL(kDelay, "DELAY");
 UI_LABEL(kReverb, "REVERB");
 UI_LABEL(kLevels, "LEVELS");
+UI_LABEL(kDrums, "DRUMS");
+UI_LABEL(kLDrums, "Drums");
+UI_LABEL(kLPlay, "Play");
+UI_LABEL(kLStyle, "Style");
+UI_LABEL(kLTempo, "Tempo");
+UI_LABEL(kLVolume, "Volume");
+UI_LABEL(kLCountIn, "Count-in");
+UI_LABEL(kLTrainer, "Trainer");
+UI_LABEL(kLStep, "Step");
+UI_LABEL(kLEvery, "Every");
+UI_LABEL(kLTarget, "Target");
 UI_LABEL(kLIr, "IR");
 UI_LABEL(kLDelay, "Delay");
 UI_LABEL(kLReverb, "Reverb");
@@ -49,6 +60,7 @@ static const MenuItem UI_PROGMEM kTop[] = {
     {kLIr, K::kScreen, kScreenIR, 0, 0, 0, 0, U::kNone, kNoItem, nullptr},
     {kLDelay, K::kSubmenu, kDelayOn, 1, 0, 0, 0, U::kNone, kNoItem, nullptr},
     {kLReverb, K::kSubmenu, kReverbOn, 2, 0, 0, 0, U::kNone, kNoItem, nullptr},
+    {kLDrums, K::kSubmenu, kDrumsPlay, 4, 0, 0, 0, U::kNone, kNoItem, nullptr},
     {kLLevels, K::kSubmenu, kNoItem, 3, 0, 0, 0, U::kNone, kNoItem, nullptr},
     {kLBypass, K::kToggle, kBypass, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
     {kLMeter, K::kScreen, kScreenMeter, 0, 0, 0, 0, U::kNone, kNoItem, nullptr},
@@ -82,12 +94,27 @@ static const MenuItem UI_PROGMEM kLevelItems[] = {
     {kLPhones, K::kValue, kHeadphones, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
 };
 
+// The style's range end comes from MenuHost::limits (the number of styles),
+// its name from MenuHost::valueText.
+static const MenuItem UI_PROGMEM kDrumItems[] = {
+    {kLPlay, K::kToggle, kDrumsPlay, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
+    {kLStyle, K::kValue, kDrumStyle, 0, 0, 9, 1, U::kOneBased, kNoItem, nullptr},
+    {kLTempo, K::kValue, kDrumTempo, 0, 40, 240, 1, U::kBpm, kNoItem, nullptr},
+    {kLVolume, K::kValue, kDrumVolume, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
+    {kLCountIn, K::kToggle, kDrumCountIn, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
+    {kLTrainer, K::kToggle, kTrainerOn, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
+    {kLStep, K::kValue, kTrainerStep, 0, 1, 20, 1, U::kBpm, kTrainerOn, nullptr},
+    {kLEvery, K::kValue, kTrainerEvery, 0, 1, 16, 1, U::kBars, kTrainerOn, nullptr},
+    {kLTarget, K::kValue, kTrainerTarget, 0, 40, 240, 1, U::kBpm, kTrainerOn, nullptr},
+};
+
 #define UI_PAGE(title, items) {title, items, sizeof(items) / sizeof(items[0])}
 static const MenuPage UI_PROGMEM kPages[] = {
     UI_PAGE(kMenu, kTop),
     UI_PAGE(kDelay, kDelayItems),
     UI_PAGE(kReverb, kReverbItems),
     UI_PAGE(kLevels, kLevelItems),
+    UI_PAGE(kDrums, kDrumItems),
 };
 #undef UI_PAGE
 
@@ -118,6 +145,9 @@ UI_COLD void formatValue(const MenuItem& it, int v, bool spaced, char* buf, int 
   switch (it.unit) {
     case Unit::kPercent: snprintf(buf, n, UI_STR("%d%s%%"), v, sp); break;
     case Unit::kMs: snprintf(buf, n, UI_STR("%d%sms"), v, sp); break;
+    case Unit::kBpm: snprintf(buf, n, UI_STR("%d BPM"), v); break;
+    case Unit::kBars: snprintf(buf, n, UI_STR("%d bar%s"), v, v == 1 ? UI_STR("") : UI_STR("s")); break;
+    case Unit::kOneBased: snprintf(buf, n, UI_STR("%d"), v + 1); break;
     case Unit::kHalfDb: {
       char num[16];
       halfDb(v, num, sizeof(num));
@@ -134,7 +164,7 @@ static UI_COLD void formatBound(const MenuItem& it, int v, char* buf, int n) {
     if (v % 2) halfDb(v, buf, n);
     else snprintf(buf, n, UI_STR("%s%d"), v > 0 ? UI_STR("+") : UI_STR(""), v / 2);
   } else {
-    snprintf(buf, n, UI_STR("%d"), v);
+    snprintf(buf, n, UI_STR("%d"), it.unit == Unit::kOneBased ? v + 1 : v);
   }
 }
 
@@ -291,10 +321,12 @@ UI_COLD void Menu::drawList(Canvas& c) {
     if (n == lv.cursor) c.text(0, page, UI_STR(">"));
     c.text(12, page, it->label);
     char val[24] = "";
-    if (it->kind == Kind::kScreen) {
-      if (!host_.valueText(it->id, val, sizeof(val))) val[0] = 0;
-    } else if (it->id != kNoItem) {
+    if (host_.valueText(it->id, val, sizeof(val))) {
+      // named value or screen row
+    } else if (it->kind != Kind::kScreen && it->id != kNoItem) {
       formatValue(*it, host_.get(it->id), false, val, sizeof(val));
+    } else {
+      val[0] = 0;
     }
     if (val[0]) c.textRight(Canvas::kW - 2, page, val);
     if (n == lv.cursor) c.invertPage(page);
@@ -314,9 +346,11 @@ UI_COLD void Menu::drawEditor(Canvas& c) {
   snprintf(buf, sizeof(buf), UI_STR("%s > %s"), pages_[stack_[depth_].page].title, it->label);
   titleBar(c, buf, nullptr);
 
+  // The value big, or small if it is a name too long for the 2x font.
   const int v = host_.get(it->id);
-  formatValue(*it, v, true, buf, sizeof(buf));
-  c.textCenter(2, buf, true);
+  if (!host_.valueText(it->id, buf, sizeof(buf))) formatValue(*it, v, true, buf, sizeof(buf));
+  if (Canvas::width(buf, true) <= Canvas::kW) c.textCenter(2, buf, true);
+  else c.textCenter(2, buf);
 
   // Position bar: from the low end, or from 0 for ranges that span it.
   int lo, hi;

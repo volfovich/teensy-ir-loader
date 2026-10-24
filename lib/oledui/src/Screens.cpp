@@ -95,6 +95,15 @@ UI_COLD void drawHome(Canvas& c, const UiModel& m, bool blink) {
     else snprintf(buf, sizeof(buf), UI_STR("%s"), UI_STR("REV off"));
     c.textRight(Canvas::kW, 4, buf);
   }
+
+  // Row 5: the drums while they play.
+  if (m.drumsPlaying) {
+    snprintf(buf, sizeof(buf), UI_STR("DRM %.10s %d"), m.drumStyle, m.drumTempo);
+    c.text(0, 5, buf);
+    if (m.drumsCountingIn) snprintf(buf, sizeof(buf), UI_STR("%s"), UI_STR("count"));
+    else snprintf(buf, sizeof(buf), UI_STR("bar %d"), m.drumBar);
+    c.textRight(Canvas::kW, 5, buf);
+  }
 }
 
 UI_COLD void drawHomeMeters(Canvas& c, const UiModel& m) {

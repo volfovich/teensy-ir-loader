@@ -22,6 +22,11 @@ struct UiModel {
   bool bypass = false, delayOn = false, reverbOn = false, studioDelay = true;
   int delayTimeMs = 0, reverbMix = 0;
 
+  // Drums (row 5 of the home screen while playing).
+  bool drumsPlaying = false, drumsCountingIn = false;
+  const char* drumStyle = "";
+  int drumTempo = 0, drumBar = 0;  // the tempo now (trainer), bar from 1
+
   // Meters.
   MeterState in, out;
 
@@ -39,8 +44,8 @@ struct UiModel {
 void irDisplayName(const char* path, char* out, int n);
 
 void drawSplash(Canvas& c, const UiModel& m);
-// Pages 0-5 of the home screen. blink: the blink phase for the IR number
-// while browsing.
+// Pages 0-5 of the home screen (row 5: the drums while they play). blink:
+// the blink phase for the IR number while browsing.
 void drawHome(Canvas& c, const UiModel& m, bool blink);
 // Pages 6-7 of the home screen (redrawn at the meter rate).
 void drawHomeMeters(Canvas& c, const UiModel& m);

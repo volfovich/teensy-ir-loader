@@ -17,6 +17,14 @@ struct FakeHost : ui::MenuHost {
     v[ui::kDelayDuck] = 40; v[ui::kDelayDrive] = 20; v[ui::kDelayEra] = 40;
     v[ui::kReverbOn] = 1; v[ui::kReverbMix] = 25; v[ui::kReverbSize] = 50; v[ui::kReverbTone] = 50;
     v[ui::kOutGain] = -12; v[ui::kLineIn] = 0; v[ui::kLineOut] = 29; v[ui::kHeadphones] = 50;
+    v[ui::kDrumsPlay] = 1; v[ui::kDrumStyle] = 1; v[ui::kDrumTempo] = 100; v[ui::kDrumVolume] = 60;
+    v[ui::kDrumCountIn] = 1; v[ui::kTrainerOn] = 0; v[ui::kTrainerStep] = 5; v[ui::kTrainerEvery] = 4;
+    v[ui::kTrainerTarget] = 140;
+  }
+  static const char* styleName(int i) {
+    static const char* names[] = {"metronome", "rock", "half-time", "blues shuffle", "funk 16ths",
+                                  "metal", "pop", "6/8 ballad", "reggae", "disco"};
+    return names[i < 0 || i > 9 ? 0 : i];
   }
   int get(uint8_t id) override {
     if (id == ui::kIsStudioDelay) return v[ui::kDelayType] == 1;
@@ -26,10 +34,12 @@ struct FakeHost : ui::MenuHost {
   void limits(uint8_t id, int* lo, int* hi) override {
     (void)lo;
     if (id == ui::kDelayTime) *hi = timeMax;
+    if (id == ui::kDrumStyle) *hi = 9;
   }
   bool valueText(uint8_t id, char* buf, int n) override {
-    if (id != ui::kScreenIR) return false;
-    std::snprintf(buf, n, "3/12");
+    if (id == ui::kScreenIR) std::snprintf(buf, n, "3/12");
+    else if (id == ui::kDrumStyle) std::snprintf(buf, n, "%s", styleName(v[id]));
+    else return false;
     return true;
   }
 };
@@ -57,6 +67,10 @@ inline ui::UiModel fakeModel() {
   m.studioDelay = true;
   m.delayTimeMs = 380;
   m.reverbMix = 25;
+  m.drumsPlaying = true;
+  m.drumStyle = "rock";
+  m.drumTempo = 100;
+  m.drumBar = 3;
   m.cpu = 33.2f; m.cpuMax = 35.1f; m.cpuDelay = 4.4f; m.cpuReverb = 6.2f;
   m.blocksUsed = 4; m.blocksMax = 20; m.latencyMs = 1.45f; m.partitions = 250; m.blockSize = 32;
   m.gainDb = -6.0f; m.hpPercent = 50; m.lineIn = 0; m.lineOut = 29; m.irMaxLength = 8192;

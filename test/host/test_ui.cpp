@@ -109,6 +109,35 @@ static void testMenu() {
   check(m.back() == ui::Menu::kExit, "back at the top: exit", 0);
 }
 
+static void testDrumsPage() {
+  std::printf("Drums page\n");
+  FakeHost h;
+  ui::Menu m(ui::menuPages(), h);
+  m.open();
+  m.turn(3, 0);
+  check(m.current()->id == ui::kDrumsPlay, "Drums on the top level after Reverb", m.current()->id);
+  m.push();
+  m.turn(100, 0);
+  check(m.current()->id == ui::kTrainerOn, "trainer off: Step/Every/Target hidden", m.current()->id);
+  m.push();
+  m.turn(100, 0);
+  check(h.v[ui::kTrainerOn] == 1 && m.current()->id == ui::kTrainerTarget, "trainer on: they appear", m.current()->id);
+  m.turn(-100, 0);
+  m.turn(1, 0);
+  m.push();
+  m.turn(2, 1000);
+  check(h.v[ui::kDrumStyle] == 3, "style edits by turning (rock -> blues shuffle)", h.v[ui::kDrumStyle]);
+  m.turn(100, 2000);
+  check(h.v[ui::kDrumStyle] == 9, "  ... up to the last style (MenuHost::limits)", h.v[ui::kDrumStyle]);
+  m.back();
+  check(h.v[ui::kDrumStyle] == 1, "  ... back restores rock", h.v[ui::kDrumStyle]);
+  const ui::MenuItem bars{"e", ui::Kind::kValue, ui::kTrainerEvery, 0, 1, 16, 1, ui::Unit::kBars, 0, nullptr};
+  char b[16], b1[16];
+  ui::formatValue(bars, 4, false, b, sizeof(b));
+  ui::formatValue(bars, 1, false, b1, sizeof(b1));
+  check(!std::strcmp(b, "4 bars") && !std::strcmp(b1, "1 bar"), "bars formatting (4 bars, 1 bar)", 0);
+}
+
 static void testFormat() {
   std::printf("Value formatting\n");
   const ui::MenuItem gain{"g", ui::Kind::kValue, ui::kOutGain, 0, -120, 48, 1, ui::Unit::kHalfDb, 0, nullptr};
@@ -176,6 +205,7 @@ int main() {
   testQuadrature();
   testKey();
   testMenu();
+  testDrumsPage();
   testFormat();
   testMeter();
   testCanvas();

@@ -117,9 +117,10 @@ int main(int argc, char** argv) {
   snap("07_edit_delay_time");
   menu.back(); menu.back(); menu.back();
 
-  menu.open(); menu.turn(3, 0); menu.push(); menu.push();
+  menu.open(); menu.turn(4, 0); menu.push(); menu.push();  // Levels > Out gain
   menu.draw(c);
   snap("08_edit_output_gain");
+  menu.back();
 
   ui::drawIrBrowser(c, m, 2, 0, 0);
   snap("09_ir_browser");
@@ -129,6 +130,15 @@ int main(int argc, char** argv) {
 
   ui::drawStatus(c, m);
   snap("11_status");
+
+  host.v[ui::kTrainerOn] = 1;
+  menu.open(); menu.turn(3, 0); menu.push(); menu.turn(2, 0);
+  menu.draw(c);
+  snap("12_menu_drums");
+
+  menu.turn(-1, 0); menu.push();
+  menu.draw(c);
+  snap("13_edit_drum_style");
 
   int ok = 0;
   for (auto& s : shots) ok += writePng(dir + "/" + s.name + ".png", kImgW, kImgH, s.img);
