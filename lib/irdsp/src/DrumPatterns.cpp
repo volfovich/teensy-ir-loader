@@ -1,7 +1,8 @@
 // DrumPatterns.cpp - the built-in drum styles (see DrumMachine.h for the
 // lane format). The table stays in flash on the Teensy.
 //
-// Lanes:  kick, snare, rim, closed hat, open hat, ride, click
+// Lanes:  kick, snare, rim, closed hat, open hat, ride, click, crash
+// (a lane left out is empty; crash accents come from setCrashEvery()).
 #include <stdlib.h>
 
 #include "DrumMachine.h"
@@ -36,18 +37,27 @@ IRDSP_COLD const DrumStyle& drumStyle(int i) {
   return kStyles[i < 0 || i >= drumStyleCount() ? 0 : i];
 }
 
-IRDSP_COLD int findDrumStyle(const char* s) {
+// Case-insensitive name match, or a 1-based number; the index or -1.
+static IRDSP_COLD int findByName(const char* s, int count, const char* (*nameAt)(int)) {
   if (s[0] >= '0' && s[0] <= '9') {
     const int n = atoi(s);
-    return n >= 1 && n <= drumStyleCount() ? n - 1 : -1;
+    return n >= 1 && n <= count ? n - 1 : -1;
   }
-  for (int i = 0; i < drumStyleCount(); i++) {
-    const char* a = kStyles[i].name;
+  for (int i = 0; i < count; i++) {
+    const char* a = nameAt(i);
     const char* b = s;
     while (*a && *b && (*a | 0x20) == (*b | 0x20)) a++, b++;
     if (!*a && !*b) return i;
   }
   return -1;
+}
+
+IRDSP_COLD int findDrumStyle(const char* s) {
+  return findByName(s, drumStyleCount(), [](int i) -> const char* { return kStyles[i].name; });
+}
+
+IRDSP_COLD int findDrumKit(const char* s) {
+  return findByName(s, drumKitCount(), [](int i) -> const char* { return drumKit(i).name; });
 }
 
 }  // namespace irdsp

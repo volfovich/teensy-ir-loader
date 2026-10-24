@@ -17,7 +17,13 @@ float decayK(float t60, float fs) { return expf(-6.9078f / (t60 * fs)); }
 
 // Mix levels of the voices on the bus (before the soft clip and volume).
 constexpr float kKickGain = 0.9f, kSnareBody = 0.45f, kSnareNoise = 0.5f, kRimGain = 0.45f;
-constexpr float kHatGain = 0.5f, kRideGain = 0.35f, kClickGain = 0.9f, kBusGain = 0.55f;
+constexpr float kHatGain = 0.5f, kRideGain = 0.35f, kCrashGain = 0.4f, kClickGain = 0.9f, kBusGain = 0.55f;
+// Samples are int16 and already level-matched (kits/*/kit.txt).
+constexpr float kSampleGain = 1.0f / 32768.0f;
+// Fades when a sample is cut off: retriggered, choked, replaced, kit change.
+constexpr float kRetriggerMs = 2.0f, kChokeMs = 5.0f;
+// Cymbals ring on under a new hit, up to this many sounding at once.
+constexpr int kCymbalVoices = 2;
 
 // TR-808 cymbal / hi-hat oscillator frequencies.
 constexpr float kMetalHz[6] = {205.3f, 304.4f, 369.6f, 522.7f, 540.0f, 800.0f};
@@ -61,6 +67,9 @@ IRDSP_COLD void DrumMachine::init() {
   hatHp1_.setHighpass(7000.0f, fs_);
   hatHp2_.setHighpass(7000.0f, fs_);
   rideBp_.setBandpass(4500.0f, fs_, 0.8f);
+  crashK_ = decayK(1.8f, fs_);
+  crashHp1_.setHighpass(4000.0f, fs_);
+  crashHp2_.setHighpass(4000.0f, fs_);
   clickAmpK_ = decayK(0.05f, fs_);
   clickHi_ = inc(2000.0f);
   clickLo_ = inc(1200.0f);
@@ -82,6 +91,7 @@ IRDSP_COLD void DrumMachine::setStyle(int idx) {
   p.stepsPerBeat = s.stepsPerBeat;
   int steps = s.beats * s.stepsPerBeat;
   p.steps = (uint8_t)(steps > kMaxSteps ? kMaxSteps : steps);
+  p.drums = false;
   for (int v = 0; v < kDrumVoices; v++) {
     const char* lane = s.lanes[v];
     const int len = (int)strlen(lane);
@@ -89,6 +99,7 @@ IRDSP_COLD void DrumMachine::setStyle(int idx) {
       const char c = i < len && i < p.steps ? lane[i] : '.';
       p.vel[v][i] = c == 'X' ? 3 : (c == 'x' ? 2 : (c == 'g' ? 1 : 0));
     }
+    if (v != kClick && len > 0) p.drums = true;
   }
   styleReq_ = idx;
   swapReq_ = true;
@@ -119,7 +130,13 @@ IRDSP_COLD void DrumMachine::setTrainer(bool on, int stepBpm, int everyBars, int
 bool DrumMachine::voicesActive() const {
   return kickAmp_ > 0.0f || kickClick_ > 0.0f || snBody_ > 0.0f || snNoise_ > 0.0f ||
          rimAmp_ > 0.0f || rimTick_ > 0.0f || hatC_ > 0.0f || hatO_ > 0.0f || ride_ > 0.0f ||
-         clickAmp_ > 0.0f;
+         crash_ > 0.0f || clickAmp_ > 0.0f || samplesPlaying() > 0;
+}
+
+int DrumMachine::samplesPlaying() const {
+  int n = 0;
+  for (const SampleVoice& v : sv_) n += v.p != nullptr;
+  return n;
 }
 
 void DrumMachine::swapPattern() {
@@ -130,7 +147,12 @@ void DrumMachine::swapPattern() {
 void DrumMachine::trigger(int voice, int level, uint64_t sample) {
   if (hook_) hook_(hookCtx_, voice, level, sample);
   // +-4 % per hit so repeated notes don't sound like a machine gun.
-  const float vel = kLevelVel[level] * (1.0f + 0.04f * noise());
+  const float jitter = 1.0f + 0.04f * noise();
+  if (kit_ && voice != kClick && kit_->count[voice]) {
+    startSample(voice, level, jitter);
+    return;
+  }
+  const float vel = kLevelVel[level] * jitter;
   switch (voice) {
     case kKick:
       kickAmp_ = vel;
@@ -158,6 +180,9 @@ void DrumMachine::trigger(int voice, int level, uint64_t sample) {
     case kRide:
       ride_ = vel;
       break;
+    case kCrash:
+      crash_ = vel;
+      break;
     case kClick:
       clickAmp_ = vel;
       clickInc_ = level == 3 ? clickHi_ : clickLo_;
@@ -177,9 +202,14 @@ void DrumMachine::fireStep(uint64_t sample) {
   if (countIn_) {
     if (step_ % p.stepsPerBeat == 0) trigger(kClick, step_ == 0 ? 3 : 2, sample);
   } else {
+    // A crash accent replaces the bar's first hat or ride hit.
+    const int every = crashEvery_;
+    const bool crash = step_ == 0 && every > 0 && p.drums && bar_ % every == 0;
+    if (crash) trigger(kCrash, 3, sample);
     for (int v = 0; v < kDrumVoices; v++) {
       const int lvl = p.vel[v][step_];
-      if (lvl) trigger(v, lvl, sample);
+      if (!lvl || (crash && (v == kHatClosed || v == kHatOpen || v == kRide || v == kCrash))) continue;
+      trigger(v, lvl, sample);
     }
   }
   step_++;
@@ -230,7 +260,7 @@ void DrumMachine::renderVoices(float* out, int n) {
       if (rimAmp_ < kOff) rimAmp_ = 0.0f;
       if (rimTick_ < kOff) rimTick_ = 0.0f;
     }
-    if (hatC_ > 0.0f || hatO_ > 0.0f || ride_ > 0.0f) {
+    if (hatC_ > 0.0f || hatO_ > 0.0f || ride_ > 0.0f || crash_ > 0.0f) {
       float metal = 0.0f;
       for (int k = 0; k < 6; k++) {
         metalPhase_[k] += metalInc_[k];
@@ -251,6 +281,11 @@ void DrumMachine::renderVoices(float* out, int n) {
         ride_ *= rideK_;
         if (ride_ < kOff) ride_ = 0.0f;
       }
+      if (crash_ > 0.0f) {
+        s += kCrashGain * 1.8f * crashHp2_.process(crashHp1_.process(0.5f * metal + 0.8f * nz)) * crash_;
+        crash_ *= crashK_;
+        if (crash_ < kOff) crash_ = 0.0f;
+      }
     }
     if (clickAmp_ > 0.0f) {
       clickPhase_ += clickInc_;
@@ -258,7 +293,93 @@ void DrumMachine::renderVoices(float* out, int n) {
       clickAmp_ *= clickAmpK_;
       if (clickAmp_ < kOff) clickAmp_ = 0.0f;
     }
-    out[i] = softClip(kBusGain * s);
+    out[i] = s;
+  }
+  renderSamples(out, n);
+  for (int i = 0; i < n; i++) out[i] = softClip(kBusGain * out[i]);
+}
+
+// ---- Sample voices ---------------------------------------------------------------
+
+void DrumMachine::fadeVoice(int i, float ms) {
+  SampleVoice& v = sv_[i];
+  const float step = v.gain / (ms * 0.001f * fs_);
+  if (v.fade == 0.0f || step > v.fade) v.fade = step;
+}
+
+// Fades out the lane's sounding voices, except the newest `keep` that aren't
+// already fading.
+void DrumMachine::fadeLane(int voice, float ms, int keep) {
+  for (;;) {
+    int count = 0, oldest = -1;
+    for (int i = 0; i < kSampleVoices; i++) {
+      const SampleVoice& v = sv_[i];
+      if (!v.p || v.lane != voice || v.fade != 0.0f) continue;
+      count++;
+      if (oldest < 0 || v.age < sv_[oldest].age) oldest = i;
+    }
+    if (count <= keep) return;
+    fadeVoice(oldest, ms);
+  }
+}
+
+void DrumMachine::startSample(int voice, int level, float jitter) {
+  const DrumKit& k = *kit_;
+  // The loudest layer made for this level or below, else the softest.
+  const DrumSample* s = &k.samples[k.first[voice]];
+  for (int j = 1; j < k.count[voice]; j++) {
+    const DrumSample& c = k.samples[k.first[voice] + j];
+    if (c.level <= level) s = &c;
+  }
+  // A drum is re-struck (its last hit cut short); cymbals ring on under it.
+  const bool cymbal = voice == kHatOpen || voice == kRide || voice == kCrash;
+  fadeLane(voice, cymbal ? kChokeMs : kRetriggerMs, cymbal ? kCymbalVoices - 1 : 0);
+  if (voice == kHatClosed) fadeLane(kHatOpen, kChokeMs, 0);
+
+  // A free voice, else the one nearest its end.
+  int pick = -1;
+  for (int i = 0; i < kSampleVoices && pick < 0; i++)
+    if (!sv_[i].p) pick = i;
+  if (pick < 0) {
+    float most = -1.0f;
+    for (int i = 0; i < kSampleVoices; i++) {
+      const float done = (float)sv_[i].pos / (float)sv_[i].len;
+      if (done > most) most = done, pick = i;
+    }
+  }
+  SampleVoice& v = sv_[pick];
+  v.p = s->data;
+  v.len = s->len;
+  v.pos = 0;
+  v.age = ++svAge_;
+  v.gain = kSampleGain * kLevelVel[level] / kLevelVel[s->level] * jitter;
+  v.fade = 0.0f;
+  v.lane = (uint8_t)voice;
+}
+
+void DrumMachine::renderSamples(float* out, int n) {
+  for (SampleVoice& v : sv_) {
+    if (!v.p) continue;
+    const int16_t* p = v.p + v.pos;
+    const uint32_t left = v.len - v.pos;
+    int m = left < (uint32_t)n ? (int)left : n;
+    float g = v.gain;
+    bool done = (uint32_t)m == left;
+    if (v.fade == 0.0f) {
+      for (int i = 0; i < m; i++) out[i] += g * (float)p[i];
+    } else {
+      for (int i = 0; i < m; i++) {
+        g -= v.fade;
+        if (g <= 0.0f) {
+          done = true;
+          break;
+        }
+        out[i] += g * (float)p[i];
+      }
+      v.gain = g;
+    }
+    v.pos += (uint32_t)m;
+    if (done) v.p = nullptr;
   }
 }
 
@@ -281,6 +402,11 @@ bool DrumMachine::process(float* out, int n) {
     countIn_ = false;
   }
   if (!playing_ && swapReq_) swapPattern();
+  if (kitReq_ != kit_) {
+    for (int i = 0; i < kSampleVoices; i++)
+      if (sv_[i].p) fadeVoice(i, kChokeMs);
+    kit_ = kitReq_;
+  }
   if (tempoReq_) {
     tempoReq_ = false;
     bpmNow_ = baseBpm_;

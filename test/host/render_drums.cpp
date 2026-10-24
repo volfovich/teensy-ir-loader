@@ -1,5 +1,6 @@
-// Renders 8 bars of every drum style (with the count-in) to 16-bit WAV
-// files, to listen to the sounds on a computer.
+// Renders 8 bars of every drum style (with the count-in and a crash every
+// 4 bars) with every kit to 16-bit WAV files, to listen to the sounds on a
+// computer.
 //   make -C test/host render_drums && ./test/host/render_drums [out_dir]
 #include <cstdint>
 #include <cstdio>
@@ -8,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "DrumKit.h"
 #include "DrumMachine.h"
 
 static bool writeWav(const std::string& path, const std::vector<float>& x, int fs) {
@@ -32,26 +34,30 @@ int main(int argc, char** argv) {
   const std::string dir = argc > 1 ? argv[1] : "out";
   const int fs = 44100, B = 32;
   int ok = 0;
-  for (int s = 0; s < irdsp::drumStyleCount(); s++) {
-    const irdsp::DrumStyle& st = irdsp::drumStyle(s);
-    const float bpm = !std::strcmp(st.name, "ballad") ? 60.0f : (!std::strcmp(st.name, "shuffle") ? 90.0f : 110.0f);
-    std::unique_ptr<irdsp::DrumMachine> d(new irdsp::DrumMachine((float)fs));
-    d->setStyle(s);
-    d->setTempo(bpm);
-    d->setVolume(0.85f);
-    d->setCountIn(true);
-    d->start();
-    const double seconds = 9 * st.beats * 60.0 / bpm + 1.0;  // count-in + 8 bars + tail
-    std::vector<float> out;
-    float buf[B];
-    for (int i = 0; i < (int)(seconds * fs) / B; i++) {
-      if (!d->process(buf, B)) for (float& x : buf) x = 0;
-      out.insert(out.end(), buf, buf + B);
+  for (int k = 0; k < irdsp::drumKitCount(); k++) {
+    for (int s = 0; s < irdsp::drumStyleCount(); s++) {
+      const irdsp::DrumStyle& st = irdsp::drumStyle(s);
+      const float bpm = !std::strcmp(st.name, "ballad") ? 60.0f : (!std::strcmp(st.name, "shuffle") ? 90.0f : 110.0f);
+      std::unique_ptr<irdsp::DrumMachine> d(new irdsp::DrumMachine((float)fs));
+      d->setKit(&irdsp::drumKit(k));
+      d->setCrashEvery(4);
+      d->setStyle(s);
+      d->setTempo(bpm);
+      d->setVolume(0.85f);
+      d->setCountIn(true);
+      d->start();
+      const double seconds = 9 * st.beats * 60.0 / bpm + 1.0;  // count-in + 8 bars + tail
+      std::vector<float> out;
+      float buf[B];
+      for (int i = 0; i < (int)(seconds * fs) / B; i++) {
+        if (!d->process(buf, B)) for (float& x : buf) x = 0;
+        out.insert(out.end(), buf, buf + B);
+      }
+      char name[64];
+      std::snprintf(name, sizeof(name), "/drums_%02d_%s_%s.wav", s + 1, st.name, irdsp::drumKit(k).name);
+      ok += writeWav(dir + name, out, fs);
     }
-    char name[64];
-    std::snprintf(name, sizeof(name), "/drums_%02d_%s.wav", s + 1, st.name);
-    ok += writeWav(dir + name, out, fs);
   }
   std::printf("wrote %d WAVs to %s/\n", ok, dir.c_str());
-  return ok == irdsp::drumStyleCount() ? 0 : 1;
+  return ok == irdsp::drumStyleCount() * irdsp::drumKitCount() ? 0 : 1;
 }

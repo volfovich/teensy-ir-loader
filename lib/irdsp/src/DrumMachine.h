@@ -1,22 +1,28 @@
-// DrumMachine.h - a small synthesized drum machine for practicing along.
+// DrumMachine.h - a small drum machine for practicing along.
 //
 //   styles (DrumPatterns.cpp) -> sample-accurate step sequencer -> voices
-//                                (count-in, speed trainer)          |
+//   (count-in, speed trainer, crash accents)                         |
 //                                                     mono drum bus x volume
 //
-// Voices, all synthesized (no samples):
+// Voices come from the kit (DrumKit.h): either recorded samples, played
+// straight from flash, or these synthesized ones. A lane a kit has no
+// samples for, and the click, always use the synthesized voice.
 //   kick        sine, pitch falling 160 -> 50 Hz, plus a short noise click
 //   snare       185 Hz body plus band-limited noise
 //   rim         cross-stick: two short sines plus a noise tick
 //   hats        TR-808 style metal (6 square waves at inharmonic
 //               frequencies) plus noise, high-passed; closed chokes open
 //   ride        the same metal, band-passed, long decay
+//   crash       the same metal with more noise, high-passed, long decay
 //   click       metronome / count-in: 2 kHz on accents, 1.2 kHz otherwise
 //
 // Steps fire at their exact sample (a fractional sample counter, so the
 // tempo never drifts). A style change takes effect at the next bar, a tempo
 // change at the next step. Stopping lets the voices ring out; once they are
 // silent the machine is idle and process() costs almost nothing.
+//
+// Crash accents: a crash on the first beat of every N bars (counted from the
+// first bar after the count-in), in place of that step's hat or ride hit.
 //
 // Threading model: process() runs in the audio interrupt; everything else is
 // called from the background and only writes single values or the spare
@@ -25,11 +31,10 @@
 
 #include <stdint.h>
 
+#include "DrumKit.h"
 #include "irdsp_blocks.h"
 
 namespace irdsp {
-
-enum DrumVoice : uint8_t { kKick, kSnare, kRim, kHatClosed, kHatOpen, kRide, kClick, kDrumVoices };
 
 // A built-in style. Each lane has one character per step:
 //   '.' rest, 'g' ghost, 'x' normal, 'X' accent.
@@ -59,6 +64,10 @@ class DrumMachine {
   void setTempo(float bpm);    // at the next step; restarts the trainer
   void setVolume(float n);     // 0..1 (0 = silent, 1 = 0 dB)
   void setCountIn(bool on) { countInOn_ = on; }
+  // The kit to play (kept, not copied); its sounding samples fade out.
+  void setKit(const DrumKit* kit) { kitReq_ = kit; }
+  // A crash on the first beat of every `bars` bars; 0 = off.
+  void setCrashEvery(int bars) { crashEvery_ = bars < 0 ? 0 : bars; }
   // Speed trainer: every `everyBars` bars the tempo rises by `stepBpm`, up
   // to `targetBpm`, starting from the set tempo.
   void setTrainer(bool on, int stepBpm, int everyBars, int targetBpm);
@@ -71,6 +80,7 @@ class DrumMachine {
   int bar() const { return bar_; }          // bars played after the count-in
   float tempoNow() const { return bpmNow_; }
   int style() const { return styleReq_; }
+  int samplesPlaying() const;  // sample voices sounding (for tests)
 
   // ---- Audio ------------------------------------------------------------------
   // Writes n samples of the drum bus to out. Returns false, writing nothing,
@@ -83,8 +93,11 @@ class DrumMachine {
   void setHitHook(HitHook hook, void* ctx) { hookCtx_ = ctx; hook_ = hook; }
 
  private:
+  static constexpr int kSampleVoices = 16;
+
   struct Pattern {
     uint8_t steps = 16, beats = 4, stepsPerBeat = 4;
+    bool drums = false;  // has lanes other than the click (crash accents)
     uint8_t vel[kDrumVoices][kMaxSteps] = {};
   };
 
@@ -95,6 +108,10 @@ class DrumMachine {
   void trigger(int voice, int level, uint64_t sample);
   bool voicesActive() const;
   void renderVoices(float* out, int n);
+  void startSample(int voice, int level, float vel);
+  void fadeLane(int voice, float ms, int keep);
+  void fadeVoice(int i, float ms);
+  void renderSamples(float* out, int n);
   inline float noise() {
     rng_ ^= rng_ << 13;
     rng_ ^= rng_ >> 17;
@@ -126,6 +143,7 @@ class DrumMachine {
   uint64_t time_ = 0;    // samples processed
   HitHook hook_ = nullptr;
   void* hookCtx_ = nullptr;
+  volatile int crashEvery_ = 0;
   volatile float volTarget_ = 0.0f;
   float volCur_ = 0.0f;
 
@@ -141,8 +159,23 @@ class DrumMachine {
   float hatC_ = 0, hatO_ = 0, ride_ = 0, hatCK_, hatOK_, rideK_;
   uint32_t metalPhase_[6] = {}, metalInc_[6];
   Biquad hatHp1_, hatHp2_, rideBp_;
+  float crash_ = 0, crashK_;
+  Biquad crashHp1_, crashHp2_;
   float clickAmp_ = 0, clickAmpK_;
   uint32_t clickPhase_ = 0, clickInc_ = 0, clickHi_, clickLo_;
+
+  // Sample voices: a pointer into the kit's sample, and a fade (gain step
+  // per sample) once it is cut off.
+  struct SampleVoice {
+    const int16_t* p = nullptr;
+    uint32_t pos = 0, len = 0, age = 0;
+    float gain = 0.0f, fade = 0.0f;
+    uint8_t lane = 0;
+  };
+  const DrumKit* volatile kitReq_ = nullptr;
+  const DrumKit* kit_ = nullptr;
+  SampleVoice sv_[kSampleVoices];
+  uint32_t svAge_ = 0;
 };
 
 }  // namespace irdsp
