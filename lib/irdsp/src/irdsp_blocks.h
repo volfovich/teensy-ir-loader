@@ -1,5 +1,5 @@
 // irdsp_blocks.h - small DSP building blocks shared by PlateReverb,
-// StereoDelay, StudioDelay and DrumMachine (mostly ported from
+// Reverb80, StereoDelay, StudioDelay and DrumMachine (mostly ported from
 // hexefx_audiolib_F32, MIT, Piotr Zapart).
 #pragma once
 
@@ -90,6 +90,10 @@ struct Biquad {
     return y;
   }
 };
+
+// Truncates toward zero to steps of inv (= 1 / scale): the resolution of an
+// old converter, e.g. scale 2^9 for 10 bits. |v * scale| must fit in int32.
+inline float quantize(float v, float scale, float inv) { return (float)(int32_t)(v * scale) * inv; }
 
 // 4-point Hermite-interpolated read of a circular line of len samples, d
 // samples behind the write index idx (HexeFX getTapHermite, which addresses

@@ -247,10 +247,10 @@ class StudioDelay {
     return x - (4.0f / 27.0f) * x * x * x;
   }
 
-  // Truncates toward zero to the era's resolution (int conversion truncates).
+  // Truncates toward zero to the era's resolution, within the line's range.
   static inline float quantize(float v, float scale, float inv) {
     v = v < -kLineMax ? -kLineMax : (v > kLineMax ? kLineMax : v);
-    return (float)(int32_t)(v * scale) * inv;
+    return irdsp::quantize(v, scale, inv);
   }
 
   // Anti-alias ceiling 16 kHz (era 0) .. 6 kHz (era 1), log-scaled; the

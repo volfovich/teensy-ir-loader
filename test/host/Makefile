@@ -5,13 +5,16 @@ INC = -I../../lib/irdsp/src -I../../lib/oledui/src
 UI_SRC = $(wildcard ../../lib/oledui/src/*.cpp)
 UI_DEPS = $(UI_SRC) $(wildcard ../../lib/oledui/src/*.h) ui_fake.h
 
-all: test_convolver test_reverb test_delay test_studio_delay test_drums render_drums test_ui render_ui irtool
+all: test_convolver test_reverb test_reverb80 render_reverb80 test_delay test_studio_delay test_drums render_drums test_ui render_ui irtool
 
 test_convolver: test_convolver.cpp ../../lib/irdsp/src/*.h
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_convolver.cpp
 
 test_reverb: test_reverb.cpp ../../lib/irdsp/src/PlateReverb.h ../../lib/irdsp/src/irdsp_blocks.h
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_reverb.cpp
+
+test_reverb80: test_reverb80.cpp ../../lib/irdsp/src/Reverb80.h ../../lib/irdsp/src/irdsp_blocks.h
+	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_reverb80.cpp
 
 test_delay: test_delay.cpp ../../lib/irdsp/src/StereoDelay.h ../../lib/irdsp/src/irdsp_blocks.h
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_delay.cpp
@@ -32,6 +35,9 @@ test_drums: test_drums.cpp $(DRUM_DEPS)
 render_drums: render_drums.cpp $(DRUM_DEPS)
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ render_drums.cpp $(DRUM_SRC)
 
+render_reverb80: render_reverb80.cpp ../../lib/irdsp/src/Reverb80.h $(DRUM_DEPS)
+	$(CXX) $(CXXFLAGS) $(INC) -o $@ render_reverb80.cpp $(DRUM_SRC)
+
 test_ui: test_ui.cpp $(UI_DEPS)
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_ui.cpp $(UI_SRC)
 
@@ -39,10 +45,11 @@ render_ui: render_ui.cpp $(UI_DEPS)
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ render_ui.cpp $(UI_SRC) -lz
 
 # Renders every OLED screen to out/*.png.
-render: render_ui render_drums
+render: render_ui render_drums render_reverb80
 	mkdir -p out
 	./render_ui out
 	./render_drums out
+	./render_reverb80 out
 
 # Regenerates the repo's screenshots/ from the real UI code.
 screenshots: render_ui
@@ -55,6 +62,7 @@ irtool: irtool.cpp ../../lib/irdsp/src/IRLoader.cpp ../../lib/irdsp/src/IRLoader
 test: all
 	./test_convolver
 	./test_reverb
+	./test_reverb80
 	./test_delay
 	./test_studio_delay
 	./test_drums
@@ -62,7 +70,7 @@ test: all
 	python3 test_loader.py
 
 clean:
-	rm -f test_convolver test_reverb test_delay test_studio_delay test_drums render_drums test_ui render_ui irtool
+	rm -f test_convolver test_reverb test_reverb80 render_reverb80 test_delay test_studio_delay test_drums render_drums test_ui render_ui irtool
 	rm -rf out
 
 .PHONY: all test render screenshots clean
