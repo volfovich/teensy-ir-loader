@@ -5,7 +5,7 @@ INC = -I../../lib/irdsp/src -I../../lib/oledui/src
 UI_SRC = $(wildcard ../../lib/oledui/src/*.cpp)
 UI_DEPS = $(UI_SRC) $(wildcard ../../lib/oledui/src/*.h) ui_fake.h
 
-all: test_convolver test_reverb test_delay test_studio_delay test_ui render_ui irtool
+all: test_convolver test_reverb test_delay test_studio_delay test_drums render_drums test_ui render_ui irtool
 
 test_convolver: test_convolver.cpp ../../lib/irdsp/src/*.h
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_convolver.cpp
@@ -19,6 +19,15 @@ test_delay: test_delay.cpp ../../lib/irdsp/src/StereoDelay.h ../../lib/irdsp/src
 test_studio_delay: test_studio_delay.cpp ../../lib/irdsp/src/StudioDelay.h ../../lib/irdsp/src/irdsp_blocks.h
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_studio_delay.cpp
 
+DRUM_SRC = ../../lib/irdsp/src/DrumMachine.cpp ../../lib/irdsp/src/DrumPatterns.cpp
+DRUM_DEPS = $(DRUM_SRC) ../../lib/irdsp/src/DrumMachine.h ../../lib/irdsp/src/irdsp_blocks.h
+
+test_drums: test_drums.cpp $(DRUM_DEPS)
+	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_drums.cpp $(DRUM_SRC)
+
+render_drums: render_drums.cpp $(DRUM_DEPS)
+	$(CXX) $(CXXFLAGS) $(INC) -o $@ render_drums.cpp $(DRUM_SRC)
+
 test_ui: test_ui.cpp $(UI_DEPS)
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_ui.cpp $(UI_SRC)
 
@@ -26,9 +35,10 @@ render_ui: render_ui.cpp $(UI_DEPS)
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ render_ui.cpp $(UI_SRC) -lz
 
 # Renders every OLED screen to out/*.png.
-render: render_ui
+render: render_ui render_drums
 	mkdir -p out
 	./render_ui out
+	./render_drums out
 
 # Regenerates the repo's screenshots/ from the real UI code.
 screenshots: render_ui
@@ -43,11 +53,12 @@ test: all
 	./test_reverb
 	./test_delay
 	./test_studio_delay
+	./test_drums
 	./test_ui
 	python3 test_loader.py
 
 clean:
-	rm -f test_convolver test_reverb test_delay test_studio_delay test_ui render_ui irtool
+	rm -f test_convolver test_reverb test_delay test_studio_delay test_drums render_drums test_ui render_ui irtool
 	rm -rf out
 
 .PHONY: all test render screenshots clean

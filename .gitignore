@@ -8,3 +8,5 @@ test/host/test_studio_delay
 test/host/test_ui
 test/host/render_ui
 test/host/out/
+test/host/test_drums
+test/host/render_drums

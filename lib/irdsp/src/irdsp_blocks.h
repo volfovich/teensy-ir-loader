@@ -1,6 +1,6 @@
 // irdsp_blocks.h - small DSP building blocks shared by PlateReverb,
-// StereoDelay and StudioDelay (mostly ported from hexefx_audiolib_F32, MIT,
-// Piotr Zapart).
+// StereoDelay, StudioDelay and DrumMachine (mostly ported from
+// hexefx_audiolib_F32, MIT, Piotr Zapart).
 #pragma once
 
 #include <math.h>
@@ -47,8 +47,9 @@ struct Shelf {
   static constexpr float kStep = 0.02f;
 };
 
-// 2-pole lowpass (RBJ cookbook, transposed direct form II). The coefficients
-// may change between samples; the state carries over.
+// 2-pole lowpass / highpass / bandpass (RBJ cookbook, transposed direct
+// form II). The coefficients may change between samples; the state carries
+// over.
 struct Biquad {
   float b0 = 1.0f, b1 = 0.0f, b2 = 0.0f, a1 = 0.0f, a2 = 0.0f;
   float z1 = 0.0f, z2 = 0.0f;
@@ -59,6 +60,26 @@ struct Biquad {
     const float inv = 1.0f / (1.0f + alpha);
     b0 = b2 = 0.5f * (1.0f - c) * inv;
     b1 = (1.0f - c) * inv;
+    a1 = -2.0f * c * inv;
+    a2 = (1.0f - alpha) * inv;
+  }
+  void setHighpass(float hz, float sampleRate, float q = 0.70710678f) {
+    const float w = 6.2831853f * hz / sampleRate;
+    const float c = cosf(w), alpha = sinf(w) / (2.0f * q);
+    const float inv = 1.0f / (1.0f + alpha);
+    b0 = b2 = 0.5f * (1.0f + c) * inv;
+    b1 = -(1.0f + c) * inv;
+    a1 = -2.0f * c * inv;
+    a2 = (1.0f - alpha) * inv;
+  }
+  // Unity gain at the center frequency.
+  void setBandpass(float hz, float sampleRate, float q) {
+    const float w = 6.2831853f * hz / sampleRate;
+    const float c = cosf(w), alpha = sinf(w) / (2.0f * q);
+    const float inv = 1.0f / (1.0f + alpha);
+    b0 = alpha * inv;
+    b1 = 0.0f;
+    b2 = -alpha * inv;
     a1 = -2.0f * c * inv;
     a2 = (1.0f - alpha) * inv;
   }

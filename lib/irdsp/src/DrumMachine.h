@@ -1,0 +1,147 @@
+// DrumMachine.h - a small synthesized drum machine for practicing along.
+//
+//   styles (DrumPatterns.cpp) -> sample-accurate step sequencer -> voices
+//                                (count-in, speed trainer)          |
+//                                                     mono drum bus x volume
+//
+// Voices, all synthesized (no samples):
+//   kick        sine, pitch falling 160 -> 50 Hz, plus a short noise click
+//   snare       185 Hz body plus band-limited noise
+//   rim         cross-stick: two short sines plus a noise tick
+//   hats        TR-808 style metal (6 square waves at inharmonic
+//               frequencies) plus noise, high-passed; closed chokes open
+//   ride        the same metal, band-passed, long decay
+//   click       metronome / count-in: 2 kHz on accents, 1.2 kHz otherwise
+//
+// Steps fire at their exact sample (a fractional sample counter, so the
+// tempo never drifts). A style change takes effect at the next bar, a tempo
+// change at the next step. Stopping lets the voices ring out; once they are
+// silent the machine is idle and process() costs almost nothing.
+//
+// Threading model: process() runs in the audio interrupt; everything else is
+// called from the background and only writes single values or the spare
+// pattern buffer, which the interrupt swaps in at a bar boundary.
+#pragma once
+
+#include <stdint.h>
+
+#include "irdsp_blocks.h"
+
+namespace irdsp {
+
+enum DrumVoice : uint8_t { kKick, kSnare, kRim, kHatClosed, kHatOpen, kRide, kClick, kDrumVoices };
+
+// A built-in style. Each lane has one character per step:
+//   '.' rest, 'g' ghost, 'x' normal, 'X' accent.
+// An empty lane is unused. Lanes are beats x stepsPerBeat long.
+struct DrumStyle {
+  char name[10];    // command name ("shuffle")
+  char title[14];   // display name ("blues shuffle")
+  uint8_t beats;    // beats per bar
+  uint8_t stepsPerBeat;
+  char lanes[kDrumVoices][25];
+};
+
+int drumStyleCount();
+const DrumStyle& drumStyle(int i);
+// The style named (case-insensitive) or numbered 1..count; -1 if none.
+int findDrumStyle(const char* nameOrNumber);
+
+class DrumMachine {
+ public:
+  static constexpr int kMaxSteps = 24;
+  static constexpr float kMinBpm = 40.0f, kMaxBpm = 240.0f;
+
+  explicit DrumMachine(float sampleRate = 44100.0f);
+
+  // ---- Control (background) -------------------------------------------------
+  void setStyle(int idx);      // at the next bar (at once when stopped)
+  void setTempo(float bpm);    // at the next step; restarts the trainer
+  void setVolume(float n);     // 0..1 (0 = silent, 1 = 0 dB)
+  void setCountIn(bool on) { countInOn_ = on; }
+  // Speed trainer: every `everyBars` bars the tempo rises by `stepBpm`, up
+  // to `targetBpm`, starting from the set tempo.
+  void setTrainer(bool on, int stepBpm, int everyBars, int targetBpm);
+  void start() { stopReq_ = false; startReq_ = true; }
+  void stop() { startReq_ = false; stopReq_ = true; }
+
+  bool playing() const { return startReq_ || (playing_ && !stopReq_); }
+  bool active() const { return active_; }  // playing or still ringing
+  bool countingIn() const { return countIn_; }
+  int bar() const { return bar_; }          // bars played after the count-in
+  float tempoNow() const { return bpmNow_; }
+  int style() const { return styleReq_; }
+
+  // ---- Audio ------------------------------------------------------------------
+  // Writes n samples of the drum bus to out. Returns false, writing nothing,
+  // while idle (stopped and silent).
+  bool process(float* out, int n);
+
+  // Called (in the audio interrupt) for every hit, with the sample it lands
+  // on, counted across process() calls. For tests and beat displays.
+  using HitHook = void (*)(void* ctx, int voice, int level, uint64_t sample);
+  void setHitHook(HitHook hook, void* ctx) { hookCtx_ = ctx; hook_ = hook; }
+
+ private:
+  struct Pattern {
+    uint8_t steps = 16, beats = 4, stepsPerBeat = 4;
+    uint8_t vel[kDrumVoices][kMaxSteps] = {};
+  };
+
+  void fireStep(uint64_t sample);
+  void endBar();
+  void swapPattern();
+  void trigger(int voice, int level, uint64_t sample);
+  bool voicesActive() const;
+  void renderVoices(float* out, int n);
+  inline float noise() {
+    rng_ ^= rng_ << 13;
+    rng_ ^= rng_ >> 17;
+    rng_ ^= rng_ << 5;
+    return (float)(int32_t)rng_ * (1.0f / 2147483648.0f);
+  }
+  inline float sine(uint32_t phase) const {
+    const uint32_t i = phase >> 24;
+    const float f = (float)(phase & 0x00FFFFFF) * (1.0f / 16777216.0f);
+    return sin_[i] + (sin_[i + 1] - sin_[i]) * f - 1.0f;
+  }
+  uint32_t inc(float hz) const { return (uint32_t)(hz * hzToInc_); }
+
+  const float fs_, hzToInc_;
+  const float* sin_;
+  uint32_t rng_ = 0x9E3779B9u;
+
+  // Sequencer.
+  Pattern pat_[2];
+  volatile int cur_ = 0;
+  volatile bool swapReq_ = false, startReq_ = false, stopReq_ = false, tempoReq_ = false;
+  volatile bool playing_ = false, active_ = false, countInOn_ = true, countIn_ = false;
+  volatile int styleReq_ = 0, bar_ = 0;
+  volatile float baseBpm_ = 100.0f, bpmNow_ = 100.0f;
+  volatile bool trOn_ = false;
+  volatile int trStep_ = 5, trEvery_ = 4, trTarget_ = 140;
+  int step_ = 0, trBars_ = 0;
+  double toNext_ = 0.0;  // samples until the next step
+  uint64_t time_ = 0;    // samples processed
+  HitHook hook_ = nullptr;
+  void* hookCtx_ = nullptr;
+  volatile float volTarget_ = 0.0f;
+  float volCur_ = 0.0f;
+
+  // Voices: amplitude envelopes (0 = silent) and their per-sample decay.
+  float kickAmp_ = 0, kickPitch_ = 0, kickClick_ = 0, kickAmpK_, kickPitchK_, kickClickK_;
+  uint32_t kickPhase_ = 0;
+  float snBody_ = 0, snNoise_ = 0, snBodyK_, snNoiseK_;
+  uint32_t snPhase_ = 0, snInc_;
+  Biquad snHp_, snLp_;
+  float rimAmp_ = 0, rimTick_ = 0, rimAmpK_, rimTickK_;
+  uint32_t rimPhase1_ = 0, rimPhase2_ = 0, rimInc1_, rimInc2_;
+  Biquad rimHp_;
+  float hatC_ = 0, hatO_ = 0, ride_ = 0, hatCK_, hatOK_, rideK_;
+  uint32_t metalPhase_[6] = {}, metalInc_[6];
+  Biquad hatHp1_, hatHp2_, rideBp_;
+  float clickAmp_ = 0, clickAmpK_;
+  uint32_t clickPhase_ = 0, clickInc_ = 0, clickHi_, clickLo_;
+};
+
+}  // namespace irdsp
