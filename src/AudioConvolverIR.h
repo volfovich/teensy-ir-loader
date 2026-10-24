@@ -8,7 +8,7 @@
 //   core   -> delay (mono in, stereo out, dry/wet)           -> dL, dR
 //             (ping-pong or studio 80s, sharing the same lines)
 //   dL, dR -> plate reverb (stereo in, stereo out, dry/wet)  -> out L / R
-//   + drum machine (mono, added to both outputs, never through the effects)
+//   + drum machine (stereo, added to the outputs, never through the effects)
 //
 // Adds smoothed output gain, click-free IR bypass, on/off for each effect
 // (tails ring out when switched off; an idle effect passes its input through
@@ -183,28 +183,30 @@ class AudioConvolverIR : public AudioStream {
     const float* fl = reverbed ? ol : sl;
     const float* fr = reverbed ? orr : sr;
 
-    // Drums, added to both outputs below (nullptr while idle).
+    // Drums (stereo), added to the outputs below (nullptr while idle).
     const uint32_t t3 = ARM_DWT_CYCCNT;
-    float drum[B];
-    const float* add = drums_.process(drum, B) ? drum : nullptr;
+    float drumL[B], drumR[B];
+    const bool drums = drums_.process(drumL, drumR, B);
+    const float* addL = drums ? drumL : nullptr;
+    const float* addR = drums ? drumR : nullptr;
     drumCyclesAvg_ = drumCyclesAvg_ + ((float)(ARM_DWT_CYCCNT - t3) - drumCyclesAvg_) * 0.01f;
 
     float opk = outPeak_;
     uint32_t clips = 0;
     audio_block_t* outL = allocate();
     if (!outL) return;
-    if (!delayed && !reverbed) {
-      // Effects idle: the dry signal (plus drums) goes to both outputs.
-      toInt16(y, add, outL->data, opk, clips);
+    if (!delayed && !reverbed && !drums) {
+      // Effects and drums idle: the dry signal goes to both outputs.
+      toInt16(y, nullptr, outL->data, opk, clips);
       transmit(outL, 0);
       transmit(outL, 1);
       release(outL);
     } else {
       audio_block_t* outR = allocate();
-      toInt16(fl, add, outL->data, opk, clips);
+      toInt16(fl, addL, outL->data, opk, clips);
       transmit(outL, 0);
       if (outR) {
-        toInt16(fr, add, outR->data, opk, clips);
+        toInt16(fr, addR, outR->data, opk, clips);
         transmit(outR, 1);
         release(outR);
       } else {
