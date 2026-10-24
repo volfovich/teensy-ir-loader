@@ -43,3 +43,11 @@ void setReverbOn(bool on);
 void setReverbMix(int percent);       // 0 .. 100, 0 = dry only, 100 = wet only
 void setReverbSize(int percent);      // 0 .. 100, reverb time
 void setReverbTone(int percent);      // 0 .. 100, 100 = brightest tail
+void setReverbType(int type);         // 0 = plate, 1 = 80s
+void setReverbMode(int mode);         // 80s: 0 = hall, 1 = gated
+void setReverbPreDelay(int ms);       // 80s: 0 .. 150
+void setReverbMod(int percent);       // 80s hall: chorus in the tail
+void setReverbEra(int percent);       // 80s: 0 = 16-bit/16 kHz .. 100 = 10-bit/6 kHz
+void setReverbGate(int ms);           // 80s gated: 100 .. 600
+// "plate", "80s hall" or "80s gated", for the current settings.
+const char* reverbTypeName();

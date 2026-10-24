@@ -58,8 +58,14 @@ FLASHMEM void printHelp() {
       "  drum train [step every target]  toggle / set the speed trainer (now %s)\n"
       "  rv           toggle reverb (now %s)\n"
       "  mix <0-100>  reverb dry/wet, 0 = dry only (now %u)\n"
-      "  size <0-100> reverb time (now %u)\n"
+      "  size <0-100> reverb time; 80s gated: decaying .. flat (50) .. rising (now %u)\n"
       "  tone <0-100> reverb brightness (now %u)\n"
+      "  rtype [0|1]  reverb type, 0 = plate, 1 = 80s (now %s)\n"
+      "  rmode [hall|gated]  80s: hall or gated reverb (now %s)\n"
+      "  rpre <0-150> 80s: pre-delay, ms (now %u)\n"
+      "  rmod <0-100> 80s hall: chorus in the tail (now %u)\n"
+      "  rera <0-100> 80s: 0 = 16-bit/16 kHz, 100 = 10-bit/6 kHz (now %u)\n"
+      "  rgate <100-600>  80s gated: burst length, ms (now %u)\n"
       "  in <0-15>    line-in sensitivity, 0 = 3.12 Vpp, least sensitive (now %u)\n"
       "  out <13-31>  line-out level, 13 = loudest (now %u)\n"
       "  hp <0-100>   headphone volume (now %d%%)\n"
@@ -73,7 +79,9 @@ FLASHMEM void printHelp() {
       irdsp::drumStyle(g_settings.drumStyle).name, irdsp::drumKit(g_settings.drumKit).name, crashText(),
       g_settings.drumVolume,
       countText(), g_settings.trainerOn ? "on" : "off", g_settings.reverbOn ? "on" : "off", g_settings.reverbMix,
-      g_settings.reverbSize, g_settings.reverbTone, g_settings.lineIn, g_settings.lineOut,
+      g_settings.reverbSize, g_settings.reverbTone, g_settings.reverbType ? "80s" : "plate",
+      g_settings.reverbMode ? "gated" : "hall", g_settings.reverbPreDelay, g_settings.reverbMod, g_settings.reverbEra,
+      g_settings.reverbGateMs, g_settings.lineIn, g_settings.lineOut,
       (int)lroundf(g_settings.hpVolume * 100));
 }
 
@@ -174,9 +182,15 @@ FLASHMEM static void printStatus() {
                   g_settings.delayEra);
   Serial.println();
   printDrums();
-  Serial.printf("Reverb:    %s, mix %u%%, size %u%%, tone %u%%\n",
+  Serial.printf("Reverb:    %s, %s, mix %u%%, size %u%%, tone %u%%",
                 g_settings.reverbOn ? "on" : (convolver.reverbActive() ? "off (tail ringing)" : "off"),
-                g_settings.reverbMix, g_settings.reverbSize, g_settings.reverbTone);
+                reverbTypeName(), g_settings.reverbMix, g_settings.reverbSize, g_settings.reverbTone);
+  if (g_settings.reverbType) {
+    Serial.printf(", pre %u ms, era %u%%", g_settings.reverbPreDelay, g_settings.reverbEra);
+    if (g_settings.reverbMode) Serial.printf(", gate %u ms", g_settings.reverbGateMs);
+    else Serial.printf(", mod %u%%", g_settings.reverbMod);
+  }
+  Serial.println();
   Serial.printf("CPU:       IR + effects %.1f%% avg / %.1f%% max (delay %.1f%%, reverb %.1f%%, drums %.1f%%), audio total %.1f%% max\n",
                 convolver.cpuPercent(), convolver.cpuPercentMax(), convolver.delayCpuPercent(),
                 convolver.reverbCpuPercent(), convolver.drumCpuPercent(), AudioProcessorUsageMax());
@@ -243,6 +257,19 @@ FLASHMEM static void handleCommand(char* line) {
     setReverbSize(atoi(arg));
   } else if (!strcmp(line, "tone") && arg) {
     setReverbTone(atoi(arg));
+  } else if (!strcmp(line, "rtype")) {
+    setReverbType(arg ? atoi(arg) : !g_settings.reverbType);
+  } else if (!strcmp(line, "rmode")) {
+    if (!arg) setReverbMode(!g_settings.reverbMode);
+    else setReverbMode(!strcmp(arg, "gated") || !strcmp(arg, "1") ? 1 : 0);
+  } else if (!strcmp(line, "rpre") && arg) {
+    setReverbPreDelay(atoi(arg));
+  } else if (!strcmp(line, "rmod") && arg) {
+    setReverbMod(atoi(arg));
+  } else if (!strcmp(line, "rera") && arg) {
+    setReverbEra(atoi(arg));
+  } else if (!strcmp(line, "rgate") && arg) {
+    setReverbGate(atoi(arg));
   } else if (!strcmp(line, "g") && arg) {
     setOutputGainDb((float)atof(arg));
   } else if (!strcmp(line, "in")) {

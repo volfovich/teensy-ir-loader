@@ -8,7 +8,8 @@
 
 Settings g_settings;
 
-static const uint32_t kSettingsMagic = 0x49524C37;  // "IRL7"
+static const uint32_t kSettingsMagic = 0x49524C38;  // "IRL8"
+static const uint32_t kSettingsMagicV7 = 0x49524C37;  // "IRL7": plate reverb only
 static const uint32_t kSettingsMagicV6 = 0x49524C36;  // "IRL6": count-in on/off
 static const uint32_t kSettingsMagicV5 = 0x49524C35;  // "IRL5": no kit or crash
 static const uint32_t kSettingsMagicV4 = 0x49524C34;  // "IRL4": no drums
@@ -56,6 +57,15 @@ FLASHMEM static void defaultKitSettings() {
   g_settings.drumCrash = DEFAULT_DRUM_CRASH;
 }
 
+FLASHMEM static void defaultReverb80Settings() {
+  g_settings.reverbType = DEFAULT_REVERB_TYPE;
+  g_settings.reverbMode = DEFAULT_REVERB_MODE;
+  g_settings.reverbPreDelay = DEFAULT_REVERB_PREDELAY;
+  g_settings.reverbMod = DEFAULT_REVERB_MOD;
+  g_settings.reverbEra = DEFAULT_REVERB_ERA;
+  g_settings.reverbGateMs = DEFAULT_REVERB_GATE;
+}
+
 FLASHMEM static void defaultSettings() {
   memset(&g_settings, 0, sizeof(g_settings));
   g_settings.magic = kSettingsMagic;
@@ -68,6 +78,7 @@ FLASHMEM static void defaultSettings() {
   defaultDelayTypeSettings();
   defaultDrumSettings();
   defaultKitSettings();
+  defaultReverb80Settings();
 }
 
 FLASHMEM void loadSettings() {
@@ -95,8 +106,12 @@ FLASHMEM void loadSettings() {
   }
   if (g_settings.magic == kSettingsMagicV6) {
     // The count-in became a number of bars: "on" becomes the default length.
-    g_settings.magic = kSettingsMagic;
+    g_settings.magic = kSettingsMagicV7;
     if (g_settings.drumCountIn) g_settings.drumCountIn = DEFAULT_DRUM_COUNT_IN;
+  }
+  if (g_settings.magic == kSettingsMagicV7) {
+    g_settings.magic = kSettingsMagic;
+    defaultReverb80Settings();
   }
   // The style and kit lists can change between firmware versions: one that
   // no longer exists falls back to the default, without resetting the rest.
@@ -117,7 +132,9 @@ FLASHMEM void loadSettings() {
       g_settings.delayTimeMs < 20 || g_settings.delayTimeMs > DELAY_MAX_MS ||
       g_settings.delayType > 1 || g_settings.delayDuck > 100 || g_settings.delayDrive > 100 ||
       g_settings.delayEra > 100 || g_settings.drumTempo < 40 || g_settings.drumTempo > 240 || g_settings.drumVolume > 100 ||
-      g_settings.drumCountIn > 4 || g_settings.trainerOn > 1 || g_settings.trainerStep < 1 ||
+      g_settings.drumCountIn > 4 || g_settings.reverbType > 1 || g_settings.reverbMode > 1 ||
+      g_settings.reverbPreDelay > 150 || g_settings.reverbMod > 100 || g_settings.reverbEra > 100 ||
+      g_settings.reverbGateMs < 100 || g_settings.reverbGateMs > 600 || g_settings.trainerOn > 1 || g_settings.trainerStep < 1 ||
       g_settings.trainerStep > 20 || g_settings.trainerEvery < 1 || g_settings.trainerEvery > 16 ||
       g_settings.trainerTarget < 40 || g_settings.trainerTarget > 240) {
     defaultSettings();

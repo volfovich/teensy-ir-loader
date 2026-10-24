@@ -18,7 +18,8 @@ static AudioControlSGTL5000 codec;
 
 // Reverb delay lines live in the 512 KB OCRAM (DMAMEM); the DTCM is mostly
 // taken by the convolver.
-DMAMEM static float g_reverbMem[irdsp::PlateReverb::kMemFloats];
+// Shared by both reverb types (only one runs at a time).
+DMAMEM static float g_reverbMem[AudioConvolverIR::kReverbMemFloats];
 // The two delay lines are too big for either RAM bank alone: one goes in
 // DTCM, the other in OCRAM.
 static const int kDelayLen = (int)(DELAY_MAX_MS * AUDIO_SAMPLE_RATE_EXACT / 1000.0f) + 8;
@@ -48,6 +49,11 @@ FLASHMEM static void applyLevels() {
   convolver.setReverbShape(REVERB_DIFFUSION, REVERB_LODAMP, REVERB_LOWPASS, REVERB_HIPASS);
   convolver.setReverbSize(g_settings.reverbSize / 100.0f);
   convolver.setReverbTone(g_settings.reverbTone / 100.0f);
+  convolver.setReverbType(g_settings.reverbType, g_settings.reverbMode);
+  convolver.setReverbPreDelayMs(g_settings.reverbPreDelay);
+  convolver.setReverbMod(g_settings.reverbMod / 100.0f);
+  convolver.setReverbEra(g_settings.reverbEra / 100.0f);
+  convolver.setReverbGateMs(g_settings.reverbGateMs);
   convolver.setReverbMix(g_settings.reverbMix / 100.0f);
   convolver.setReverbOn(g_settings.reverbOn);
   convolver.setDrumStyle(g_settings.drumStyle);
@@ -196,6 +202,53 @@ FLASHMEM void setReverbTone(int percent) {
   convolver.setReverbTone(g_settings.reverbTone / 100.0f);
   scheduleSave();
   Serial.printf("Reverb tone %u%%\n", g_settings.reverbTone);
+}
+
+const char* reverbTypeName() {
+  return !g_settings.reverbType ? "plate" : (g_settings.reverbMode ? "80s gated" : "80s hall");
+}
+
+FLASHMEM void setReverbType(int type) {
+  g_settings.reverbType = constrain(type, 0, 1);
+  convolver.setReverbType(g_settings.reverbType, g_settings.reverbMode);
+  scheduleSave();
+  Serial.printf("Reverb type %s\n", reverbTypeName());
+}
+
+FLASHMEM void setReverbMode(int mode) {
+  g_settings.reverbMode = constrain(mode, 0, 1);
+  convolver.setReverbType(g_settings.reverbType, g_settings.reverbMode);
+  scheduleSave();
+  Serial.printf("Reverb 80s mode %s%s\n", g_settings.reverbMode ? "gated" : "hall",
+                g_settings.reverbType ? "" : " (used when the type is 80s)");
+}
+
+FLASHMEM void setReverbPreDelay(int ms) {
+  g_settings.reverbPreDelay = constrain(ms, 0, 150);
+  convolver.setReverbPreDelayMs(g_settings.reverbPreDelay);
+  scheduleSave();
+  Serial.printf("Reverb pre-delay %u ms\n", g_settings.reverbPreDelay);
+}
+
+FLASHMEM void setReverbMod(int percent) {
+  g_settings.reverbMod = constrain(percent, 0, 100);
+  convolver.setReverbMod(g_settings.reverbMod / 100.0f);
+  scheduleSave();
+  Serial.printf("Reverb modulation %u%%\n", g_settings.reverbMod);
+}
+
+FLASHMEM void setReverbEra(int percent) {
+  g_settings.reverbEra = constrain(percent, 0, 100);
+  convolver.setReverbEra(g_settings.reverbEra / 100.0f);
+  scheduleSave();
+  Serial.printf("Reverb era %u%%\n", g_settings.reverbEra);
+}
+
+FLASHMEM void setReverbGate(int ms) {
+  g_settings.reverbGateMs = constrain(ms, 100, 600);
+  convolver.setReverbGateMs(g_settings.reverbGateMs);
+  scheduleSave();
+  Serial.printf("Reverb gate %u ms\n", g_settings.reverbGateMs);
 }
 
 FLASHMEM void setDrumsPlaying(bool on) {

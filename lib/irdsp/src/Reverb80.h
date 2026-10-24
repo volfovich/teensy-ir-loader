@@ -9,7 +9,7 @@
 //   (L+R)/2 -> pre-delay -> era: anti-alias LP + quantize -> 4 allpass diffusers
 //     hall:  -> 8-line FDN (Hadamard), per-line damping LP (Tone), decay (Size),
 //               4 lines read at an LFO-modulated position (Mod)
-//     gated: -> one line, 32 taps per side spread over the gate time, tap
+//     gated: -> one line, 24 taps per side spread over the gate time, tap
 //               gains shaped by Size (decaying / flat / rising), Tone lowpass
 //   -> low cut (100 Hz) -> wet L / R
 //
@@ -22,7 +22,7 @@
 //
 // Threading model: process() runs in the audio interrupt. The setters only
 // write single values; process() recomputes the coefficients when they
-// change.
+// change (that code, and the clearing, run from flash to save RAM1).
 #pragma once
 
 #include <math.h>
@@ -42,7 +42,7 @@ class Reverb80 {
   static constexpr int kHallLen[8] = {2003, 2341, 2729, 3011, 3313, 3637, 3943, 4271};
   static constexpr int kModPad = 24;    // room for the modulated reads
   static constexpr int kGateMax = 26464;  // 600 ms + margin
-  static constexpr int kTaps = 32;      // per side (gated)
+  static constexpr int kTaps = 24;      // per side (gated)
   static constexpr int kHallFloats = 2003 + 2341 + 2729 + 3011 + 3313 + 3637 + 3943 + 4271 + 8 * kModPad;
   static constexpr int kSharedFloats = kHallFloats > kGateMax ? kHallFloats : kGateMax;
   // Total buffer size for init(), in floats (about 136 KB).
@@ -54,25 +54,7 @@ class Reverb80 {
   }
 
   // Hands over the line memory (kMemFloats floats) and clears it.
-  void init(float* mem) {
-    float* p = mem;
-    pre_ = p;
-    p += kPreMax;
-    for (int i = 0; i < 4; i++) {
-      diff_[i].bf = p;
-      diff_[i].len = kDiffLen[i];
-      p += kDiffLen[i];
-    }
-    shared_ = p;
-    float* q = p;
-    for (int i = 0; i < 8; i++) {
-      line_[i] = q;
-      lineLen_[i] = kHallLen[i] + kModPad;
-      q += lineLen_[i];
-    }
-    mem_ = mem;
-    reset();
-  }
+  void init(float* mem);
   bool ready() const { return mem_ != nullptr; }
 
   // Silences everything at once.
@@ -82,28 +64,7 @@ class Reverb80 {
   }
 
   // Clears up to n floats per call; returns true when the reverb is silent.
-  bool clearStep(int n) {
-    if (!mem_) return true;
-    if (clearPos_ == 0) {
-      preIdx_ = 0;
-      for (auto& d : diff_) d.idx = 0;
-      for (auto& w : lineIdx_) w = 0;
-      gateIdx_ = 0;
-      for (auto& s : damp_) s = 0.0f;
-      inLp_.clear();
-      inLp2_.clear();
-      hpL_.clear();
-      hpR_.clear();
-      toneL_.clear();
-      toneR_.clear();
-    }
-    const int count = n < kMemFloats - clearPos_ ? n : kMemFloats - clearPos_;
-    memset(mem_ + clearPos_, 0, count * sizeof(float));
-    clearPos_ += count;
-    if (clearPos_ < kMemFloats) return false;
-    clearPos_ = 0;
-    return true;
-  }
+  bool clearStep(int n);
 
   // ---- Parameters -----------------------------------------------------------
 
@@ -133,35 +94,36 @@ class Reverb80 {
   // the input (checked by test/host/test_reverb80.cpp).
   void process(const float* inL, const float* inR, float* outL, float* outR, int n) {
     if (size_ != cSize_ || tone_ != cTone_ || era_ != cEra_ || gateMs_ != cGate_) update();
-    const float qs = qScale_, qi = qInv_;
-    for (int i = 0; i < n; i++) {
-      // Pre-delay, then the converters of the era.
-      pre_[preIdx_] = 0.5f * (inL[i] + inR[i]);
-      int r = preIdx_ - preDelay_;
-      if (r < 0) r += kPreMax;
-      if (++preIdx_ >= kPreMax) preIdx_ = 0;
-      float x = inLp2_.process(inLp_.process(pre_[r]));
-      x = quantize(x, qs, qi);
-
-      float l, rr;
-      if (mode_ == kGated) {
-        // Short diffusion only, so the burst can stop dead.
-        x = diff_[0].process(x, 0.7f);
-        x = diff_[1].process(x, 0.7f);
-        gated(x, l, rr);
-      } else {
-        x = diff_[0].process(x, 0.75f);
-        x = diff_[1].process(x, 0.75f);
-        x = diff_[2].process(x, 0.625f);
-        x = diff_[3].process(x, 0.625f);
-        hall(x, l, rr);
+    for (int off = 0; off < n; off += kChunk) {
+      const int m = n - off < kChunk ? n - off : kChunk;
+      float x[kChunk], l[kChunk], r[kChunk];
+      front(inL + off, inR + off, x, m);
+      if (mode_ == kGated) gatedBlock(x, l, r, m);
+      else hallBlock(x, l, r, m);
+      for (int i = 0; i < m; i++) {
+        outL[off + i] = hpL_.process(l[i]);
+        outR[off + i] = hpR_.process(r[i]);
       }
-      outL[i] = hpL_.process(l);
-      outR[i] = hpR_.process(rr);
     }
   }
 
  private:
+  // Work is done in chunks, one line at a time: the lines live in the
+  // Teensy's cached OCRAM, and streaming through each line is much faster
+  // than touching all of them every sample. Every line delay and output tap
+  // is longer than a chunk, so the result is the same as sample by sample.
+  static constexpr int kChunk = 32;
+
+  // Calls f(i, idx) for i = 0 .. m-1 with idx = start + i wrapped at len
+  // (m <= len): two straight loops instead of a wrap check per sample.
+  template <class F>
+  static inline void span(int len, int start, int m, F f) {
+    const int first = len - start < m ? len - start : m;
+    for (int i = 0; i < first; i++) f(i, start + i);
+    for (int i = first; i < m; i++) f(i, i - first);
+  }
+  static inline int back(int idx, int d, int len) { return idx - d < 0 ? idx - d + len : idx - d; }
+
   struct Allpass {
     float* bf;
     int len, idx = 0;
@@ -174,140 +136,133 @@ class Reverb80 {
     }
   };
 
-  // One step of the hall: read the 8 lines (4 of them modulated), damp and
-  // decay them, mix with an 8-point Hadamard matrix, add the input.
-  inline void hall(float x, float& outL, float& outR) {
-    float y[8];
-    lfo_[0].tick();
-    lfo_[1].tick();
-    const float depth = modDepth_;
-    for (int k = 0; k < 8; k++) {
-      const int len = lineLen_[k], w = lineIdx_[k];
-      float v;
-      if (k & 1) {
-        int r = w - kHallLen[k];
-        if (r < 0) r += len;
-        v = line_[k][r];
+  // Pre-delay, the era's converters, then the input diffusion (short in the
+  // gated mode, so the burst can stop dead).
+  inline void front(const float* inL, const float* inR, float* x, int m) {
+    const float qs = qScale_, qi = qInv_;
+    const bool gated = mode_ == kGated;
+    for (int i = 0; i < m; i++) {
+      pre_[preIdx_] = 0.5f * (inL[i] + inR[i]);
+      int r = preIdx_ - preDelay_;
+      if (r < 0) r += kPreMax;
+      if (++preIdx_ >= kPreMax) preIdx_ = 0;
+      float v = quantize(inLp2_.process(inLp_.process(pre_[r])), qs, qi);
+      if (gated) {
+        v = diff_[0].process(v, 0.7f);
+        v = diff_[1].process(v, 0.7f);
       } else {
-        // Lines 0, 2, 4, 6: chorused, two LFOs in quadrature.
-        const float m = lfo_[k >> 2].value((uint32_t)(k & 2) * 32u);  // 0 .. 2
-        v = readHermite(line_[k], len, w, (float)kHallLen[k] - depth * m);
+        v = diff_[0].process(v, 0.75f);
+        v = diff_[1].process(v, 0.75f);
+        v = diff_[2].process(v, 0.625f);
+        v = diff_[3].process(v, 0.625f);
       }
-      damp_[k] += (v - damp_[k]) * dampK_;
-      y[k] = damp_[k] * gain_[k];
+      x[i] = v;
+    }
+  }
+
+  // The hall: read the 8 lines (4 of them chorused), damp and decay them,
+  // take the output taps, mix with an 8-point Hadamard matrix, add the input.
+  inline void hallBlock(const float* x, float* outL, float* outR, int m) {
+    float y[8][kChunk];
+    // Chorus: the LFOs (0..2) at the chunk's start and end, interpolated.
+    float m0[4], m1[4];
+    m0[0] = lfo_[0].value(0), m0[1] = lfo_[0].value(64), m0[2] = lfo_[1].value(0), m0[3] = lfo_[1].value(64);
+    lfo_[0].acc += lfo_[0].adder * (uint32_t)m;
+    lfo_[1].acc += lfo_[1].adder * (uint32_t)m;
+    m1[0] = lfo_[0].value(0), m1[1] = lfo_[0].value(64), m1[2] = lfo_[1].value(0), m1[3] = lfo_[1].value(64);
+    const float depth = modDepth_, c = dampK_, step = 1.0f / (float)m;
+    for (int k = 0; k < 8; k++) {
+      const float* bf = line_[k];
+      const int len = lineLen_[k], w0 = lineIdx_[k];
+      const float g = gain_[k];
+      float d = damp_[k];
+      float* yk = y[k];
+      if (k & 1) {
+        span(len, back(w0, kHallLen[k], len), m, [&](int i, int r) {
+          d += (bf[r] - d) * c;
+          yk[i] = d * g;
+        });
+      } else {
+        // Lines 0, 2, 4, 6: chorused (linear interpolation, as the units of
+        // the day), delay kHallLen - depth * lfo.
+        const float a0 = (float)kHallLen[k] - depth * m0[k >> 1];
+        const float da = -depth * (m1[k >> 1] - m0[k >> 1]) * step;
+        for (int i = 0; i < m; i++) {
+          float pos = (float)(w0 + i) - (a0 + da * (float)(i + 1));
+          if (pos < 0.0f) pos += (float)len;
+          const int i0 = (int)pos;
+          const float f = pos - (float)i0;
+          const int j0 = i0 >= len ? i0 - len : i0;
+          const int j1 = j0 + 1 >= len ? 0 : j0 + 1;
+          d += (bf[j0] + f * (bf[j1] - bf[j0]) - d) * c;
+          yk[i] = d * g;
+        }
+      }
+      damp_[k] = d;
     }
     // Stereo out: taps along the lines (different points and signs for L
     // and R), so the reverb starts right after the pre-delay and the sides
     // are decorrelated.
-    float l = 0.0f, r = 0.0f;
+    // Each side taps four of the lines (the others go to the other side).
+    for (int i = 0; i < m; i++) outL[i] = outR[i] = 0.0f;
     for (int k = 0; k < 8; k++) {
-      const int len = lineLen_[k], w = lineIdx_[k];
-      int a = w - kTapL[k], b = w - kTapR[k];
-      if (a < 0) a += len;
-      if (b < 0) b += len;
-      l += (k & 1) ? -line_[k][a] : line_[k][a];
-      r += (k & 2) ? -line_[k][b] : line_[k][b];
+      const float* bf = line_[k];
+      const int len = lineLen_[k];
+      const float sg = (k & 2) ? -kHallOut : kHallOut;
+      float* out = kTapLeft[k] ? outL : outR;
+      span(len, back(lineIdx_[k], kTap[k], len), m, [&](int i, int a) { out[i] += sg * bf[a]; });
     }
-    outL = kHallOut * l;
-    outR = kHallOut * r;
-    // Fast Walsh-Hadamard transform (orthogonal with the 1/sqrt(8)).
-    for (int h = 1; h < 8; h <<= 1)
-      for (int a = 0; a < 8; a += h << 1)
-        for (int b = a; b < a + h; b++) {
-          const float u = y[b], v = y[b + h];
-          y[b] = u + v;
-          y[b + h] = u - v;
-        }
+    // Fast Walsh-Hadamard transform (orthogonal with the 1/sqrt(8)), then
+    // write back with the input added (alternating signs).
+    for (int i = 0; i < m; i++) {
+      float v[8];
+      for (int k = 0; k < 8; k++) v[k] = y[k][i];
+      for (int h = 1; h < 8; h <<= 1)
+        for (int a = 0; a < 8; a += h << 1)
+          for (int b = a; b < a + h; b++) {
+            const float u = v[b], t = v[b + h];
+            v[b] = u + t;
+            v[b + h] = u - t;
+          }
+      for (int k = 0; k < 8; k++) y[k][i] = v[k] * 0.35355339f + ((k & 1) ? -x[i] : x[i]);
+    }
     for (int k = 0; k < 8; k++) {
-      int& w = lineIdx_[k];
-      line_[k][w] = y[k] * 0.35355339f + ((k & 1) ? -x : x);
-      if (++w >= lineLen_[k]) w = 0;
+      float* bf = line_[k];
+      const float* yk = y[k];
+      const int len = lineLen_[k];
+      span(len, lineIdx_[k], m, [&](int i, int w) { bf[w] = yk[i]; });
+      lineIdx_[k] = lineIdx_[k] + m >= len ? lineIdx_[k] + m - len : lineIdx_[k] + m;
     }
   }
 
-  // One step of the gated burst: write the diffused input, sum the taps.
-  inline void gated(float x, float& outL, float& outR) {
+  // The gated burst: write the diffused input, then sum the taps.
+  inline void gatedBlock(const float* x, float* outL, float* outR, int m) {
     float* bf = shared_;
-    bf[gateIdx_] = x;
-    float l = 0.0f, r = 0.0f;
+    const int w0 = gateIdx_;
+    span(kGateMax, w0, m, [&](int i, int w) { bf[w] = x[i]; });
+    gateIdx_ = w0 + m >= kGateMax ? w0 + m - kGateMax : w0 + m;
+    for (int i = 0; i < m; i++) outL[i] = outR[i] = 0.0f;
     for (int k = 0; k < kTaps; k++) {
-      int a = gateIdx_ - tapL_[k];
-      if (a < 0) a += kGateMax;
-      int b = gateIdx_ - tapR_[k];
-      if (b < 0) b += kGateMax;
-      l += bf[a] * gainL_[k];
-      r += bf[b] * gainR_[k];
+      const float gl = gainL_[k], gr = gainR_[k];
+      span(kGateMax, back(w0, tapL_[k], kGateMax), m, [&](int i, int a) { outL[i] += gl * bf[a]; });
+      span(kGateMax, back(w0, tapR_[k], kGateMax), m, [&](int i, int b) { outR[i] += gr * bf[b]; });
     }
-    if (++gateIdx_ >= kGateMax) gateIdx_ = 0;
-    outL = kGateOut * toneL_.process(l);
-    outR = kGateOut * toneR_.process(r);
+    for (int i = 0; i < m; i++) {
+      outL[i] = kGateOut * toneL_.process(outL[i]);
+      outR[i] = kGateOut * toneR_.process(outR[i]);
+    }
   }
 
-  // Recomputes the coefficients after a parameter change.
-  void update() {
-    cSize_ = size_;
-    cTone_ = tone_;
-    cEra_ = era_;
-    cGate_ = gateMs_;
-    const float ceil = 16000.0f * powf(6000.0f / 16000.0f, era_);
-    inLp_.setLowpass(ceil, fs_, 0.54f);  // 4th-order Butterworth: steep, like
-    inLp2_.setLowpass(ceil, fs_, 1.31f);  // the anti-alias filters of the day
-    qScale_ = exp2f(15.0f - 6.0f * era_);
-    qInv_ = 1.0f / qScale_;
-    float toneHz = 2500.0f * powf(12000.0f / 2500.0f, tone_);
-    if (toneHz > ceil) toneHz = ceil;
-    dampK_ = 1.0f - expf(-6.2831853f * toneHz / fs_);
-    toneL_.setLowpass(toneHz, fs_);
-    toneR_.setLowpass(toneHz, fs_);
-    hpL_.setHighpass(100.0f, fs_);
-    hpR_.setHighpass(100.0f, fs_);
-    // Hall decay: each line loses 60 dB per RT60 (x 1.2: the damping and
-    // the low cut shorten the measured decay by about that much).
-    const float rt60 = 1.2f * 0.8f * powf(10.0f, size_);
-    for (int k = 0; k < 8; k++) gain_[k] = powf(10.0f, -3.0f * (float)kHallLen[k] / (rt60 * fs_));
-    modDepth_ = 8.0f * mod_;
-    // Gated: taps spread over the gate time with fixed jitter, gains tilted
-    // by Size (decaying .. flat .. rising), the last 10 ms faded, and the
-    // whole burst normalized to unity power.
-    static const float kJitL[kTaps] = {0.31f, -0.22f, 0.12f, -0.35f, 0.27f, -0.08f, 0.38f, -0.29f,
-                                       0.05f, -0.17f, 0.33f, -0.38f, 0.21f, -0.02f, 0.16f, -0.26f,
-                                       0.36f, -0.11f, 0.09f, -0.33f, 0.24f, -0.19f, 0.02f, -0.06f,
-                                       0.28f, -0.31f, 0.14f, -0.24f, 0.37f, -0.15f, 0.07f, -0.12f};
-    static const float kJitR[kTaps] = {-0.27f, 0.18f, -0.36f, 0.07f, -0.13f, 0.34f, -0.24f, 0.11f,
-                                       -0.39f, 0.29f, -0.04f, 0.15f, -0.31f, 0.37f, -0.18f, 0.26f,
-                                       -0.09f, 0.03f, -0.28f, 0.19f, -0.37f, 0.08f, -0.14f, 0.01f,
-                                       -0.21f, 0.32f, -0.05f, 0.23f, -0.34f, 0.13f, -0.26f, 0.04f};
-    const float gate = gateMs_ * 0.001f * fs_;
-    const float tilt = 2.0f * size_ - 1.0f;
-    const float fade = 0.010f * fs_;
-    float pl = 0.0f, pr = 0.0f;
-    for (int k = 0; k < kTaps; k++) {
-      const float fl = ((float)k + 0.5f + kJitL[k]) / (float)kTaps;
-      const float fr = ((float)k + 0.5f + kJitR[k]) / (float)kTaps;
-      tapL_[k] = 1 + (int)(fl * gate);
-      tapR_[k] = 1 + (int)(fr * gate);
-      gainL_[k] = shape(fl, tilt, gate, fade) * ((k & 1) ? -1.0f : 1.0f);
-      gainR_[k] = shape(fr, tilt, gate, fade) * ((k & 2) ? -1.0f : 1.0f);
-      pl += gainL_[k] * gainL_[k];
-      pr += gainR_[k] * gainR_[k];
-    }
-    const float nl = 1.0f / sqrtf(pl), nr = 1.0f / sqrtf(pr);
-    for (int k = 0; k < kTaps; k++) {
-      gainL_[k] *= nl;
-      gainR_[k] *= nr;
-    }
-  }
-  static float shape(float f, float tilt, float gate, float fade) {
-    float g = 1.0f + tilt * (2.0f * f - 1.0f);
-    const float tail = (1.0f - f) * gate / fade;
-    if (tail < 1.0f) g *= tail < 0.0f ? 0.0f : tail;
-    return g < 0.02f ? 0.02f : g;
-  }
+  // Recomputes the coefficients after a parameter change (rare: from flash).
+  void update();
+  static float shape(float f, float tilt, float gate, float fade);
 
   // Output levels: 100 % wet about as loud as the input (pink noise).
-  static constexpr float kHallOut = 0.3f, kGateOut = 1.45f;
-  static constexpr int kTapL[8] = {113, 1499, 761, 2203, 397, 2963, 1301, 3541};
-  static constexpr int kTapR[8] = {1237, 211, 1913, 593, 2617, 331, 3203, 977};
+  static constexpr float kHallOut = 0.3f * 1.41421356f, kGateOut = 1.45f;
+  // Output taps: one per line, at these points; lines 0, 3, 5, 6 feed the
+  // left side and 1, 2, 4, 7 the right.
+  static constexpr int kTap[8] = {113, 211, 1913, 2203, 397, 331, 1301, 977};
+  static constexpr bool kTapLeft[8] = {true, false, false, true, false, true, true, false};
 
   const float fs_;
   float* mem_ = nullptr;

@@ -86,12 +86,21 @@
 #define DELAY80_DUCK_RELEASE_MS 200.0f   // how fast the repeats swell back after you stop
 
 // ---------------------------------------------------------------------------
-// Reverb (stereo plate after the delay, ported from HexeFX)
+// Reverb (after the delay): two types sharing the same memory (see
+// REVERB.md). Type 0 is the stereo plate ported from HexeFX; type 1 the 80s
+// studio reverb, a Lexicon-style hall or an AMS-style gated reverb.
 // ---------------------------------------------------------------------------
-// Defaults, changeable over USB serial and saved to EEPROM (all 0 .. 100).
+// Defaults, changeable over USB serial and saved to EEPROM (all 0 .. 100
+// unless noted).
 #define DEFAULT_REVERB_ON 0
+#define DEFAULT_REVERB_TYPE 0       // 0 = plate, 1 = 80s
+#define DEFAULT_REVERB_MODE 0       // 80s: 0 = hall, 1 = gated
+#define DEFAULT_REVERB_PREDELAY 40  // 80s: ms, 0 .. 150
+#define DEFAULT_REVERB_MOD 40       // 80s hall: chorus in the tail
+#define DEFAULT_REVERB_ERA 40       // 80s: converters, 0 = 16-bit/16 kHz, 100 = 10-bit/6 kHz
+#define DEFAULT_REVERB_GATE 300     // 80s gated: burst length, ms, 100 .. 600
 #define DEFAULT_REVERB_MIX 25   // 0 = dry only, 100 = wet only
-#define DEFAULT_REVERB_SIZE 50  // reverb time (about 1.1 .. 6 s)
+#define DEFAULT_REVERB_SIZE 50  // plate: about 1.1 .. 6 s; 80s hall: 0.8 .. 8 s; gated: shape
 #define DEFAULT_REVERB_TONE 50  // treble in the tail, 100 = brightest
 // Fixed voicing, 0.0 .. 1.0.
 #define REVERB_DIFFUSION 1.0f  // lower values give more distinct echoes

@@ -7,7 +7,7 @@
 //   in -> IR convolution -> IR bypass blend x output gain = core (mono)
 //   core   -> delay (mono in, stereo out, dry/wet)           -> dL, dR
 //             (ping-pong or studio 80s, sharing the same lines)
-//   dL, dR -> plate reverb (stereo in, stereo out, dry/wet)  -> out L / R
+//   dL, dR -> plate or 80s reverb (stereo in, stereo out, dry/wet) -> out L / R
 //   + drum machine (stereo, added to the outputs, never through the effects)
 //
 // Adds smoothed output gain, click-free IR bypass, on/off for each effect
@@ -24,6 +24,7 @@
 #include "FxSlot.h"
 #include "PartitionedConvolver.h"
 #include "PlateReverb.h"
+#include "Reverb80.h"
 #include "StereoDelay.h"
 #include "StudioDelay.h"
 #include "config.h"
@@ -37,17 +38,23 @@ class AudioConvolverIR : public AudioStream {
         delay_(AUDIO_SAMPLE_RATE_EXACT),
         studio_(AUDIO_SAMPLE_RATE_EXACT),
         reverb_(AUDIO_SAMPLE_RATE_EXACT),
+        reverb80_(AUDIO_SAMPLE_RATE_EXACT),
         dlSlot_(AUDIO_SAMPLE_RATE_EXACT),
         rvSlot_(AUDIO_SAMPLE_RATE_EXACT),
         drums_(AUDIO_SAMPLE_RATE_EXACT) {}
 
   Engine& engine() { return engine_; }
 
-  // Hands the reverb its line memory (PlateReverb::kMemFloats floats, may be
-  // DMAMEM). Until this is called the reverb stays off.
+  // Hands the reverb its line memory (kReverbMemFloats floats, may be
+  // DMAMEM), shared by both reverb types. Until this is called the reverb
+  // stays off.
+  static constexpr int kReverbMemFloats = irdsp::PlateReverb::kMemFloats > irdsp::Reverb80::kMemFloats
+                                              ? irdsp::PlateReverb::kMemFloats
+                                              : irdsp::Reverb80::kMemFloats;
   void beginReverb(float* mem) {
     __disable_irq();
     reverb_.init(mem);
+    reverb80_.init(mem);
     __enable_irq();
   }
   // Hands the delay its two lines (len floats each), shared by both delay
@@ -103,6 +110,16 @@ class AudioConvolverIR : public AudioStream {
   void setReverbShape(float diffusion, float loDamp, float lowpass, float hipass) {
     rvDiffusion_ = diffusion; rvLoDamp_ = loDamp; rvLowpass_ = lowpass; rvHipass_ = hipass;
   }
+  // Reverb type: plate, or 80s in hall or gated mode. A change while the
+  // reverb sounds fades the tail out, clears the shared memory, then starts
+  // the new one.
+  static constexpr int kPlate = 0, kHall80 = 1, kGated80 = 2;
+  void setReverbType(bool eighties, bool gated) { rvKind_ = !eighties ? kPlate : (gated ? kGated80 : kHall80); }
+  // 80s reverb only.
+  void setReverbPreDelayMs(float ms) { rvPreMs_ = ms; }
+  void setReverbMod(float v) { rvMod_ = v; }
+  void setReverbEra(float v) { rvEra_ = v; }
+  void setReverbGateMs(float ms) { rvGateMs_ = ms; }
   // True while the reverb is on or its tail is still ringing out.
   bool reverbActive() const { return rvSlot_.running(); }
 
@@ -348,25 +365,71 @@ class AudioConvolverIR : public AudioStream {
   // The reverb stage: in L/R -> out L/R. Returns false while the reverb is
   // idle (the caller passes its input on).
   bool processReverb(const float* inL, const float* inR, float* outL, float* outR) {
+    // Idle with clean lines: a type change takes effect at once.
+    if (!rvClearing_ && !rvSlot_.running() && rvActive_ != rvKind_) {
+      rvActive_ = rvKind_;
+      rvSwitchClearing_ = false;
+      rvTypeGain_ = 1.0f;
+    }
+    reverb80_.setMode(rvActive_ == kGated80 ? irdsp::Reverb80::kGated : irdsp::Reverb80::kHall);
+    return rvActive_ == kPlate ? runReverb(reverb_, inL, inR, outL, outR)
+                               : runReverb(reverb80_, inL, inR, outL, outR);
+  }
+
+  // As runDelay: a type switch while running fades the tail out, clears the
+  // shared memory a few KB per block, then hands over.
+  template <class Fx>
+  bool runReverb(Fx& fx, const float* inL, const float* inR, float* outL, float* outR) {
     constexpr int B = AUDIO_BLOCK_SAMPLES;
-    if (!finishClearing(rvClearing_, rvSlot_, reverb_)) return false;
-    if (!rvSlot_.begin(reverb_.ready())) return false;
+    if (!finishClearing(rvClearing_, rvSlot_, fx)) return false;
+    if (!rvSlot_.begin(fx.ready())) return false;
+    applyReverbParams(fx);
 
-    reverb_.setSize(rvSize_);
-    reverb_.setHiDamp(1.0f - rvTone_);
-    reverb_.setDiffusion(rvDiffusion_);
-    reverb_.setLoDamp(rvLoDamp_);
-    reverb_.setLowpass(rvLowpass_);
-    reverb_.setHipass(rvHipass_);
-
-    float rl[B], rr[B];
-    rvSlot_.feed(inL, rl);
-    rvSlot_.feed(inR, rr);
-    reverb_.process(rl, rr, outL, outR, B);
+    const bool switching = rvSwitchClearing_ || rvKind_ != rvActive_;
+    const float t0 = rvTypeGain_, t1 = ramp(t0, switching ? 0.0f : 1.0f);
+    if (switching && t0 == 0.0f) {
+      rvSwitchClearing_ = true;
+      if (fx.clearStep(4096)) {
+        rvSwitchClearing_ = false;
+        rvActive_ = rvKind_;
+      }
+      for (int i = 0; i < B; i++) outL[i] = outR[i] = 0.0f;
+    } else {
+      float rl[B], rr[B];
+      rvSlot_.feed(inL, rl);
+      rvSlot_.feed(inR, rr);
+      fx.process(rl, rr, outL, outR, B);
+      if (t0 != 1.0f || t1 != 1.0f) {
+        for (int i = 0; i < B; i++) {
+          const float g = t0 + (t1 - t0) * (float)(i + 1) / (float)B;
+          outL[i] *= g;
+          outR[i] *= g;
+        }
+      }
+    }
+    rvTypeGain_ = t1;
     rvSlot_.mix(inL, outL);
     rvSlot_.mix(inR, outR);
     if (rvSlot_.end()) rvClearing_ = true;
     return true;
+  }
+
+  void applyReverbParams(irdsp::PlateReverb& r) {
+    r.setSize(rvSize_);
+    r.setHiDamp(1.0f - rvTone_);
+    r.setDiffusion(rvDiffusion_);
+    r.setLoDamp(rvLoDamp_);
+    r.setLowpass(rvLowpass_);
+    r.setHipass(rvHipass_);
+  }
+
+  void applyReverbParams(irdsp::Reverb80& r) {
+    r.setSize(rvSize_);
+    r.setTone(rvTone_);
+    r.setPreDelayMs(rvPreMs_);
+    r.setMod(rvMod_);
+    r.setEra(rvEra_);
+    r.setGateMs(rvGateMs_);
   }
 
   audio_block_t* inputQueue_[1];
@@ -375,6 +438,7 @@ class AudioConvolverIR : public AudioStream {
   irdsp::StereoDelay delay_;
   irdsp::StudioDelay studio_;
   irdsp::PlateReverb reverb_;
+  irdsp::Reverb80 reverb80_;
   irdsp::FxSlot<AUDIO_BLOCK_SAMPLES> dlSlot_, rvSlot_;
   irdsp::DrumMachine drums_;
   volatile float drumCyclesAvg_ = 0.0f;
@@ -384,6 +448,11 @@ class AudioConvolverIR : public AudioStream {
   int dlActive_ = kPingPong;
   bool dlSwitchClearing_ = false, dlRestart_ = false;
   float dlTypeGain_ = 1.0f;
+  // Reverb type switching (audio interrupt only, except rvKind_).
+  volatile int rvKind_ = kPlate;
+  int rvActive_ = kPlate;
+  bool rvSwitchClearing_ = false;
+  float rvTypeGain_ = 1.0f;
   volatile float gainTarget_ = 0.5f, gainCur_ = 0.5f;
   volatile float wetTarget_ = 1.0f, wetCur_ = 1.0f;
   volatile float inPeak_ = 0.0f, outPeak_ = 0.0f;
@@ -397,4 +466,5 @@ class AudioConvolverIR : public AudioStream {
   volatile float dlDuck_ = 0.0f, dlDrive_ = 0.0f, dlEra_ = 0.0f, dl80BassCut_ = 0.0f;
   volatile float rvSize_ = 0.5f, rvTone_ = 0.5f;
   volatile float rvDiffusion_ = 1.0f, rvLoDamp_ = 0.0f, rvLowpass_ = 0.0f, rvHipass_ = 0.0f;
+  volatile float rvPreMs_ = 40.0f, rvMod_ = 0.4f, rvEra_ = 0.4f, rvGateMs_ = 300.0f;
 };

@@ -13,8 +13,11 @@ test_convolver: test_convolver.cpp ../../lib/irdsp/src/*.h
 test_reverb: test_reverb.cpp ../../lib/irdsp/src/PlateReverb.h ../../lib/irdsp/src/irdsp_blocks.h
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_reverb.cpp
 
-test_reverb80: test_reverb80.cpp ../../lib/irdsp/src/Reverb80.h ../../lib/irdsp/src/irdsp_blocks.h
-	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_reverb80.cpp
+REVERB80_SRC = ../../lib/irdsp/src/Reverb80.cpp
+REVERB80_DEPS = $(REVERB80_SRC) ../../lib/irdsp/src/Reverb80.h ../../lib/irdsp/src/irdsp_blocks.h
+
+test_reverb80: test_reverb80.cpp $(REVERB80_DEPS)
+	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_reverb80.cpp $(REVERB80_SRC)
 
 test_delay: test_delay.cpp ../../lib/irdsp/src/StereoDelay.h ../../lib/irdsp/src/irdsp_blocks.h
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_delay.cpp
@@ -35,8 +38,8 @@ test_drums: test_drums.cpp $(DRUM_DEPS)
 render_drums: render_drums.cpp $(DRUM_DEPS)
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ render_drums.cpp $(DRUM_SRC)
 
-render_reverb80: render_reverb80.cpp ../../lib/irdsp/src/Reverb80.h $(DRUM_DEPS)
-	$(CXX) $(CXXFLAGS) $(INC) -o $@ render_reverb80.cpp $(DRUM_SRC)
+render_reverb80: render_reverb80.cpp $(REVERB80_DEPS) $(DRUM_DEPS)
+	$(CXX) $(CXXFLAGS) $(INC) -o $@ render_reverb80.cpp $(REVERB80_SRC) $(DRUM_SRC)
 
 test_ui: test_ui.cpp $(UI_DEPS)
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_ui.cpp $(UI_SRC)
