@@ -1,0 +1,25 @@
+# The "rock" kit: AVL Drumkits "Red Zeppelin" (CC-BY-SA 3.0, see CREDITS.md).
+#
+# tools/import_kit.py builds the WAVs here from the source samples;
+# tools/make_kits.py compiles the WAVs into the firmware.
+#
+#   lane     kick snare rim hatc hato ride crash
+#   level    the hit level the sample is for: x (normal) or X (accent). With
+#            one sample for a lane it plays every hit, scaled by level.
+#   max/fade the length kept and the fade-out at its end, in seconds
+#   peak     the lane's loudest sample is set to this peak (dBFS); a lane's
+#            other samples keep their level relative to it
+
+name   rock
+title  rock (AVL)
+source https://raw.githubusercontent.com/studiorack/avl-drumkits/main/Samples/
+
+# lane  level  file                    source                          max   fade  peak
+kick    x      kick.wav                36-Ludwig26Kick-4.flac          0.80  0.30  -3
+snare   x      snare.wav               38-PorkpieSnare-4.flac          0.60  0.20  -4
+rim     x      rim.wav                 37-Sidestick2-4.flac            0.30  0.10  -10
+hatc    x      hat-closed.wav          42-SabianRockHatClosed-3.flac   0.30  0.10  -12
+hatc    X      hat-closed-accent.wav   42-SabianRockHatClosed-5.flac   0.30  0.10  -12
+hato    x      hat-open.wav            46-SabianRockHatSemiOpen-4.flac 0.60  0.15  -12
+ride    x      ride.wav                51-ZildjianA24Ride-4.flac       2.00  0.60  -14
+crash   X      crash.wav               49-ZildjianA20Crash-5.flac      3.00  0.80  -8

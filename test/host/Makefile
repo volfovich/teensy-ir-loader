@@ -19,8 +19,12 @@ test_delay: test_delay.cpp ../../lib/irdsp/src/StereoDelay.h ../../lib/irdsp/src
 test_studio_delay: test_studio_delay.cpp ../../lib/irdsp/src/StudioDelay.h ../../lib/irdsp/src/irdsp_blocks.h
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_studio_delay.cpp
 
-DRUM_SRC = ../../lib/irdsp/src/DrumMachine.cpp ../../lib/irdsp/src/DrumPatterns.cpp
-DRUM_DEPS = $(DRUM_SRC) ../../lib/irdsp/src/DrumMachine.h ../../lib/irdsp/src/irdsp_blocks.h
+DRUM_SRC = ../../lib/irdsp/src/DrumMachine.cpp ../../lib/irdsp/src/DrumPatterns.cpp ../../lib/irdsp/src/DrumKitData.cpp
+DRUM_DEPS = $(DRUM_SRC) ../../lib/irdsp/src/DrumMachine.h ../../lib/irdsp/src/DrumKit.h ../../lib/irdsp/src/irdsp_blocks.h
+
+# The sampled kits, generated from kits/*/ (also by the PlatformIO build).
+../../lib/irdsp/src/DrumKitData.cpp: ../../tools/make_kits.py $(wildcard ../../kits/*/*)
+	python3 ../../tools/make_kits.py --force
 
 test_drums: test_drums.cpp $(DRUM_DEPS)
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_drums.cpp $(DRUM_SRC)

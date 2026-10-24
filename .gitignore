@@ -11,3 +11,5 @@ test/host/out/
 test/host/test_drums
 test/host/render_drums
 .DS_Store
+lib/irdsp/src/DrumKitData.cpp
+__pycache__/
