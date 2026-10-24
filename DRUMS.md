@@ -1,6 +1,6 @@
 # Drum machine
 
-A small drum machine to practice along with. It plays one of ten built-in styles at 40–240 BPM. A count-in and a speed trainer are built in.
+A small drum machine to practice along with. It plays one of eight built-in styles at 40–240 BPM. A count-in and a speed trainer are built in.
 
 - **Synthesized:** every sound is generated in code, so there are no sample files and it uses almost no memory.
 - **Kept apart from the guitar:** the drums are mixed into both outputs (line out and headphones), centered, **after** the IR, delay and reverb. They never go through your guitar effects, and they have their own volume.
@@ -37,7 +37,7 @@ Playing is never saved, so the drums are always stopped after power-up. Everythi
 | `drum` | toggle | stopped | Start / stop. Starting plays the count-in (if on), then the pattern from bar 1. Stopping lets the last hits ring out. |
 | `bpm` | 40–240 | 100 | Tempo, from the next step. If the trainer is on, it starts again from this tempo. For the 6/8 ballad a beat is a dotted quarter, so 60 BPM is a slow ballad. |
 | `drum style` | — | — | Lists the styles; `>` marks the current one. |
-| `drum style <n\|name>` | 1–10 or a name | rock | Changes the style. While playing, the change happens at the next bar. |
+| `drum style <n\|name>` | 1–8 or a name | rock | Changes the style. While playing, the change happens at the next bar. |
 | `drum vol` | 0–100 | 60 | Drum volume: 100 = 0 dB, 60 ≈ −8 dB, 0 = silent. |
 | `drum count` | toggle | on | One bar of clicks before the pattern starts. |
 | `drum train` | toggle | off | Speed trainer on/off. |
@@ -74,9 +74,11 @@ drum                   start
 
 ## Styles
 
-Each grid is one bar. Steps are 16ths, or triplet 8ths for the shuffle and the 6/8 ballad. `X` = accent, `x` = normal, `g` = ghost note, `.` = rest. The numbers above the grid are the beats.
+Each grid is one bar. Steps are 16ths, or triplet 8ths for the triplets, the shuffle and the 6/8 ballad. `X` = accent, `x` = normal, `g` = ghost note, `.` = rest. The numbers above the grid are the beats.
 
 ### 1. metronome (`metronome`)
+
+A plain click, higher on beat 1.
 
 ```
          1    2    3    4
@@ -85,6 +87,8 @@ Click    X... x... x... x...
 
 ### 2. rock (`rock`)
 
+Straight 8ths on the hat, with a pushed kick on the "&" of 3.
+
 ```
          1    2    3    4
 Kick     x... .... x.x. ....
@@ -92,43 +96,42 @@ Snare    .... x... .... x...
 Hat      X.x. X.x. X.x. X.x.
 ```
 
-### 3. half-time (`halftime`)
+### 3. offbeat 8ths (`offbeat8`)
+
+A straight beat with the hat only on the "&" of each beat.
 
 ```
          1    2    3    4
-Kick     x... ...x ..x. ....
-Snare    .... .... X... ....
-Hat      x.x. x.x. x.x. x.x.
+Kick     x... .... x... ....
+Snare    .... x... .... x...
+Hat      ..x. ..x. ..x. ..x.
 ```
 
-### 4. blues shuffle (`shuffle`)
+### 4. offbeat 16ths (`offbeat16`)
+
+The same beat with the hat on "e & a", leaving the beat itself to the kick and snare. The "&" is accented.
+
+```
+         1    2    3    4
+Kick     x... .... x... ....
+Snare    .... x... .... x...
+Hat      .xXx .xXx .xXx .xXx
+```
+
+### 5. triplets (`triplets`)
+
+The same beat in triplets: kick or snare, hat, hat on every beat.
 
 ```
          1   2   3   4
 Kick     x.. ... x.. ...
 Snare    ... x.. ... x..
-Hat      X.x x.x X.x x.x
+Hat      .xx .xx .xx .xx
 ```
 
-### 5. funk 16ths (`funk`)
+### 6. pop (`pop`)
 
-```
-         1    2    3    4
-Kick     x..x ..x. ..x. ....
-Snare    .... X..g .g.. X..g
-Hat      Xgxg Xgxg Xgxg Xgxg
-```
-
-### 6. metal (`metal`)
-
-```
-         1    2    3    4
-Kick     xxxx xxxx xxxx xxxx
-Snare    .... X... .... X...
-Ride     X... x... x... x...
-```
-
-### 7. pop (`pop`)
+Straight 8ths with an open hat at the end of the bar.
 
 ```
          1    2    3    4
@@ -138,32 +141,26 @@ Hat      x.x. x.x. x.x. x...
 Open hat .... .... .... ..x.
 ```
 
+### 7. blues shuffle (`shuffle`)
+
+Swung 8ths on the triplet grid.
+
+```
+         1   2   3   4
+Kick     x.. ... x.. ...
+Snare    ... x.. ... x..
+Hat      X.x x.x X.x x.x
+```
+
 ### 8. 6/8 ballad (`ballad`)
+
+6/8: two dotted-quarter beats per bar, so 60 BPM is a slow ballad.
 
 ```
          1   2
 Kick     x.. ...
 Snare    ... x..
 Hat      Xxx Xxx
-```
-
-### 9. reggae one-drop (`reggae`)
-
-```
-         1    2    3    4
-Kick     .... .... X... ....
-Rim      .... .... x... ....
-Hat      ..x. ..x. ..x. ..x.
-```
-
-### 10. disco (`disco`)
-
-```
-         1    2    3    4
-Kick     x... x... x... x...
-Snare    .... x... .... x...
-Hat      x... x... x... x...
-Open hat ..x. ..x. ..x. ..x.
 ```
 
 To add or change a style, edit the table in `lib/irdsp/src/DrumPatterns.cpp`. Each lane is one string per voice, and `test_drums` checks that every lane fits its style.
@@ -176,14 +173,15 @@ All voices are synthesized, in the spirit of the classic analog drum machines:
 |---|---|---|
 | Kick | A sine whose pitch falls from 160 to 50 Hz, plus a 12 ms noise click for the beater | 0.6 s |
 | Snare | A 185 Hz body plus noise band-limited to 1–9 kHz (the snares) | body 0.2 s, snares 0.3 s |
-| Rim | Cross-stick: 1.7 kHz and 830 Hz sines plus a high-passed noise tick | 60 ms |
+| Rim (not in the built-in styles) | Cross-stick: 1.7 kHz and 830 Hz sines plus a high-passed noise tick | 60 ms |
 | Closed / open hat | TR-808-style metal (six square waves at 205–800 Hz, inharmonic) mixed with noise, then high-passed at 7 kHz | 90 ms / 0.7 s; a closed hat cuts off a ringing open one, like a real hi-hat |
-| Ride | The same metal and noise, band-passed around 4.5 kHz | 2.5 s |
+| Ride (not in the built-in styles) | The same metal and noise, band-passed around 4.5 kHz | 2.5 s |
 | Click | Metronome and count-in: 2 kHz on accents, 1.2 kHz otherwise | 50 ms |
 
 - **Velocity:** every hit varies by ±4 %, so straight 8ths and 16ths don't sound like a machine gun.
 - **Levels:** ghost notes play at 30 % and normal hits at 70 % of an accent.
 - **Bus:** the voices are summed and soft-clipped, so even every voice at once can't exceed full scale.
+- The rim and ride are there for your own styles: add a lane for them in `DrumPatterns.cpp`.
 
 ## Timing, levels, CPU and memory
 
@@ -192,7 +190,7 @@ All voices are synthesized, in the spirit of the classic analog drum machines:
   - a tempo change applies from the next step
   - a style change and each trainer step from the next bar line
   - stopping cuts the sequencer at once, but the last hits ring out
-- **Levels:** at the default volume (60) the drums peak around −13 dBFS. At 100 the busiest style (metal) peaks around −2 dBFS. Set the drum volume against your guitar, and watch `s` for clipped samples, because the drums add to the guitar signal at the output.
+- **Levels:** at the default volume (60) the drums peak around −13 dBFS. At 100 the loudest style peaks around −5 dBFS. Set the drum volume against your guitar, and watch `s` for clipped samples, because the drums add to the guitar signal at the output.
 - **CPU:** about 2 % while playing (measured on the Teensy 4.0 with 32-sample blocks). Once stopped and silent it uses nothing, and the output is the guitar alone, bit for bit.
 - **Memory:**
   - RAM1: about 1.8 KB of data (two pattern buffers and the voices' state) and about 3.7 KB of code (the real-time part).
@@ -227,6 +225,7 @@ These are used when the EEPROM is blank, and when settings saved by older firmwa
 - **Speed trainer:** bar lengths step 100, 100, 105, 105, 110 BPM and then hold.
 - **Changes:** a style change lands on the next bar and a tempo change on the next step.
 - **Shuffle:** the hits land on the triplet grid.
+- **Practice beats:** in the offbeat 8ths, offbeat 16ths and triplets styles the hat lands only on its offbeat positions, never on the beat, with the kick on 1 and 3 and the snare on 2 and 4.
 - **Stop:** no hits after stopping, and exact silence and idle once the sound has died away.
 - **Every style:** its lanes fit, it stays below full scale and it is clearly audible.
 

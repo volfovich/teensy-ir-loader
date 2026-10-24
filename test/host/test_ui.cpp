@@ -126,9 +126,9 @@ static void testDrumsPage() {
   m.turn(1, 0);
   m.push();
   m.turn(2, 1000);
-  check(h.v[ui::kDrumStyle] == 3, "style edits by turning (rock -> blues shuffle)", h.v[ui::kDrumStyle]);
+  check(h.v[ui::kDrumStyle] == 3, "style edits by turning (rock -> offbeat 16ths)", h.v[ui::kDrumStyle]);
   m.turn(100, 2000);
-  check(h.v[ui::kDrumStyle] == 9, "  ... up to the last style (MenuHost::limits)", h.v[ui::kDrumStyle]);
+  check(h.v[ui::kDrumStyle] == 7, "  ... up to the last style (MenuHost::limits)", h.v[ui::kDrumStyle]);
   m.back();
   check(h.v[ui::kDrumStyle] == 1, "  ... back restores rock", h.v[ui::kDrumStyle]);
   const ui::MenuItem bars{"e", ui::Kind::kValue, ui::kTrainerEvery, 0, 1, 16, 1, ui::Unit::kBars, 0, nullptr};

@@ -250,7 +250,7 @@ Every serial command has a place:
 | | Size | 0–100 %, 1 | `setReverbSize` | `size` |
 | | Tone | 0–100 %, 1 | `setReverbTone` | `tone` |
 | **Drums** | Play | toggle | `setDrumsPlaying` | `drum` |
-| | Style | 1–10, shown by name | `setDrumStyle` | `drum style` |
+| | Style | 1–8, shown by name | `setDrumStyle` | `drum style` |
 | | Tempo | 40–240 BPM, 1 | `setDrumTempo` | `bpm` |
 | | Volume | 0–100 %, 1 | `setDrumVolume` | `drum vol` |
 | | Count-in | toggle | `setDrumCountIn` | `drum count` |

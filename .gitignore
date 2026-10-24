@@ -10,3 +10,4 @@ test/host/render_ui
 test/host/out/
 test/host/test_drums
 test/host/render_drums
+.DS_Store

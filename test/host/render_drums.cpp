@@ -3,6 +3,7 @@
 //   make -C test/host render_drums && ./test/host/render_drums [out_dir]
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <memory>
 #include <string>
 #include <vector>
@@ -33,14 +34,14 @@ int main(int argc, char** argv) {
   int ok = 0;
   for (int s = 0; s < irdsp::drumStyleCount(); s++) {
     const irdsp::DrumStyle& st = irdsp::drumStyle(s);
-    const float bpm = s == 7 ? 60.0f : (s == 3 ? 90.0f : 110.0f);  // ballad, shuffle
+    const float bpm = !std::strcmp(st.name, "ballad") ? 60.0f : (!std::strcmp(st.name, "shuffle") ? 90.0f : 110.0f);
     std::unique_ptr<irdsp::DrumMachine> d(new irdsp::DrumMachine((float)fs));
     d->setStyle(s);
     d->setTempo(bpm);
     d->setVolume(0.85f);
     d->setCountIn(true);
     d->start();
-    const double seconds = 9 * st.beats * 60.0 / bpm * (st.stepsPerBeat == 3 && st.beats == 2 ? 1 : 1) + 1.0;
+    const double seconds = 9 * st.beats * 60.0 / bpm + 1.0;  // count-in + 8 bars + tail
     std::vector<float> out;
     float buf[B];
     for (int i = 0; i < (int)(seconds * fs) / B; i++) {

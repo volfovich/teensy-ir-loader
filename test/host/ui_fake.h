@@ -22,9 +22,9 @@ struct FakeHost : ui::MenuHost {
     v[ui::kTrainerTarget] = 140;
   }
   static const char* styleName(int i) {
-    static const char* names[] = {"metronome", "rock", "half-time", "blues shuffle", "funk 16ths",
-                                  "metal", "pop", "6/8 ballad", "reggae", "disco"};
-    return names[i < 0 || i > 9 ? 0 : i];
+    static const char* names[] = {"metronome", "rock",          "offbeat 8ths", "offbeat 16ths",
+                                  "triplets",  "pop",           "blues shuffle", "6/8 ballad"};
+    return names[i < 0 || i > 7 ? 0 : i];
   }
   int get(uint8_t id) override {
     if (id == ui::kIsStudioDelay) return v[ui::kDelayType] == 1;
@@ -34,7 +34,7 @@ struct FakeHost : ui::MenuHost {
   void limits(uint8_t id, int* lo, int* hi) override {
     (void)lo;
     if (id == ui::kDelayTime) *hi = timeMax;
-    if (id == ui::kDrumStyle) *hi = 9;
+    if (id == ui::kDrumStyle) *hi = 7;
   }
   bool valueText(uint8_t id, char* buf, int n) override {
     if (id == ui::kScreenIR) std::snprintf(buf, n, "3/12");

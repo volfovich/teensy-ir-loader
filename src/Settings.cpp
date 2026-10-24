@@ -80,6 +80,10 @@ FLASHMEM void loadSettings() {
     g_settings.magic = kSettingsMagic;
     defaultDrumSettings();
   }
+  // The style list can change between firmware versions: a style that no
+  // longer exists falls back to the default, without resetting the rest.
+  if (g_settings.magic == kSettingsMagic && g_settings.drumStyle >= irdsp::drumStyleCount())
+    g_settings.drumStyle = DEFAULT_DRUM_STYLE - 1;
   if (g_settings.magic != kSettingsMagic || g_settings.lineIn > 15 ||
       g_settings.lineOut < 13 || g_settings.lineOut > 31 ||
       !(g_settings.outGainDb >= -60.0f && g_settings.outGainDb <= 24.0f) ||
@@ -90,8 +94,7 @@ FLASHMEM void loadSettings() {
       g_settings.delayTone > 100 || g_settings.delayMod > 100 ||
       g_settings.delayTimeMs < 20 || g_settings.delayTimeMs > DELAY_MAX_MS ||
       g_settings.delayType > 1 || g_settings.delayDuck > 100 || g_settings.delayDrive > 100 ||
-      g_settings.delayEra > 100 || g_settings.drumStyle >= irdsp::drumStyleCount() ||
-      g_settings.drumTempo < 40 || g_settings.drumTempo > 240 || g_settings.drumVolume > 100 ||
+      g_settings.delayEra > 100 || g_settings.drumTempo < 40 || g_settings.drumTempo > 240 || g_settings.drumVolume > 100 ||
       g_settings.drumCountIn > 1 || g_settings.trainerOn > 1 || g_settings.trainerStep < 1 ||
       g_settings.trainerStep > 20 || g_settings.trainerEvery < 1 || g_settings.trainerEvery > 16 ||
       g_settings.trainerTarget < 40 || g_settings.trainerTarget > 240) {

@@ -32,7 +32,7 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
   - They run in 32-bit float in the same audio object as the convolution, so the path from the IR through the delay and reverb never drops to 16 bits.
   - Switching an effect off is click-free and lets its tail ring out. When the tail has died away, the effect stops using CPU and passes its input through bit-identically.
 - **Practice drum machine** (details in [DRUMS.md](DRUMS.md)):
-  - Ten synthesized styles (metronome, rock, half-time, blues shuffle, funk, metal, pop, 6/8 ballad, reggae, disco) at 40–240 BPM, with sample-accurate timing.
+  - Eight synthesized styles at 40–240 BPM, with sample-accurate timing: metronome, rock, three practice beats (hat only on the offbeat 8ths, offbeat 16ths, or triplets), pop, blues shuffle and 6/8 ballad.
   - A count-in bar, and a speed trainer that raises the tempo every few bars up to a target.
   - Mixed into both outputs after the effects, with its own volume, so the drums never go through your guitar effects.
 - **Remembers settings:** the last IR, your levels and the delay, reverb and drum settings are stored in EEPROM.

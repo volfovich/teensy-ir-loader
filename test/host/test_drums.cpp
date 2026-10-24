@@ -131,6 +131,37 @@ static void testShuffle() {
   check(ok, "hats on the triplet grid (beat and 2/3 beat)", h.size());
 }
 
+// The practice beats: kick on 1 and 3, snare on 2 and 4, and the hat on
+// exactly the given offsets within each beat (never on the beat itself).
+static void testPracticeBeats() {
+  std::printf("Practice beats (120 BPM, beat = 22050 samples)\n");
+  struct Case { const char* style; std::vector<uint64_t> hatOffsets; const char* what; };
+  const Case cases[] = {
+      {"offbeat8", {11025}, "offbeat 8ths: hat only on the '&'"},
+      {"offbeat16", {5513, 11025, 16538}, "offbeat 16ths: hat on 'e & a', not the beat"},
+      {"triplets", {7350, 14700}, "triplets: kick/snare, hat, hat"},
+  };
+  for (const Case& c : cases) {
+    Rig r(c.style, 120, false);
+    r.d->start();
+    r.run(3.99);  // just under two bars (2 x 88200 samples)
+    bool ok = true;
+    std::vector<uint64_t> seen;
+    for (auto t : r.times(irdsp::kHatClosed)) {
+      const uint64_t m = t % 22050;
+      bool expected = false;
+      for (uint64_t o : c.hatOffsets) expected = expected || (m + 1 >= o && m <= o + 1);  // +-1 sample
+      ok = ok && expected;
+      seen.push_back(m);
+    }
+    const auto kicks = r.times(irdsp::kKick), snares = r.times(irdsp::kSnare);
+    for (auto t : kicks) ok = ok && (t % 44100 == 0);              // beats 1 and 3
+    for (auto t : snares) ok = ok && (t % 44100 == 22050);         // beats 2 and 4
+    ok = ok && seen.size() == 8 * c.hatOffsets.size() && kicks.size() == 4 && snares.size() == 4;
+    check(ok, c.what, seen.size());
+  }
+}
+
 static void testStop() {
   std::printf("Stop\n");
   Rig r("rock", 120, false);
@@ -173,7 +204,7 @@ static void testStyles() {
   check(lanesOk, "every lane fits its style and uses . g x X only", lanesOk);
   check(worstPeak <= 1.0, "loudest style at volume 100 stays <= full scale", worstPeak);
   check(quietest > 0.15, "quietest style is still clearly audible (peak)", quietest);
-  check(irdsp::findDrumStyle("SHUFFLE") == 3 && irdsp::findDrumStyle("2") == 1 && irdsp::findDrumStyle("polka") == -1,
+  check(irdsp::findDrumStyle("SHUFFLE") == 6 && irdsp::findDrumStyle("2") == 1 && irdsp::findDrumStyle("polka") == -1,
         "find by name (any case) or number", 0);
 }
 
@@ -183,6 +214,7 @@ int main() {
   testTrainer();
   testStyleChange();
   testShuffle();
+  testPracticeBeats();
   testStop();
   testStyles();
   std::printf(failures ? "\n%d FAILURE(S)\n" : "\nALL TESTS PASSED\n", failures);
