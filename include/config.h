@@ -93,7 +93,7 @@
 // Defaults, changeable over USB serial and saved to EEPROM (all 0 .. 100
 // unless noted).
 #define DEFAULT_REVERB_ON 0
-#define DEFAULT_REVERB_TYPE 0       // 0 = plate, 1 = 80s
+#define DEFAULT_REVERB_TYPE 1       // 0 = plate, 1 = 80s
 #define DEFAULT_REVERB_MODE 0       // 80s: 0 = hall, 1 = gated
 #define DEFAULT_REVERB_PREDELAY 40  // 80s: ms, 0 .. 150
 #define DEFAULT_REVERB_MOD 40       // 80s hall: chorus in the tail

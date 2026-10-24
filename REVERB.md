@@ -4,8 +4,8 @@ The reverb is the last effect, after the IR and the delay. It takes the stereo s
 
 | Type | `rtype` | Character |
 |---|---|---|
-| **Plate** (default) | `0` | A port of the HexeFX `AudioEffectPlateReverb_F32` (MIT, Piotr Zapart): a smooth, dense FV-1-style plate. |
-| **80s** | `1` | The rack reverbs of 80s rock and metal records, in two modes: a Lexicon-style **hall** (`rmode hall`) and an AMS-style **gated** reverb (`rmode gated`). |
+| **80s** (default) | `1` | The rack reverbs of 80s rock and metal records, in two modes: a Lexicon-style **hall** (`rmode hall`, the default) and an AMS-style **gated** reverb (`rmode gated`). |
+| **Plate** | `0` | A port of the HexeFX `AudioEffectPlateReverb_F32` (MIT, Piotr Zapart): a smooth, dense FV-1-style plate. |
 
 Both run in 32-bit float inside the same audio object as the convolution.
 
@@ -27,7 +27,7 @@ All controls are serial commands. The reverb button (pin 5) toggles the reverb o
 | Command | Range | Default | Applies to | What it does |
 |---|---|---|---|---|
 | `rv` | toggle | off | all | Reverb on/off. Switching off lets the tail ring out. |
-| `rtype` / `rtype 0\|1` | 0, 1 | 0 | — | Toggles or sets the type: 0 = plate, 1 = 80s. |
+| `rtype` / `rtype 0\|1` | 0, 1 | 1 | — | Toggles or sets the type: 0 = plate, 1 = 80s. |
 | `rmode` / `rmode hall\|gated` | hall, gated | hall | 80s | Toggles or sets the 80s mode. |
 | `mix` | 0–100 | 25 | all | Dry/wet blend, with an equal-power crossfade. 0 = dry only, 100 = reverb only. |
 | `size` | 0–100 | 50 | all | Plate: reverb time, about 1.1–6 s. 80s hall: reverb time, 0.8–8 s (2.5 s at 50). 80s gated: the burst's shape, from decaying (0) to flat (50) to rising (100). |

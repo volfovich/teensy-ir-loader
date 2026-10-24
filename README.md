@@ -26,11 +26,11 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
   - **Ping-pong:** a port of the [HexeFX](https://github.com/hexeguitar/hexefx_audiolib_F32) `AudioEffectDelayStereo_F32` (MIT, Piotr Zapart). The repeats alternate left and right, with tape-like wobble and gliding time changes.
   - Delay time from 20 to 750 ms, in 32-bit float. Both types share the same memory and controls, and switching between them is click-free.
 - **Stereo reverb after the delay, two types** (details in [REVERB.md](REVERB.md)):
-  - **Plate** (default): ported from the [HexeFX](https://github.com/hexeguitar/hexefx_audiolib_F32) `AudioEffectPlateReverb_F32` (MIT, Piotr Zapart). The port matches the original algorithm and its parameter ranges.
-  - **80s:** the rack reverbs of 80s rock and metal records, in two modes:
-    - a Lexicon-style **hall**: big, wide, chorused tail, pre-delay
+  - **80s** (default): the rack reverbs of 80s rock and metal records, in two modes:
+    - a Lexicon-style **hall** (default): big, wide, chorused tail, pre-delay
     - an AMS "Nonlin"-style **gated** reverb: a dense burst that stops dead
     - both with pre-delay and the era's converter character
+  - **Plate:** ported from the [HexeFX](https://github.com/hexeguitar/hexefx_audiolib_F32) `AudioEffectPlateReverb_F32` (MIT, Piotr Zapart). The port matches the original algorithm and its parameter ranges.
   - Dry/wet mix, size and tone controls.
 - **Both effects:**
   - They run in 32-bit float in the same audio object as the convolution, so the path from the IR through the delay and reverb never drops to 16 bits.
