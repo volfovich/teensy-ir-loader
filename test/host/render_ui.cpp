@@ -1,6 +1,7 @@
-// Renders every OLED screen to PNG (6x scale, like screenshots/), from the
-// real UI code with a fake model, plus an overview sheet.
-//   make -C test/host render_ui && ./test/host/render_ui [out_dir]
+// Renders every OLED screen to PNG (6x scale), from the real UI code with a
+// fake model, plus an overview sheet.
+//   make -C test/host render        -> test/host/out/
+//   make -C test/host screenshots   -> screenshots/ (the repo's pictures)
 #include <cstdint>
 #include <cstdio>
 #include <cstring>

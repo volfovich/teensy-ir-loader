@@ -30,6 +30,11 @@ render: render_ui
 	mkdir -p out
 	./render_ui out
 
+# Regenerates the repo's screenshots/ from the real UI code.
+screenshots: render_ui
+	rm -f ../../screenshots/*.png
+	./render_ui ../../screenshots
+
 irtool: irtool.cpp ../../lib/irdsp/src/IRLoader.cpp ../../lib/irdsp/src/IRLoader.h
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ irtool.cpp ../../lib/irdsp/src/IRLoader.cpp
 
@@ -45,4 +50,4 @@ clean:
 	rm -f test_convolver test_reverb test_delay test_studio_delay test_ui render_ui irtool
 	rm -rf out
 
-.PHONY: all test render clean
+.PHONY: all test render screenshots clean
