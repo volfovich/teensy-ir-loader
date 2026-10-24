@@ -109,6 +109,33 @@ static void testMenu() {
   check(m.back() == ui::Menu::kExit, "back at the top: exit", 0);
 }
 
+static void testReverbPage() {
+  std::printf("Reverb page\n");
+  FakeHost h;
+  ui::Menu m(ui::menuPages(), h);
+  m.open();
+  m.turn(2, 0);
+  m.push();
+  m.turn(100, 0);
+  check(m.current()->id == ui::kReverbEra, "80s hall: last row Era (Mod shown, Gate hidden)", m.current()->id);
+  m.turn(-1, 0);
+  check(m.current()->id == ui::kReverbMod, "  ... Mod above it", m.current()->id);
+  h.v[ui::kReverbMode] = 1;
+  m.turn(100, 0);
+  check(m.current()->id == ui::kReverbGate, "80s gated: last row Gate", m.current()->id);
+  m.push();
+  m.turn(2, 1000);
+  m.push();
+  check(h.v[ui::kReverbGate] == 320, "  ... Gate edits in 10 ms steps", h.v[ui::kReverbGate]);
+  h.v[ui::kReverbType] = 0;
+  m.turn(100, 0);
+  check(m.current()->id == ui::kReverbTone, "plate: last row Tone (no 80s rows)", m.current()->id);
+  m.turn(-100, 0);
+  m.turn(1, 0);
+  m.push();
+  check(h.v[ui::kReverbType] == 1 && m.current()->id == ui::kReverbType, "push on Type: plate -> 80s", h.v[ui::kReverbType]);
+}
+
 static void testDrumsPage() {
   std::printf("Drums page\n");
   FakeHost h;
@@ -239,6 +266,7 @@ int main() {
   testQuadrature();
   testKey();
   testMenu();
+  testReverbPage();
   testDrumsPage();
   testFormat();
   testMeter();

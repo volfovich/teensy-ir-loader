@@ -154,6 +154,16 @@ int main(int argc, char** argv) {
   menu.draw(c);
   snap("15_edit_trainer_target");
 
+  menu.open(); menu.turn(2, 0); menu.push(); menu.turn(1, 0);  // Reverb > Type (80s hall)
+  menu.draw(c);
+  snap("17_menu_reverb_80s");
+
+  host.v[ui::kReverbMode] = 1;
+  menu.turn(100, 0);  // last row: Gate
+  menu.draw(c);
+  snap("18_menu_reverb_gated");
+  host.v[ui::kReverbMode] = 0;
+
   int ok = 0;
   for (auto& s : shots) ok += writePng(dir + "/" + s.name + ".png", kImgW, kImgH, s.img);
 

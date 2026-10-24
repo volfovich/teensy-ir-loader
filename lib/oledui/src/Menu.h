@@ -26,6 +26,9 @@ enum ItemId : uint8_t {
   kDelayOn, kDelayType, kDelayMix, kDelayTime, kDelayRepeats, kDelayTone, kDelayMod,
   kDelayDuck, kDelayDrive, kDelayEra,
   kReverbOn, kReverbMix, kReverbSize, kReverbTone,
+  kReverbType,   // 0 plate, 1 80s
+  kReverbMode,   // 80s: 0 hall, 1 gated
+  kReverbPreDelay, kReverbMod, kReverbEra, kReverbGate,
   kOutGain,  // half-dB steps
   kLineIn, kLineOut, kHeadphones,
   kBypass,
@@ -35,6 +38,9 @@ enum ItemId : uint8_t {
   kTrainerOn, kTrainerStep, kTrainerEvery, kTrainerTarget,
   // Read-only, for visibility.
   kIsStudioDelay,  // 1 when the delay type is studio 80s
+  kIsReverb80,     // 1 when the reverb type is 80s
+  kIsReverbHall,   // 1 when it is the 80s hall
+  kIsReverbGated,  // 1 when it is the 80s gated reverb
   // Screens opened from the menu (their row shows MenuHost::valueText).
   kScreenIR, kScreenMeter, kScreenStatus,
 };

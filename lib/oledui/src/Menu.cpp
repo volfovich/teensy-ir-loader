@@ -46,12 +46,19 @@ UI_LABEL(kLDuck, "Duck");
 UI_LABEL(kLDrive, "Drive");
 UI_LABEL(kLEra, "Era");
 UI_LABEL(kLSize, "Size");
+UI_LABEL(kLMode, "Mode");
+UI_LABEL(kLPreDelay, "Pre-delay");
+UI_LABEL(kLGate, "Gate");
 UI_LABEL(kLGain, "Out gain");
 UI_LABEL(kLLineIn, "Line-in sens");
 UI_LABEL(kLLineOut, "Line-out");
 UI_LABEL(kLPhones, "Headphones");
 UI_LABEL(kCPing, "ping-pong");
 UI_LABEL(kC80s, "studio 80s");
+UI_LABEL(kCPlate, "plate");
+UI_LABEL(kC80sReverb, "80s");
+UI_LABEL(kCHall, "hall");
+UI_LABEL(kCGated, "gated");
 UI_LABEL(kCOff, "off");
 UI_LABEL(kC2Bars, "2 bars");
 UI_LABEL(kC4Bars, "4 bars");
@@ -62,6 +69,8 @@ UI_LABEL(kC3Bars, "3 bars");
 #undef UI_LABEL
 
 static const char* const UI_PROGMEM kTypeNames[] = {kCPing, kC80s};
+static const char* const UI_PROGMEM kReverbTypeNames[] = {kCPlate, kC80sReverb};
+static const char* const UI_PROGMEM kReverbModeNames[] = {kCHall, kCGated};
 static const char* const UI_PROGMEM kCrashNames[] = {kCOff, kC2Bars, kC4Bars, kC8Bars, kC16Bars};
 static const char* const UI_PROGMEM kCountNames[] = {kCOff, kC1Bar, kC2Bars, kC3Bars, kC4Bars};
 
@@ -92,11 +101,19 @@ static const MenuItem UI_PROGMEM kDelayItems[] = {
     {kLEra, K::kValue, kDelayEra, 0, 0, 100, 1, U::kPercent, kIsStudioDelay, nullptr},
 };
 
+// Type: plate or 80s; the 80s rows show only for the 80s reverb (Mod for
+// the hall, Gate for the gated mode).
 static const MenuItem UI_PROGMEM kReverbItems[] = {
     {kLOn, K::kToggle, kReverbOn, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
+    {kLType, K::kChoice, kReverbType, 0, 0, 1, 1, U::kNone, kNoItem, kReverbTypeNames},
+    {kLMode, K::kChoice, kReverbMode, 0, 0, 1, 1, U::kNone, kIsReverb80, kReverbModeNames},
     {kLMix, K::kValue, kReverbMix, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
     {kLSize, K::kValue, kReverbSize, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
     {kLTone, K::kValue, kReverbTone, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
+    {kLPreDelay, K::kValue, kReverbPreDelay, 0, 0, 150, 1, U::kMs, kIsReverb80, nullptr},
+    {kLMod, K::kValue, kReverbMod, 0, 0, 100, 1, U::kPercent, kIsReverbHall, nullptr},
+    {kLEra, K::kValue, kReverbEra, 0, 0, 100, 1, U::kPercent, kIsReverb80, nullptr},
+    {kLGate, K::kValue, kReverbGate, 0, 100, 600, 10, U::kMs, kIsReverbGated, nullptr},
 };
 
 static const MenuItem UI_PROGMEM kLevelItems[] = {
