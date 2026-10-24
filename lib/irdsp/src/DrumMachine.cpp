@@ -43,12 +43,12 @@ constexpr float panR(int v) { return kPan[v] < 0.0f ? 1.0f + kPan[v] : 1.0f; }
 constexpr float kMaxLayerGain = 1.4f;
 
 // Drum-bus compressor: stereo-linked peak detector with a lookahead
-// (DrumMachine::kLatency), 1 ms attack, 100 ms release, 4:1 above -24 dBFS
-// with a 6 dB soft knee, and +16 dB makeup. It raises the drums' average
-// level by about 9 dB (raw, their crest factor is 17-19 dB) so they sit
-// with a dense guitar. A lookahead peak limiter keeps the bus at -0.5 dBFS.
+// (DrumMachine::kLatency), 1 ms attack, 200 ms release (slow enough not to
+// pump), 4:1 above -24 dBFS with a 6 dB soft knee, and +16 dB makeup. It is
+// blended in parallel with the natural bus (setBusComp), which brings the
+// stick attacks back; a lookahead peak limiter keeps the bus at -0.5 dBFS.
 constexpr float kCompThresholdDb = -24.0f, kCompRatio = 4.0f, kCompKneeDb = 6.0f, kCompMakeupDb = 16.0f;
-constexpr float kCompAttackMs = 1.0f, kCompReleaseMs = 100.0f;
+constexpr float kCompAttackMs = 1.0f, kCompReleaseMs = 200.0f;
 constexpr float kLimitCeiling = 0.94f, kLimitReleaseMs = 60.0f;  // -0.5 dBFS
 constexpr int kCompEvery = 8;  // samples between gain computations (interpolated)
 
@@ -430,9 +430,14 @@ void DrumMachine::renderVoices(float* outL, float* outR, int n) {
     }
     return;
   }
+  // Parallel ("New York") compression: the natural bus and the compressed
+  // one are the same delayed signal, so their blend (1-k) dry + k comp is a
+  // single gain, (1-k) + k * compressor gain. k glides to the setting.
+  const float k0 = compMix_, k1 = compMixTarget_, kStep = (k1 - k0) / (float)n;
   for (int i = 0; i < n; i++) {
     const float inL = kBusGain * outL[i], inR = kBusGain * outR[i];
     const float x = fmaxf(fabsf(inL), fabsf(inR));
+    const float k = k0 + kStep * (float)(i + 1);
     laQuiet_ = x == 0.0f ? (laQuiet_ < kLatency ? laQuiet_ + 1 : kLatency) : 0;
     compEnv_ += (x > compEnv_ ? compAtt_ : compRel_) * (x - compEnv_);
     if (--compCount_ <= 0) {
@@ -440,10 +445,11 @@ void DrumMachine::renderVoices(float* outL, float* outR, int n) {
       compStep_ = (compGain(compEnv_) - compGainNow_) * (1.0f / kCompEvery);
     }
     compGainNow_ += compStep_;
+    const float g = 1.0f - k + k * compGainNow_;
     // Limiter, also looking ahead: a sample that will be too loud when it
-    // plays (at the compressor's gain now, which only falls further) ramps
-    // the gain down to what it needs by the time it arrives, then holds.
-    const float pred = x * compGainNow_;
+    // plays (at the bus gain now) ramps the gain down to what it needs by
+    // the time it arrives, then holds.
+    const float pred = x * g;
     if (pred > kLimitCeiling) {
       const float need = kLimitCeiling / pred;
       if (need < limTarget_) {
@@ -459,7 +465,7 @@ void DrumMachine::renderVoices(float* outL, float* outR, int n) {
       limTarget_ = 1.0f;
       limGain_ += (1.0f - limGain_) * limRel_;
     }
-    const float l = compGainNow_ * laL_[laPos_], r = compGainNow_ * laR_[laPos_];
+    const float l = g * laL_[laPos_], r = g * laR_[laPos_];
     laL_[laPos_] = inL;
     laR_[laPos_] = inR;
     if (++laPos_ == kLatency) laPos_ = 0;
@@ -469,6 +475,7 @@ void DrumMachine::renderVoices(float* outL, float* outR, int n) {
     outL[i] = limGain_ * l;
     outR[i] = limGain_ * r;
   }
+  compMix_ = k1;
 }
 
 void DrumMachine::resetComp() {

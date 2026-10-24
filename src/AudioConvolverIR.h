@@ -132,6 +132,7 @@ class AudioConvolverIR : public AudioStream {
   void setDrumCountIn(int bars) { drums_.setCountIn(bars); }
   void setDrumTrainer(bool on, int step, int every, int target) { drums_.setTrainer(on, step, every, target); }
   void setDrumKit(int idx) { drums_.setKit(&irdsp::drumKit(idx)); }
+  void setDrumComp(float k) { drums_.setBusComp(k); }  // 0..1, parallel compression
   // Song mode (nullptr: the style); takes effect at the next start.
   void setDrumSong(const irdsp::DrumSong* song) { drums_.setSong(song); }
   void setDrumLoop(int first, int last) { drums_.setLoop(first, last); }

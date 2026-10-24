@@ -24,6 +24,7 @@ UI_LABEL(kLSong, "Song");
 UI_LABEL(kLLoopFrom, "Loop from");
 UI_LABEL(kLLoopTo, "Loop to");
 UI_LABEL(kLCrash, "Crash");
+UI_LABEL(kLComp, "Comp");
 UI_LABEL(kLTempo, "Tempo");
 UI_LABEL(kLVolume, "Volume");
 UI_LABEL(kLCountIn, "Count-in");
@@ -139,6 +140,7 @@ static const MenuItem UI_PROGMEM kDrumItems[] = {
     {kLCrash, K::kChoice, kDrumCrash, 0, 0, 4, 1, U::kNone, kNoItem, kCrashNames},
     {kLTempo, K::kValue, kDrumTempo, 0, 40, 240, 1, U::kBpm, kNoItem, nullptr},
     {kLVolume, K::kValue, kDrumVolume, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
+    {kLComp, K::kValue, kDrumComp, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
     {kLCountIn, K::kChoice, kDrumCountIn, 0, 0, 4, 1, U::kNone, kNoItem, kCountNames},
     {kLTrainer, K::kSubmenu, kTrainerOn, 5, 0, 0, 0, U::kNone, kNoItem, nullptr},
 };

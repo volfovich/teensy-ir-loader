@@ -116,6 +116,7 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `drum kit [n\|name]` | List the kits / choose one (synth, rock, pearl) |
 | `drum song [n\|name\|off]` | List the songs (built-in + `/DRUMS/*.mid`) / play one instead of the style |
 | `drum loop <a> <b>` / `drum loop off` | Loop bars a–b of the song |
+| `drum comp 0..100` | Drum-bus compression: 0 = natural, 100 = squashed |
 | `drum crash 0\|2\|4\|8\|16` | Crash on beat 1 of every N bars, 0 = off |
 | `drum vol 0..100` | Drum volume |
 | `drum count [0-4]` | Count-in bars (0 = off; alone toggles off / 2), also played at each trainer tempo step |

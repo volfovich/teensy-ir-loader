@@ -82,6 +82,7 @@ FLASHMEM void printHelp() {
       "  drum loop <a> <b> | off  loop bars a..b of the song (now %s)\n"
       "  drum crash <0|2|4|8|16>  crash every N bars, 0 = off (now %s)\n"
       "  drum vol <0-100>     drum volume (now %u)\n"
+      "  drum comp <0-100>    drum-bus compression, 0 = natural (now %u)\n"
       "  drum count [0-4]     count-in bars, 0 = off; alone toggles (now %s)\n"
       "  drum train [step every target]  toggle / set the speed trainer (now %s)\n"
       "  rv           toggle reverb (now %s)\n"
@@ -106,7 +107,7 @@ FLASHMEM void printHelp() {
       g_settings.delayEra, convolver.drumsPlaying() ? "playing" : "stopped", g_settings.drumTempo,
       irdsp::drumStyle(g_settings.drumStyle).name, irdsp::drumKit(g_settings.drumKit).name, songText(), loopText(),
       crashText(),
-      g_settings.drumVolume,
+      g_settings.drumVolume, g_settings.drumComp,
       countText(), g_settings.trainerOn ? "on" : "off", g_settings.reverbOn ? "on" : "off", g_settings.reverbMix,
       g_settings.reverbSize, g_settings.reverbTone, g_settings.reverbType ? "80s" : "plate",
       g_settings.reverbMode ? "gated" : "hall", g_settings.reverbPreDelay, g_settings.reverbMod, g_settings.reverbEra,
@@ -138,7 +139,7 @@ FLASHMEM static void printDrums() {
   if (song && drumLoopFirst()) Serial.printf(", loop %d-%d", drumLoopFirst(), drumLoopLast());
   Serial.printf(", kit %s", irdsp::drumKit(g_settings.drumKit).name);
   if (!song) Serial.printf(", crash %s", crashText());
-  Serial.printf(", vol %u%%, count-in %s", g_settings.drumVolume, countText());
+  Serial.printf(", vol %u%%, comp %u%%, count-in %s", g_settings.drumVolume, g_settings.drumComp, countText());
   if (g_settings.trainerOn && !song)
     Serial.printf(", trainer +%u every %u bar%s to %u", g_settings.trainerStep, g_settings.trainerEvery,
                   g_settings.trainerEvery == 1 ? "" : "s", g_settings.trainerTarget);
@@ -194,6 +195,9 @@ FLASHMEM static void drumCommand(char* arg) {
   } else if (!strcmp(arg, "crash")) {
     if (!val || !*val) Serial.printf("Crash %s\n", crashText());
     else setDrumCrash(atoi(val));
+  } else if (!strcmp(arg, "comp")) {
+    if (!val || !*val) Serial.printf("Drum compression %u%%\n", g_settings.drumComp);
+    else setDrumComp(atoi(val));
   } else if (!strcmp(arg, "vol") && val) {
     setDrumVolume(atoi(val));
   } else if (!strcmp(arg, "count")) {

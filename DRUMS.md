@@ -63,6 +63,7 @@ Playing is never saved, so the drums are always stopped after power-up. Everythi
 | `drum kit <n\|name>` | 1–3 or a name | rock | Changes the kit at once. Hits still ringing fade out over 5 ms. |
 | `drum crash <0\|2\|4\|8\|16>` | off, 2, 4, 8, 16 bars | 4 | A crash on beat 1 of every N bars (see [Crash accents](#crash-accents)). `drum crash` alone shows the setting. |
 | `drum vol` | 0–100 | 60 | Drum volume: 100 = 0 dB, 60 ≈ −8 dB, 0 = silent. |
+| `drum comp` | 0–100 | 40 | Drum-bus compression: 0 = natural, 100 = squashed (see [Drum bus](#drum-bus)). `drum comp` alone shows it. |
 | `drum count [0-4]` | off, 1–4 bars | 2 bars | Bars of count-in clicks before the groove starts, and after every speed-trainer tempo step. `drum count` alone toggles between off and 2 bars. |
 | `drum train` | toggle | off | Speed trainer on/off. |
 | `drum train <step> <every> <target>` | 1–20 BPM, 1–16 bars, 40–240 BPM | 5, 4, 140 | Turns the trainer on with these settings. |
@@ -74,7 +75,7 @@ Drums:     playing blues shuffle, 105 BPM, bar 9, kit rock, crash every 4 bars, 
 ```
 
 **On the OLED** (once the module is wired), the menu has a **Drums** page:
-- Play, Style, **Song**, **Kit**, **Crash**, Tempo, Volume, Count-in, and **Trainer**, which opens its own page: On, Step, Every and Target. All four are always shown, so the trainer can be set up before it's switched on. The Trainer row on the Drums page shows ON/OFF.
+- Play, Style, **Song**, **Kit**, **Crash**, Tempo, Volume, **Comp**, Count-in, and **Trainer**, which opens its own page: On, Step, Every and Target. All four are always shown, so the trainer can be set up before it's switched on. The Trainer row on the Drums page shows ON/OFF.
 - **Loop from** and **Loop to** appear under Song while a song is selected (from "off" = the whole song).
 - Style, Song and Kit are chosen by turning the encoder and are shown by name.
 - Each push on Crash steps it: off, 2, 4, 8, 16 bars.
@@ -424,24 +425,41 @@ A kit is a folder in `kits/` with a `kit.txt` and its WAVs. Every kit there is c
 
 ## Drum bus
 
-Recorded drums are spiky: a hit is loud for a few milliseconds and then decays, so raw drums average 17–19 dB below their peaks. A distorted guitar is dense and loud all the time, so raw drums disappear next to it. The drum bus does what a mixing desk's drum compressor does:
+Recorded drums are spiky: a hit is loud for a few milliseconds and then decays, so raw drums average 17–19 dB below their peaks. A distorted guitar is dense and loud all the time, so raw drums disappear next to it. The drum bus gives them level and lets you choose how compressed they sound:
 
 ```
-voices (stereo) -> bus gain -> compressor -> peak limiter -> drum volume -> added to the outputs
+voices (stereo) -> bus gain -> natural ----------+
+                            -> compressor -------+-- Comp blend --> peak limiter -> drum volume -> added to the outputs
 ```
 
-- **Compressor:**
+- **Bus gain:** brings the drums up to an average of about −17 to −18 dBFS RMS at volume 100, with their natural dynamics.
+- **Comp** (`drum comp 0`–`100`, default 40) blends in a compressed copy of the bus. This is parallel, or "New York", compression, as engineers use on drums.
+  - **0:** natural drums. The hits keep all their snap, and the limiter alone keeps the peaks in check.
+  - **40** (default): the hits stay sharp, with more body and sustain between them.
+  - **100:** fully compressed: flat, dense and sustained, the decays and cymbals pulled up.
+
+  Comp changes the character, not the level: all three settings come out within about 2 dB of each other. Use the drum volume for level.
+- **Compressor** (the compressed copy):
   - Threshold −24 dBFS, ratio 4:1, soft 6 dB knee.
-  - Attack 1 ms, release 100 ms.
+  - Attack 1 ms.
+  - Release 200 ms, slow enough not to pump.
   - +16 dB makeup.
   - Both channels share one detector, so the stereo image doesn't shift.
-- **Peak limiter:** keeps the bus at −0.5 dBFS. It's smooth rather than clipping: it sees each peak coming and turns down over 1.5 ms before it arrives.
+- **Peak limiter:** keeps the bus at −0.5 dBFS. It's smooth rather than clipping: it sees each peak coming and turns down over 1.5 ms before it arrives. At the default Comp it hardly ever acts.
 - **Lookahead:** both look 1.5 ms ahead, because the drums are delayed by 1.5 ms. That doesn't matter for a drum machine, since there's nothing to play in time with but the drums themselves.
-- **Result:** the drums' average level is about 9 dB higher than before the bus existed (around −15 dBFS RMS at volume 100 in the rock groove). Peaks are at −0.5 dBFS, and the kick and snare still snap (12–16 dB of crest factor is left).
+- **Measured** (rock kit, every style, volume 100):
+
+  | Comp | Average (RMS) |
+  |---|---|
+  | 0 | −18.1 dBFS |
+  | 40 | −17.1 dBFS |
+  | 100 | −16.7 dBFS |
+
+  Peaks stay at −0.5 dBFS.
 - **The volume comes after the bus**, so the drums sound the same at any volume.
 - **Idle:** when the drums go idle the bus resets, and the output is exactly the guitar again.
 
-The settings are fixed voicing (constants in `DrumMachine.cpp`), like the delay's.
+The compressor settings are fixed voicing (constants in `DrumMachine.cpp`), like the delay's. To hear the difference on a computer, `make -C test/host render` writes `test/host/out/drums_02_rock_rock_comp0.wav`, `comp40.wav` and `comp100.wav`.
 
 ## Timing, levels, CPU and memory
 
@@ -450,7 +468,7 @@ The settings are fixed voicing (constants in `DrumMachine.cpp`), like the delay'
   - a tempo change applies from the next step
   - a style change and each trainer step from the next bar line
   - stopping cuts the sequencer at once, but the last hits ring out
-- **Levels:** see [Drum bus](#drum-bus). At volume 100 the drums peak at −0.5 dBFS with an average (RMS) of about −14 to −16 dBFS for the recorded kits; at the default 60 everything is about 7.6 dB lower. Set the drum volume against your guitar, and watch `s` for clipped samples, because the drums add to the guitar signal at the output.
+- **Levels:** see [Drum bus](#drum-bus). At volume 100 the drums peak at −0.5 dBFS with an average (RMS) of about −17 dBFS for the recorded kits at the default Comp; at the default 60 everything is about 7.6 dB lower. Set the drum volume against your guitar, and watch `s` for clipped samples, because the drums add to the guitar signal at the output.
 - **CPU** while playing, measured on the Teensy 4.0 with 32-sample blocks:
   - rock and pearl kits: about 2.5 % at 100 BPM, including the drum bus (stereo, humanized, compressed); songs about 3 %.
   - synth kit: up to 3.3 % at 240 BPM.
@@ -471,6 +489,7 @@ The settings are fixed voicing (constants in `DrumMachine.cpp`), like the delay'
 | `DEFAULT_DRUM_COUNT_IN` | 2 | Count-in bars (0 = off, up to 4) |
 | `DEFAULT_DRUM_KIT` | 2 | Kit number, 1-based (1 = synth, 2 = rock, 3 = pearl) |
 | `DEFAULT_DRUM_CRASH` | 4 | Crash every 4 bars (0 = off, or 2, 4, 8, 16) |
+| `DEFAULT_DRUM_COMP` | 40 | Drum-bus compression, 0 = natural .. 100 |
 | `DEFAULT_TRAINER_ON` | 0 | Trainer off |
 | `DEFAULT_TRAINER_STEP` / `_EVERY` / `_TARGET` | 5 / 4 / 140 | +5 BPM every 4 bars, up to 140 BPM |
 
@@ -507,8 +526,9 @@ These are used when the EEPROM is blank, and when settings saved by older firmwa
 - **Stop:** no hits after stopping, and exact silence and idle once the sound has died away.
 - **Every style:** its lanes fit, it stays below full scale and it is clearly audible.
 - **Drum bus:**
-  - At volume 100 every style's average level is in range for each kit: −18.5 to −13 dBFS for the recorded kits, −21 to −15 for synth.
-  - Peaks stay at the limiter's −0.5 dBFS ceiling, and at least 12 dB of crest factor is left.
+  - At Comp 0, 40 and 100 the level stays within 2 dB.
+  - At the default it's in range: −20 to −14 dBFS for the recorded kits, −22 to −15 for synth.
+  - Peaks stay at the limiter's −0.5 dBFS ceiling, and Comp 0 keeps the natural crest factor (at least 15.5 dB).
   - After stopping, the output is exactly silent and the machine idle.
 - **Sampled kits** (with a test kit made of impulses and steady values):
   - Every hit starts at its exact step sample, at 120 and 97 BPM.

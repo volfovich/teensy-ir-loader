@@ -567,29 +567,38 @@ static void testRealKits() {
 // kit, crash every 4, sits at a level that holds up next to a guitar, with
 // peaks at the limiter's ceiling and some punch left.
 static void testBusLoudness() {
-  std::printf("Drum bus loudness (volume 100)\n");
+  std::printf("Drum bus loudness (volume 100; Comp 0, 40, 100)\n");
   for (int k = 0; k < irdsp::drumKitCount(); k++) {
-    double lo = 0, hi = -100, peak = 0, crest = 100;
-    for (int s = 1; s < irdsp::drumStyleCount(); s++) {
-      Rig r(irdsp::drumStyle(s).name, 120, false, &irdsp::drumKit(k));
-      r.d->setBusDynamics(true);
-      r.d->setCrashEvery(4);
-      r.d->start();
-      r.run(12.0);
-      double e = 0;
-      for (size_t i = 0; i < r.out.size(); i++) e += r.out[i] * r.out[i] + r.outR[i] * r.outR[i];
-      const double rms = 10 * std::log10(e / (2.0 * (double)r.out.size()));
-      lo = std::min(lo, rms), hi = std::max(hi, rms);
-      peak = std::max(peak, r.peak());
-      crest = std::min(crest, 20 * std::log10(r.peak()) - rms);
+    const float comps[3] = {0.0f, 0.4f, 1.0f};
+    double rms[3], peak = 0, crest0 = 100;
+    for (int c = 0; c < 3; c++) {
+      double e = 0, n = 0;
+      for (int s = 1; s < irdsp::drumStyleCount(); s++) {
+        Rig r(irdsp::drumStyle(s).name, 120, false, &irdsp::drumKit(k));
+        r.d->setBusDynamics(true);
+        r.d->setBusComp(comps[c]);
+        r.d->setCrashEvery(4);
+        r.d->start();
+        r.run(12.0);
+        double es = 0;
+        for (size_t i = 0; i < r.out.size(); i++) es += r.out[i] * r.out[i] + r.outR[i] * r.outR[i];
+        e += es, n += 2.0 * (double)r.out.size();
+        peak = std::max(peak, r.peak());
+        if (c == 0) crest0 = std::min(crest0, 20 * std::log10(r.peak()) - 10 * std::log10(es / (2.0 * (double)r.out.size())));
+      }
+      rms[c] = 10 * std::log10(e / n);
     }
     const bool sampled = irdsp::drumKit(k).samples != nullptr;
-    const double minDb = sampled ? -18.5 : -21.0, maxDb = sampled ? -13.0 : -15.0;
-    char what[80];
-    std::snprintf(what, sizeof(what), "%s kit: RMS of every style %.1f..%.1f dBFS", irdsp::drumKit(k).name, lo, hi);
-    check(lo >= minDb && hi <= maxDb, what, hi);
+    const double minDb = sampled ? -20.0 : -22.0, maxDb = sampled ? -14.0 : -15.0;
+    char what[96];
+    std::snprintf(what, sizeof(what), "%s kit: RMS %.1f / %.1f / %.1f dBFS (Comp 0 / 40 / 100)", irdsp::drumKit(k).name,
+                  rms[0], rms[1], rms[2]);
+    // Comp changes the character (body, sustain, flatter hits), not much
+    // the level: all three within 2 dB, and in range at the default.
+    const double spread = std::max(rms[0], std::max(rms[1], rms[2])) - std::min(rms[0], std::min(rms[1], rms[2]));
+    check(spread <= 2.0 && rms[1] >= minDb && rms[1] <= maxDb, what, rms[1]);
     check(peak <= 0.945, "  ... peaks at the limiter's ceiling (-0.5 dBFS)", peak);
-    check(crest >= 12.0, "  ... crest factor >= 12 dB (still punchy)", crest);
+    check(crest0 >= 15.5, "  ... Comp 0: natural dynamics (crest factor >= 15.5 dB)", crest0);
   }
   // Stopping: silence is exact and the machine goes idle (compressor reset).
   Rig r("rock", 120, false, &irdsp::drumKit(1));

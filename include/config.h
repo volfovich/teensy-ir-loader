@@ -120,6 +120,7 @@
                                     // also after each speed-trainer tempo step
 #define DEFAULT_DRUM_KIT 2          // 1-based: 1 synth, 2 rock (see `drum kit`)
 #define DEFAULT_DRUM_CRASH 4        // crash on beat 1 of every 2/4/8/16 bars, 0 = off
+#define DEFAULT_DRUM_COMP 40        // drum-bus parallel compression: 0 = natural, 100 = squashed
 // Speed trainer: +STEP BPM every EVERY bars, up to TARGET.
 #define DEFAULT_TRAINER_ON 0
 #define DEFAULT_TRAINER_STEP 5      // 1 .. 20 BPM

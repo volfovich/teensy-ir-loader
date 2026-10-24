@@ -2,7 +2,7 @@
 //
 //   styles (DrumPatterns.cpp) -> sample-accurate step sequencer -> voices
 //   (count-in, speed trainer, crash accents)    humanized velocity   |
-//          panned stereo drum bus -> compressor + limiter (1.5 ms lookahead)
+//          panned stereo drum bus -> parallel compressor + limiter (1.5 ms lookahead)
 //                                                                  x volume
 //
 // Voices come from the kit (DrumKit.h): either recorded samples, played
@@ -93,6 +93,10 @@ class DrumMachine {
   // The drum-bus compressor and limiter (on by default; tests turn them off
   // to measure exact levels).
   void setBusDynamics(bool on) { busDynamics_ = on; }
+  // How much of the compressed drum bus is blended with the natural one,
+  // 0..1 (parallel compression): 0 = natural drums (only the limiter),
+  // 1 = fully compressed (loudest).
+  void setBusComp(float k) { compMixTarget_ = k < 0.0f ? 0.0f : (k > 1.0f ? 1.0f : k); }
   // Speed trainer: every `everyBars` bars the tempo rises by `stepBpm`, up
   // to `targetBpm`, starting from the set tempo.
   void setTrainer(bool on, int stepBpm, int everyBars, int targetBpm);
@@ -200,6 +204,8 @@ class DrumMachine {
   // Drum-bus compressor: envelope, gain (with makeup) and its ramp.
   float compAtt_, compRel_, compEnv_ = 0.0f, compGainNow_ = 1.0f, compStep_ = 0.0f;
   float limRel_, limGain_ = 1.0f, limTarget_ = 1.0f, limStep_ = 0.0f;  // peak limiter
+  volatile float compMixTarget_ = 0.4f;
+  float compMix_ = 0.4f;  // the parallel blend, gliding to the target
   int limHold_ = 0;
   float laL_[kLatency] = {}, laR_[kLatency] = {};  // lookahead delay
   int laPos_ = 0, laQuiet_ = kLatency;  // silent input samples, up to kLatency

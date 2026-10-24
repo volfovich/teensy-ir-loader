@@ -18,7 +18,7 @@ struct FakeHost : ui::MenuHost {
     v[ui::kReverbOn] = 1; v[ui::kReverbMix] = 25; v[ui::kReverbSize] = 50; v[ui::kReverbTone] = 50;
     v[ui::kReverbType] = 1; v[ui::kReverbMode] = 0; v[ui::kReverbPreDelay] = 40; v[ui::kReverbMod] = 40;
     v[ui::kReverbEra] = 40; v[ui::kReverbGate] = 300;
-    v[ui::kDrumSong] = 0; v[ui::kDrumLoopFrom] = 0; v[ui::kDrumLoopTo] = 32;
+    v[ui::kDrumSong] = 0; v[ui::kDrumLoopFrom] = 0; v[ui::kDrumLoopTo] = 32; v[ui::kDrumComp] = 40;
     v[ui::kOutGain] = -12; v[ui::kLineIn] = 0; v[ui::kLineOut] = 29; v[ui::kHeadphones] = 50;
     v[ui::kDrumsPlay] = 1; v[ui::kDrumStyle] = 1; v[ui::kDrumTempo] = 100; v[ui::kDrumVolume] = 60;
     v[ui::kDrumCountIn] = 2; v[ui::kTrainerOn] = 0; v[ui::kTrainerStep] = 5; v[ui::kTrainerEvery] = 4;

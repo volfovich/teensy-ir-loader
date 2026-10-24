@@ -216,6 +216,8 @@ static void testDrumsPage() {
   m.push();
   check(h.v[ui::kDrumCrash] == 0, "  ... 16 bars, then off", h.v[ui::kDrumCrash]);
   m.turn(3, 0);
+  check(m.current()->id == ui::kDrumComp, "Comp after Volume", m.current()->id);
+  m.turn(1, 0);
   m.push();
   check(m.current()->id == ui::kDrumCountIn && h.v[ui::kDrumCountIn] == 3, "Count-in: push steps 2 -> 3 bars", h.v[ui::kDrumCountIn]);
   m.push();

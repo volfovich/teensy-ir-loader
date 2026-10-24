@@ -38,6 +38,7 @@ void setDrumVolume(int percent);      // 0 .. 100
 void setDrumCountIn(int bars);        // 0 (off) .. 4
 void setDrumTrainer(bool on, int step, int every, int target);  // BPM, bars, BPM
 void setDrumKit(int idx);             // 0-based, see irdsp::drumKit()
+void setDrumComp(int percent);        // drum-bus compression, 0 = natural .. 100
 void setDrumCrash(int bars);          // crash every 2/4/8/16 bars, 0 = off
 void setReverbOn(bool on);
 void setReverbMix(int percent);       // 0 .. 100, 0 = dry only, 100 = wet only

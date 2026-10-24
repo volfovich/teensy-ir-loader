@@ -263,6 +263,7 @@ Every serial command has a place:
 | | Crash | push steps off / 2 / 4 / 8 / 16 bars | `setDrumCrash` | `drum crash` |
 | | Tempo | 40–240 BPM, 1 | `setDrumTempo` | `bpm` |
 | | Volume | 0–100 %, 1 | `setDrumVolume` | `drum vol` |
+| | Comp | 0–100 %, 1 | `setDrumComp` | `drum comp` |
 | | Count-in | push steps off / 1 / 2 / 3 / 4 bars | `setDrumCountIn` | `drum count` |
 | | Trainer | page (shows ON/OFF) | | |
 | **Drums > Trainer** | On | toggle | `setDrumTrainer` | `drum train` |

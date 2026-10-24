@@ -61,6 +61,7 @@ FLASHMEM static void applyLevels() {
   convolver.setDrumVolume(g_settings.drumVolume / 100.0f);
   convolver.setDrumCountIn(g_settings.drumCountIn);
   convolver.setDrumKit(g_settings.drumKit);
+  convolver.setDrumComp(g_settings.drumComp / 100.0f);
   convolver.setDrumCrash(g_settings.drumCrash);
   convolver.setDrumTrainer(g_settings.trainerOn, g_settings.trainerStep, g_settings.trainerEvery,
                            g_settings.trainerTarget);
@@ -299,6 +300,13 @@ FLASHMEM void setDrumKit(int idx) {
   convolver.setDrumKit(g_settings.drumKit);
   scheduleSave();
   Serial.printf("Drum kit %s\n", irdsp::drumKit(g_settings.drumKit).title);
+}
+
+FLASHMEM void setDrumComp(int percent) {
+  g_settings.drumComp = constrain(percent, 0, 100);
+  convolver.setDrumComp(g_settings.drumComp / 100.0f);
+  scheduleSave();
+  Serial.printf("Drum compression %u%%\n", g_settings.drumComp);
 }
 
 FLASHMEM void setDrumCrash(int bars) {

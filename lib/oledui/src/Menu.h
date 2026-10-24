@@ -36,7 +36,7 @@ enum ItemId : uint8_t {
   kDrumSong,                 // 0 = off (the style), else 1-based
   kDrumLoopFrom, kDrumLoopTo,  // bars of the song; from 0 = no loop
   kDrumCrash,  // 0 off, 1..4 = every 2, 4, 8, 16 bars
-  kDrumTempo, kDrumVolume, kDrumCountIn,
+  kDrumTempo, kDrumVolume, kDrumComp, kDrumCountIn,
   kTrainerOn, kTrainerStep, kTrainerEvery, kTrainerTarget,
   // Read-only, for visibility.
   kIsStudioDelay,  // 1 when the delay type is studio 80s

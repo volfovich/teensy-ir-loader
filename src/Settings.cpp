@@ -8,7 +8,8 @@
 
 Settings g_settings;
 
-static const uint32_t kSettingsMagic = 0x49524C39;  // "IRL9"
+static const uint32_t kSettingsMagic = 0x49524C41;  // "IRLA"
+static const uint32_t kSettingsMagicV9 = 0x49524C39;  // "IRL9": no drum comp
 static const uint32_t kSettingsMagicV8 = 0x49524C38;  // "IRL8": no drum songs
 static const uint32_t kSettingsMagicV7 = 0x49524C37;  // "IRL7": plate reverb only
 static const uint32_t kSettingsMagicV6 = 0x49524C36;  // "IRL6": count-in on/off
@@ -80,6 +81,7 @@ FLASHMEM static void defaultSettings() {
   defaultDrumSettings();
   defaultKitSettings();
   defaultReverb80Settings();
+  g_settings.drumComp = DEFAULT_DRUM_COMP;
 }
 
 FLASHMEM void loadSettings() {
@@ -115,8 +117,12 @@ FLASHMEM void loadSettings() {
     defaultReverb80Settings();
   }
   if (g_settings.magic == kSettingsMagicV8) {
-    g_settings.magic = kSettingsMagic;
+    g_settings.magic = kSettingsMagicV9;
     g_settings.drumSong = 0;
+  }
+  if (g_settings.magic == kSettingsMagicV9) {
+    g_settings.magic = kSettingsMagic;
+    g_settings.drumComp = DEFAULT_DRUM_COMP;
   }
   // The style and kit lists can change between firmware versions: one that
   // no longer exists falls back to the default, without resetting the rest.
@@ -137,7 +143,7 @@ FLASHMEM void loadSettings() {
       g_settings.delayTimeMs < 20 || g_settings.delayTimeMs > DELAY_MAX_MS ||
       g_settings.delayType > 1 || g_settings.delayDuck > 100 || g_settings.delayDrive > 100 ||
       g_settings.delayEra > 100 || g_settings.drumTempo < 40 || g_settings.drumTempo > 240 || g_settings.drumVolume > 100 ||
-      g_settings.drumCountIn > 4 || g_settings.reverbType > 1 || g_settings.reverbMode > 1 ||
+      g_settings.drumCountIn > 4 || g_settings.drumComp > 100 || g_settings.reverbType > 1 || g_settings.reverbMode > 1 ||
       g_settings.reverbPreDelay > 150 || g_settings.reverbMod > 100 || g_settings.reverbEra > 100 ||
       g_settings.reverbGateMs < 100 || g_settings.reverbGateMs > 600 || g_settings.trainerOn > 1 || g_settings.trainerStep < 1 ||
       g_settings.trainerStep > 20 || g_settings.trainerEvery < 1 || g_settings.trainerEvery > 16 ||

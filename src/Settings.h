@@ -51,6 +51,8 @@ struct Settings {
   uint16_t reverbGateMs;  // 80s gated: 100 .. 600
   // Added in "IRL9"; older records are upgraded with no song.
   uint8_t drumSong;       // 0 = none (the style), else 1-based (built-in songs, then /DRUMS)
+  // Added in "IRLA"; older records are upgraded with the default.
+  uint8_t drumComp;       // drum-bus parallel compression, 0 .. 100
 };
 
 extern Settings g_settings;

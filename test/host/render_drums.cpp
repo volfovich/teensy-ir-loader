@@ -60,6 +60,28 @@ int main(int argc, char** argv) {
       ok += writeWav(dir + name, out, fs);
     }
   }
+  // The rock style with the rock kit at three drum-bus compression amounts.
+  int comps = 0;
+  for (int comp : {0, 40, 100}) {
+    std::unique_ptr<irdsp::DrumMachine> d(new irdsp::DrumMachine((float)fs));
+    d->setKit(&irdsp::drumKit(irdsp::drumKitCount() > 1 ? 1 : 0));
+    d->setStyle(irdsp::findDrumStyle("rock"));
+    d->setTempo(110.0f);
+    d->setVolume(0.85f);
+    d->setBusComp(comp / 100.0f);
+    d->setCrashEvery(4);
+    d->setCountIn(0);
+    d->start();
+    std::vector<float> out;
+    float bl[B], br[B];
+    for (int j = 0; j < (int)(8 * 4 * 60.0 / 110.0 * fs) / B; j++) {
+      if (!d->process(bl, br, B)) for (int q = 0; q < B; q++) bl[q] = br[q] = 0;
+      for (int q = 0; q < B; q++) out.push_back(bl[q]), out.push_back(br[q]);
+    }
+    comps += writeWav(dir + "/drums_02_rock_rock_comp" + std::to_string(comp) + ".wav", out, fs);
+  }
+  ok += comps == 3 ? 0 : -1;
+
   // Every built-in song, once through with a 2-bar count-in (rock kit).
   for (int i = 0; i < irdsp::drumSongCount(); i++) {
     const irdsp::DrumSong& sg = irdsp::drumSong(i);
