@@ -11,6 +11,7 @@
 
 #include "DrumKit.h"
 #include "DrumMachine.h"
+#include "DrumSong.h"
 
 // x: interleaved stereo.
 static bool writeWav(const std::string& path, const std::vector<float>& x, int fs) {
@@ -59,6 +60,26 @@ int main(int argc, char** argv) {
       ok += writeWav(dir + name, out, fs);
     }
   }
+  // Every built-in song, once through with a 2-bar count-in (rock kit).
+  for (int i = 0; i < irdsp::drumSongCount(); i++) {
+    const irdsp::DrumSong& sg = irdsp::drumSong(i);
+    std::unique_ptr<irdsp::DrumMachine> d(new irdsp::DrumMachine((float)fs));
+    d->setKit(&irdsp::drumKit(irdsp::drumKitCount() > 1 ? 1 : 0));
+    d->setSong(&sg);
+    d->setTempo(sg.bpm);
+    d->setVolume(0.85f);
+    d->setCountIn(2);
+    d->start();
+    const double seconds = (sg.endTick + 2.0 * 4 * irdsp::kSongPpq) * 60.0 / (sg.bpm * irdsp::kSongPpq) + 2.0;
+    std::vector<float> out;
+    float bl[B], br[B];
+    for (int j = 0; j < (int)(seconds * fs) / B; j++) {
+      if (!d->process(bl, br, B)) for (int q = 0; q < B; q++) bl[q] = br[q] = 0;
+      for (int q = 0; q < B; q++) out.push_back(bl[q]), out.push_back(br[q]);
+      if (j * B > (int)((seconds - 2.0) * fs)) d->stop();
+    }
+    ok += writeWav(dir + "/song_" + sg.name + ".wav", out, fs);
+  }
   std::printf("wrote %d WAVs to %s/\n", ok, dir.c_str());
-  return ok == irdsp::drumStyleCount() * irdsp::drumKitCount() ? 0 : 1;
+  return ok == irdsp::drumStyleCount() * irdsp::drumKitCount() + irdsp::drumSongCount() ? 0 : 1;
 }

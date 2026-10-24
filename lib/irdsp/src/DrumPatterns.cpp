@@ -60,6 +60,10 @@ IRDSP_COLD int findDrumStyle(const char* s) {
   return findByName(s, drumStyleCount(), [](int i) -> const char* { return kStyles[i].name; });
 }
 
+IRDSP_COLD int findDrumSong(const char* s) {
+  return findByName(s, drumSongCount(), [](int i) -> const char* { return drumSong(i).name; });
+}
+
 IRDSP_COLD int findDrumKit(const char* s) {
   return findByName(s, drumKitCount(), [](int i) -> const char* { return drumKit(i).name; });
 }

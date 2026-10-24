@@ -1,0 +1,39 @@
+# A mid-tempo AC/DC-style straight-8th rock song, in the style of
+# "Back in Black". Approximate: the groove and the song's shape, not a
+# transcription. Format: see README.md.
+name   blackish
+title  Back in Black-ish
+bpm    94
+meter  4/4
+grid   4
+
+bar I                        # intro: the hi-hat counts the band in
+  hatc   8.6.7.6.8.6.7.6.
+  kick   9...............
+
+bar V                        # the groove
+  kick   9.......8.......
+  snare  ....9.......9...
+  hatc   8.6.7.6.8.6.7.6.
+
+bar W                        # ... with a push on the "&" of 3
+  kick   9.......8.7.....
+  snare  ....9.......9...
+  hatc   8.6.7.6.8.6.7.6.
+
+bar F                        # a snare pickup on beat 4
+  kick   9.......8.......
+  snare  ....9.......7899
+  hatc   8.6.7.6.8.6.....
+
+bar C                        # chorus: crash on 1, hats opened up
+  crash  9...............
+  kick   9.....8.9.......
+  snare  ....9.......9...
+  hatc   ..7.8.7.9.7.8.7.
+
+bar E                        # the last hit
+  crash  9...............
+  kick   9...............
+
+song   I*2 V W V F  V W V F  C*3 F  C*3 F  V W V F  V W V F  C*3 F  C E

@@ -29,6 +29,11 @@
 // Crash accents: a crash on the first beat of every N bars (counted from the
 // first bar after a count-in), in place of that step's hat or ride hit.
 //
+// Song mode (setSong): instead of the style's one bar, a multi-bar song
+// (DrumSong.h) plays from its start, or the loop's first bar, after the
+// count-in, then wraps at its end or at the loop's last bar. Crash accents
+// and the speed trainer apply to styles only.
+//
 // Dynamics: every hit has a velocity 1..9 from its lane, varied at random
 // per lane (hats and cymbals the most, the click not at all). A sampled
 // lane plays the layer recorded nearest that velocity. Each lane has a fixed
@@ -42,6 +47,7 @@
 #include <stdint.h>
 
 #include "DrumKit.h"
+#include "DrumSong.h"
 #include "irdsp_blocks.h"
 
 namespace irdsp {
@@ -90,6 +96,16 @@ class DrumMachine {
   // Speed trainer: every `everyBars` bars the tempo rises by `stepBpm`, up
   // to `targetBpm`, starting from the set tempo.
   void setTrainer(bool on, int stepBpm, int everyBars, int targetBpm);
+  // Song mode with this song (kept, not copied), or nullptr for the style.
+  // Takes effect at the next start(); the song must stay valid while the
+  // machine is running() it.
+  void setSong(const DrumSong* song) { songReq_ = song; }
+  // Loop bars first..last (1-based) of the song; 0, 0 = the whole song.
+  // Applies from the next bar line.
+  void setLoop(int first, int last) {
+    loopA_ = first < 1 ? 0 : first;
+    loopB_ = first < 1 || last < first ? 0 : last;
+  }
   void start() { stopReq_ = false; startReq_ = true; }
   void stop() { startReq_ = false; stopReq_ = true; }
 
@@ -97,6 +113,9 @@ class DrumMachine {
   bool active() const { return active_; }  // playing or still ringing
   bool countingIn() const { return countIn_; }
   int bar() const { return bar_; }          // groove bars played (not count-ins)
+  bool running() const { return playing_; }  // the sequencer, as the interrupt sees it
+  const DrumSong* song() const { return song_; }  // the song playing (nullptr: style)
+  int songBar() const { return songBar_; }   // 0-based bar of the song
   float tempoNow() const { return bpmNow_; }
   int style() const { return styleReq_; }
   int samplesPlaying() const;  // sample voices sounding (for tests)
@@ -123,6 +142,8 @@ class DrumMachine {
 
   void init();  // the constructor's work, kept in flash (IRDSP_COLD)
   void fireStep(uint64_t sample);
+  void fireTick(uint64_t sample);
+  void songSeek(int bar);
   void endBar();
   void swapPattern();
   void trigger(int voice, int code, uint64_t sample);
@@ -166,6 +187,11 @@ class DrumMachine {
   HitHook hook_ = nullptr;
   void* hookCtx_ = nullptr;
   volatile int crashEvery_ = 0;
+  // Song mode.
+  const DrumSong* volatile songReq_ = nullptr;
+  const DrumSong* song_ = nullptr;
+  volatile int loopA_ = 0, loopB_ = 0, songBar_ = 0;
+  uint32_t tick_ = 0, barEnd_ = 0, evIdx_ = 0, ciTick_ = 0;
   volatile float humanize_ = 1.0f;
   volatile bool busDynamics_ = true;
   volatile float volTarget_ = 0.0f;

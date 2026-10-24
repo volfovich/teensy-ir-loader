@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "DrumKit.h"
+#include "DrumSong.h"
 #include "DrumMachine.h"
 
 static const float kFs = 44100.0f;
@@ -661,6 +662,118 @@ static void testDynamics() {
   }
 }
 
+// ---- Songs ----------------------------------------------------------------------
+
+// A 4-bar test song: bars 1, 2, 4 in 4/4, bar 3 in 3/4. A kick on every
+// bar's 1; bar 1 also has a snare on a 32nd (tick 3) and a 16th triplet
+// (tick 8).
+struct TestSong {
+  std::vector<irdsp::SongEvent> ev;
+  std::vector<irdsp::SongBar> bars;
+  irdsp::DrumSong song{"test", "test", 120, nullptr, 0, nullptr, 0, 0};
+  TestSong() {
+    const int beats[4] = {4, 4, 3, 4};
+    uint32_t t = 0;
+    for (int b = 0; b < 4; b++) {
+      bars.push_back({t, (uint32_t)ev.size(), (uint8_t)beats[b], 4});
+      ev.push_back(irdsp::songEvent(t, irdsp::kKick, 9));
+      if (b == 0) ev.push_back(irdsp::songEvent(t + 3, irdsp::kSnare, 9)), ev.push_back(irdsp::songEvent(t + 8, irdsp::kSnare, 9));
+      t += beats[b] * irdsp::kSongPpq;
+    }
+    song.events = ev.data();
+    song.eventCount = (uint32_t)ev.size();
+    song.bars = bars.data();
+    song.barCount = 4;
+    song.endTick = t;
+  }
+};
+
+static void testSongs() {
+  std::printf("Songs\n");
+  const double tick = 44100.0 * 60.0 / (120.0 * irdsp::kSongPpq);  // 918.75 samples
+  {
+    TestSong ts;
+    Rig r("rock", 120, false);
+    r.d->setSong(&ts.song);
+    r.d->setCrashEvery(4);
+    r.d->start();
+    r.run(2 * 15 * irdsp::kSongPpq * tick / 44100.0 + 0.1);  // twice around (2 x 15 beats)
+    const auto k = r.times(irdsp::kKick), sn = r.times(irdsp::kSnare);
+    const double want[] = {0, 96, 192, 264, 360, 456, 552, 624};
+    bool ok = k.size() >= 8;
+    for (int i = 0; ok && i < 8; i++) ok = std::fabs((double)k[i] - want[i] * tick) <= 1.0;
+    check(ok, "bars in 4/4 and 3/4 on the tick grid, wraps at the end", k.size());
+    check(sn.size() >= 2 && std::fabs((double)sn[0] - 3 * tick) <= 1.0 && std::fabs((double)sn[1] - 8 * tick) <= 1.0,
+          "  ... a 32nd (tick 3) and a 16th triplet (tick 8)", sn.size());
+    check(r.times(irdsp::kCrash).empty() && r.d->song() == &ts.song, "  ... no crash accents in song mode", 0);
+  }
+  {
+    // Loop bars 2-3: starts at bar 2, then 2, 3, 2, 3 ...
+    TestSong ts;
+    Rig r("rock", 120, false);
+    r.d->setSong(&ts.song);
+    r.d->setLoop(2, 3);
+    r.d->start();
+    r.run(4 * 7 * irdsp::kSongPpq * tick / 44100.0 + 0.1);
+    const auto k = r.times(irdsp::kKick);
+    const double want[] = {0, 96, 168, 264, 336, 432};
+    bool ok = k.size() >= 6;
+    for (int i = 0; ok && i < 6; i++) ok = std::fabs((double)k[i] - want[i] * tick) <= 1.0;
+    check(ok && r.times(irdsp::kSnare).empty(), "loop bars 2-3: from bar 2, back to 2 after 3", k.size());
+  }
+  {
+    // Count-in: 2 bars of clicks in the first bar's meter, then the song.
+    TestSong ts;
+    Rig r("rock", 120, false);
+    r.d->setSong(&ts.song);
+    r.d->setCountIn(2);
+    r.d->start();
+    r.run(4.5);  // 2 bars of 4/4 at 120 BPM = 4 s
+    const auto c = r.times(irdsp::kClick), k = r.times(irdsp::kKick);
+    check(c.size() == 8 && !k.empty() && std::fabs((double)k[0] - 192 * tick) <= 1.0,
+          "count-in: 8 clicks, then the song's first kick", c.size());
+  }
+  {
+    // Back to the style after setSong(nullptr) and a restart.
+    TestSong ts;
+    Rig r("rock", 120, false);
+    r.d->setSong(&ts.song);
+    r.d->start();
+    r.run(0.5);
+    r.d->stop();
+    r.run(0.1);
+    r.d->setSong(nullptr);
+    r.hits.clear();
+    r.d->start();
+    r.run(2.0);
+    check(r.d->song() == nullptr && !r.times(irdsp::kHatClosed).empty(), "setSong(nullptr): the style plays again", 0);
+  }
+  // The built-in songs: 32 bars, events sorted and in range, each bar's
+  // first event right, and every song below clipping with the drum bus.
+  bool ok = irdsp::drumSongCount() >= 1;
+  double peak = 0;
+  for (int i = 0; i < irdsp::drumSongCount(); i++) {
+    const irdsp::DrumSong& s = irdsp::drumSong(i);
+    ok = ok && s.barCount == 32 && irdsp::findDrumSong(s.name) == i;
+    for (uint32_t e = 0; e < s.eventCount; e++) {
+      ok = ok && s.events[e].lane() < irdsp::kDrumVoices && s.events[e].vel() >= 1 && s.events[e].vel() <= 9;
+      if (e) ok = ok && s.events[e].tick() >= s.events[e - 1].tick();
+    }
+    for (int b = 0; b < s.barCount; b++) {
+      const uint32_t f = s.bars[b].firstEvent;
+      ok = ok && (f == s.eventCount || s.events[f].tick() >= s.bars[b].tick) && (f == 0 || s.events[f - 1].tick() < s.bars[b].tick);
+    }
+    Rig r("rock", s.bpm, false, &irdsp::drumKit(1));
+    r.d->setBusDynamics(true);
+    r.d->setSong(&s);
+    r.d->start();
+    r.run(12.0);
+    peak = std::max(peak, r.peak());
+  }
+  check(ok, "built-in songs: 32 bars, events and bar table valid", irdsp::drumSongCount());
+  check(peak <= 0.945, "  ... all below the drum bus's ceiling (rock kit)", peak);
+}
+
 int main() {
   testTiming();
   testCountIn();
@@ -677,6 +790,7 @@ int main() {
   testDynamics();
   testRealKits();
   testBusLoudness();
+  testSongs();
   std::printf(failures ? "\n%d FAILURE(S)\n" : "\nALL TESTS PASSED\n", failures);
   return failures ? 1 : 0;
 }

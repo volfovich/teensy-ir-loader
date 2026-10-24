@@ -12,6 +12,7 @@ test/host/test_drums
 test/host/render_drums
 .DS_Store
 lib/irdsp/src/DrumKitData.cpp
+lib/irdsp/src/DrumSongData.cpp
 __pycache__/
 test/host/test_reverb80
 test/host/render_reverb80

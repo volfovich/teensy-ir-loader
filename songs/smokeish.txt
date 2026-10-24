@@ -1,0 +1,34 @@
+# Classic hard rock that starts with the hi-hat alone, in the style of
+# "Smoke on the Water". Approximate. Format: see README.md.
+name   smokeish
+title  Smoke on Water-ish
+bpm    112
+meter  4/4
+grid   4
+
+bar H                        # intro: the hi-hat alone
+  hatc   8.6.7.6.8.6.7.6.
+
+bar G                        # the band comes in
+  kick   9.......8.7.....
+  snare  ....9.......9...
+  hatc   8.6.7.6.8.6.7.6.
+
+bar F                        # snare and toms into the next section
+  kick   9.......8.......
+  snare  ....9.......99..
+  tomh   ..............8.
+  toml   ...............9
+  hatc   8.6.7.6.8.6.....
+
+bar C                        # chorus: kick on every beat, crash on 1
+  crash  9...............
+  kick   9...8...9...8...
+  snare  ....9.......9...
+  hatc   ..7.8.7.9.7.8.7.
+
+bar E
+  crash  9...............
+  kick   9...............
+
+song   H*4  G*3 F  G*3 F  G*3 F  C*3 F  C*3 F  G*3 F  C*3 E

@@ -260,6 +260,47 @@ void DrumMachine::fireStep(uint64_t sample) {
   step_++;
 }
 
+// Song mode: one tick (kSongPpq per quarter note).
+void DrumMachine::fireTick(uint64_t sample) {
+  const DrumSong& s = *song_;
+  if (countIn_) {
+    // Clicks on the beats of the bar the song starts from.
+    const SongBar& b = s.bars[songBar_];
+    const uint32_t beat = (uint32_t)kSongPpq * 4u / b.beatUnit;
+    if (ciTick_ >= songBarTicks(b)) {
+      ciTick_ = 0;
+      if (--countLeft_ <= 0) countIn_ = false;
+    }
+    if (countIn_) {
+      if (ciTick_ % beat == 0) trigger(kClick, ciTick_ == 0 ? 9 : 6, sample);
+      ciTick_++;
+      return;
+    }
+  }
+  if (tick_ >= barEnd_) {
+    // The next bar: the loop's first after its last, the first after the end.
+    bar_ = bar_ + 1;
+    int next = songBar_ + 1;
+    const int a = loopA_ - 1, b = loopB_ - 1;
+    if (b >= 0 && (next > b || next < a)) next = a;
+    if (next >= (int)s.barCount) next = a >= 0 && a < (int)s.barCount ? a : 0;
+    songSeek(next);
+  }
+  while (evIdx_ < s.eventCount && s.events[evIdx_].tick() <= tick_) {
+    const SongEvent e = s.events[evIdx_++];
+    if (e.tick() == tick_ && e.lane() < kDrumVoices && e.vel()) trigger(e.lane(), e.vel(), sample);
+  }
+  tick_++;
+}
+
+void DrumMachine::songSeek(int bar) {
+  const SongBar& b = song_->bars[bar];
+  songBar_ = bar;
+  tick_ = b.tick;
+  evIdx_ = b.firstEvent;
+  barEnd_ = b.tick + songBarTicks(b);
+}
+
 void DrumMachine::endBar() {
   if (countIn_) {
     if (--countLeft_ <= 0) {
@@ -546,6 +587,13 @@ bool DrumMachine::process(float* outL, float* outR, int n) {
     step_ = 0;
     bar_ = 0;
     phrase_ = 0;
+    // Song mode from the song's (or the loop's) first bar.
+    song_ = songReq_ && songReq_->barCount ? songReq_ : nullptr;
+    if (song_) {
+      const int a = loopA_ - 1;
+      songSeek(loopB_ > 0 && a >= 0 && a < (int)song_->barCount ? a : 0);
+      ciTick_ = 0;
+    }
     trBars_ = 0;
     countLeft_ = countInBars_;
     countIn_ = countLeft_ > 0;
@@ -583,8 +631,13 @@ bool DrumMachine::process(float* outL, float* outR, int n) {
   int i = 0;
   while (i < n) {
     if (playing_ && toNext_ <= 0.0) {
-      fireStep(time_ + i);
-      toNext_ += (double)fs_ * 60.0 / ((double)bpmNow_ * pat_[cur_].stepsPerBeat);
+      if (song_) {
+        fireTick(time_ + i);
+        toNext_ += (double)fs_ * 60.0 / ((double)bpmNow_ * kSongPpq);
+      } else {
+        fireStep(time_ + i);
+        toNext_ += (double)fs_ * 60.0 / ((double)bpmNow_ * pat_[cur_].stepsPerBeat);
+      }
     }
     int run = n - i;
     if (playing_) {
