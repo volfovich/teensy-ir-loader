@@ -118,10 +118,22 @@ static void testDrumsPage() {
   check(m.current()->id == ui::kDrumsPlay, "Drums on the top level after Reverb", m.current()->id);
   m.push();
   m.turn(100, 0);
-  check(m.current()->id == ui::kTrainerOn, "trainer off: Step/Every/Target hidden", m.current()->id);
+  check(m.current()->id == ui::kTrainerOn && m.current()->kind == ui::Kind::kSubmenu,
+        "last Drums row: Trainer (a page)", m.current()->id);
   m.push();
+  const int trainerPage = m.pageIndex();
   m.turn(100, 0);
-  check(h.v[ui::kTrainerOn] == 1 && m.current()->id == ui::kTrainerTarget, "trainer on: they appear", m.current()->id);
+  check(m.current()->id == ui::kTrainerTarget, "Trainer page: Step/Every/Target shown while off", m.current()->id);
+  m.turn(-100, 0);
+  m.push();
+  check(h.v[ui::kTrainerOn] == 1, "  ... On toggles the trainer", h.v[ui::kTrainerOn]);
+  m.turn(3, 0);
+  m.push();
+  m.turn(5, 1000);
+  m.push();
+  check(h.v[ui::kTrainerTarget] == 145, "  ... Target edits (140 -> 145 BPM)", h.v[ui::kTrainerTarget]);
+  m.back();
+  check(m.pageIndex() != trainerPage && m.current()->id == ui::kTrainerOn, "back returns to the Drums page", m.pageIndex());
   m.turn(-100, 0);
   m.turn(1, 0);
   m.push();

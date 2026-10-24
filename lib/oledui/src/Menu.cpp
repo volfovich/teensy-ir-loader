@@ -15,6 +15,7 @@ UI_LABEL(kDelay, "DELAY");
 UI_LABEL(kReverb, "REVERB");
 UI_LABEL(kLevels, "LEVELS");
 UI_LABEL(kDrums, "DRUMS");
+UI_LABEL(kTrainerTitle, "TRAINER");
 UI_LABEL(kLDrums, "Drums");
 UI_LABEL(kLPlay, "Play");
 UI_LABEL(kLStyle, "Style");
@@ -102,10 +103,16 @@ static const MenuItem UI_PROGMEM kDrumItems[] = {
     {kLTempo, K::kValue, kDrumTempo, 0, 40, 240, 1, U::kBpm, kNoItem, nullptr},
     {kLVolume, K::kValue, kDrumVolume, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
     {kLCountIn, K::kToggle, kDrumCountIn, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
-    {kLTrainer, K::kToggle, kTrainerOn, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
-    {kLStep, K::kValue, kTrainerStep, 0, 1, 20, 1, U::kBpm, kTrainerOn, nullptr},
-    {kLEvery, K::kValue, kTrainerEvery, 0, 1, 16, 1, U::kBars, kTrainerOn, nullptr},
-    {kLTarget, K::kValue, kTrainerTarget, 0, 40, 240, 1, U::kBpm, kTrainerOn, nullptr},
+    {kLTrainer, K::kSubmenu, kTrainerOn, 5, 0, 0, 0, U::kNone, kNoItem, nullptr},
+};
+
+// Speed trainer: all settings on one screen, so they can be set up before
+// switching it on.
+static const MenuItem UI_PROGMEM kTrainerItems[] = {
+    {kLOn, K::kToggle, kTrainerOn, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
+    {kLStep, K::kValue, kTrainerStep, 0, 1, 20, 1, U::kBpm, kNoItem, nullptr},
+    {kLEvery, K::kValue, kTrainerEvery, 0, 1, 16, 1, U::kBars, kNoItem, nullptr},
+    {kLTarget, K::kValue, kTrainerTarget, 0, 40, 240, 1, U::kBpm, kNoItem, nullptr},
 };
 
 #define UI_PAGE(title, items) {title, items, sizeof(items) / sizeof(items[0])}
@@ -115,6 +122,7 @@ static const MenuPage UI_PROGMEM kPages[] = {
     UI_PAGE(kReverb, kReverbItems),
     UI_PAGE(kLevels, kLevelItems),
     UI_PAGE(kDrums, kDrumItems),
+    UI_PAGE(kTrainerTitle, kTrainerItems),
 };
 #undef UI_PAGE
 

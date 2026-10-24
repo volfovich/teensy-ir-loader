@@ -41,7 +41,7 @@ UI_COLD void drawSplash(Canvas& c, const UiModel& m) {
 static UI_COLD void badge(Canvas& c, int x, const char* s, bool on) {
   c.text(x, 0, s);
   const int w = Canvas::width(s);
-  if (on) c.invert(x - 1, 0, w + 1, 8);
+  if (on) c.invertText(x - 1, 0, w + 1);
   else c.dots(x, x + w - 2, 7);
 }
 
@@ -54,7 +54,7 @@ UI_COLD void drawHome(Canvas& c, const UiModel& m, bool blink) {
   else snprintf(buf, sizeof(buf), UI_STR("-/%d"), m.irCount);
   const bool browsing = m.irShown != m.irCurrent;
   const int end = c.text(0, 0, buf);
-  if (browsing && blink) c.invert(0, 0, end - 1, 8);
+  if (browsing && blink) c.invertText(0, 0, end - 1);
   badge(c, 62, UI_STR("BYP"), m.bypass);
   badge(c, 86, UI_STR("DLY"), m.delayOn);
   badge(c, 110, UI_STR("REV"), m.reverbOn);
@@ -184,7 +184,7 @@ UI_COLD void drawMeterScreen(Canvas& c, const UiModel& m) {
   meterBlock(c, 3, UI_STR("OUT"), m.out, false);
   if (m.in.clipping(m.nowMs) || m.out.clipping(m.nowMs)) {
     c.textCenter(5, UI_STR("CLIP"));
-    c.invert(52, 40, 24, 8);
+    c.invertText(52, 5, 24);
   }
   snprintf(buf, sizeof(buf), UI_STR("Line-in sens %d"), m.lineIn);
   c.text(0, 6, buf);

@@ -51,11 +51,11 @@ Drums:     playing blues shuffle, 105 BPM, bar 9, vol 60%, count-in on, trainer 
 ```
 
 **On the OLED** (once the module is wired), the menu has a **Drums** page:
-- Play, Style, Tempo, Volume, Count-in and Trainer. Step, Every and Target are shown only while the trainer is on.
+- Play, Style, Tempo, Volume, Count-in, and **Trainer**, which opens its own page: On, Step, Every and Target. All four are always shown, so the trainer can be set up before it's switched on. The Trainer row on the Drums page shows ON/OFF.
 - Style is chosen by turning the encoder and is shown by name.
 - While the drums play, the home screen shows them on row 5, for example `DRM rock 100   bar 3`.
 
-See [DISPLAY.md](DISPLAY.md#menu-tree) and `screenshots/12_menu_drums.png`.
+See [DISPLAY.md](DISPLAY.md#menu-tree) and the renders `screenshots/12_menu_drums.png`, `13_edit_drum_style.png`, `14_menu_trainer.png` and `15_edit_trainer_target.png`.
 
 ## Count-in and speed trainer
 

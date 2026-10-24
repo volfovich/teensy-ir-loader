@@ -132,13 +132,22 @@ int main(int argc, char** argv) {
   snap("11_status");
 
   host.v[ui::kTrainerOn] = 1;
-  menu.open(); menu.turn(3, 0); menu.push(); menu.turn(2, 0);
+  menu.open(); menu.turn(3, 0); menu.push(); menu.turn(5, 0);  // Drums > Trainer
   menu.draw(c);
   snap("12_menu_drums");
 
-  menu.turn(-1, 0); menu.push();
+  menu.turn(-4, 0); menu.push();  // Style
   menu.draw(c);
   snap("13_edit_drum_style");
+  menu.back();
+
+  menu.turn(4, 0); menu.push(); menu.turn(2, 0);  // Trainer page, cursor on Every
+  menu.draw(c);
+  snap("14_menu_trainer");
+
+  menu.turn(1, 0); menu.push();  // Target
+  menu.draw(c);
+  snap("15_edit_trainer_target");
 
   int ok = 0;
   for (auto& s : shots) ok += writePng(dir + "/" + s.name + ".png", kImgW, kImgH, s.img);

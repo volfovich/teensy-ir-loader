@@ -59,7 +59,7 @@ UI_COLD void drawRowMeter(Canvas& c, int page, const char* label, const MeterSta
     const int cx = Canvas::kW - Canvas::width(clip) - 1;
     c.fill(cx - 1, page * 8, Canvas::kW - cx + 1, 8, false);
     c.text(cx, page, clip);
-    c.invert(cx - 1, page * 8, Canvas::kW - cx + 1, 8);
+    c.invertText(cx - 1, page, Canvas::kW - cx + 1);
   }
 }
 

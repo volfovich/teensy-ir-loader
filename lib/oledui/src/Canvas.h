@@ -29,7 +29,12 @@ class Canvas {
   void fill(int x, int y, int w, int h, bool on);
   void frame(int x, int y, int w, int h);  // 1 px outline
   void invert(int x, int y, int w, int h);
-  void invertPage(int page) { invert(0, page * 8, kW, 8); }
+  // Inverts small text on page p, columns x .. x+w-1, moving it down one
+  // pixel first: glyphs use the top 7 of the page's 8 rows, so this leaves
+  // a lit row above the text (otherwise a 'T' merges into the dark row
+  // above and reads as 'I').
+  void invertText(int x, int page, int w);
+  void invertPage(int page) { invertText(0, page, kW); }
   // Every other pixel of row y from x0 to x1 (a dotted underline).
   void dots(int x0, int x1, int y);
 

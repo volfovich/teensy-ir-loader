@@ -254,8 +254,9 @@ Every serial command has a place:
 | | Tempo | 40–240 BPM, 1 | `setDrumTempo` | `bpm` |
 | | Volume | 0–100 %, 1 | `setDrumVolume` | `drum vol` |
 | | Count-in | toggle | `setDrumCountIn` | `drum count` |
-| | Trainer | toggle | `setDrumTrainer` | `drum train` |
-| | Step / Every / Target | 1–20 BPM / 1–16 bars / 40–240 BPM (shown while the trainer is on) | `setDrumTrainer` | `drum train s e t` |
+| | Trainer | page (shows ON/OFF) | | |
+| **Drums > Trainer** | On | toggle | `setDrumTrainer` | `drum train` |
+| | Step / Every / Target | 1–20 BPM / 1–16 bars / 40–240 BPM | `setDrumTrainer` | `drum train s e t` |
 | **Levels** | Output gain | −60 to +24 dB, 0.5 | `setOutputGainDb` | `g` |
 | | Line-in sens | 0–15 | `setLineInLevel` | `in` |
 | | Line-out | 13–31 (13 = loudest) | `setLineOutLevel` | `out` |

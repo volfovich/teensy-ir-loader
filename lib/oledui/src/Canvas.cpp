@@ -57,6 +57,13 @@ UI_COLD void Canvas::invert(int x, int y, int w, int h) {
     for (int i = x; i < x + w; i++) pixel(i, j, !get(i, j));
 }
 
+UI_COLD void Canvas::invertText(int x, int page, int w) {
+  if (page < 0 || page >= kPages) return;
+  uint8_t* row = buf_ + page * kW;
+  for (int i = x < 0 ? 0 : x; i < x + w && i < kW; i++) row[i] = (uint8_t)~(row[i] << 1);
+  dirty_ |= 1 << page;
+}
+
 UI_COLD void Canvas::dots(int x0, int x1, int y) {
   for (int x = x0; x <= x1; x += 2) pixel(x, y, true);
 }
