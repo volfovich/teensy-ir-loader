@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <Audio.h>
 
+#include "DrumKit.h"
 #include "DrumMachine.h"
 #include "Settings.h"
 #include "config.h"
@@ -53,6 +54,8 @@ FLASHMEM static void applyLevels() {
   convolver.setDrumTempo(g_settings.drumTempo);
   convolver.setDrumVolume(g_settings.drumVolume / 100.0f);
   convolver.setDrumCountIn(g_settings.drumCountIn);
+  convolver.setDrumKit(g_settings.drumKit);
+  convolver.setDrumCrash(g_settings.drumCrash);
   convolver.setDrumTrainer(g_settings.trainerOn, g_settings.trainerStep, g_settings.trainerEvery,
                            g_settings.trainerTarget);
 }
@@ -232,6 +235,24 @@ FLASHMEM void setDrumCountIn(bool on) {
   convolver.setDrumCountIn(on);
   scheduleSave();
   Serial.println(on ? "Count-in on" : "Count-in off");
+}
+
+FLASHMEM void setDrumKit(int idx) {
+  g_settings.drumKit = constrain(idx, 0, irdsp::drumKitCount() - 1);
+  convolver.setDrumKit(g_settings.drumKit);
+  scheduleSave();
+  Serial.printf("Drum kit %s\n", irdsp::drumKit(g_settings.drumKit).title);
+}
+
+FLASHMEM void setDrumCrash(int bars) {
+  // The nearest of off / 2 / 4 / 8 / 16 bars.
+  g_settings.drumCrash = bars <= 0 ? 0 : (bars <= 2 ? 2 : (bars <= 5 ? 4 : (bars <= 11 ? 8 : 16)));
+  convolver.setDrumCrash(g_settings.drumCrash);
+  scheduleSave();
+  if (g_settings.drumCrash)
+    Serial.printf("Crash every %u bars%s\n", g_settings.drumCrash, convolver.drumsPlaying() ? " (from the next bar)" : "");
+  else
+    Serial.println("Crash accents off");
 }
 
 FLASHMEM void setDrumTrainer(bool on, int step, int every, int target) {

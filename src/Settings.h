@@ -39,6 +39,9 @@ struct Settings {
   uint8_t trainerEvery;   // 1 .. 16 bars
   uint16_t drumTempo;     // 40 .. 240 BPM
   uint16_t trainerTarget; // 40 .. 240 BPM
+  // Added in "IRL6"; older records are upgraded with the defaults.
+  uint8_t drumKit;        // 0-based kit index (0 = synth)
+  uint8_t drumCrash;      // crash every 2/4/8/16 bars, 0 = off
 };
 
 extern Settings g_settings;

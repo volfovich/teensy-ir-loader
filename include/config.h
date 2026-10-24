@@ -100,14 +100,16 @@
 #define REVERB_HIPASS 0.0f     // bass cut on the reverb output
 
 // ---------------------------------------------------------------------------
-// Drum machine (synthesized, mixed into both outputs after the effects; see
-// DRUMS.md). Defaults, changeable over USB serial and saved to EEPROM. The
-// drums always start stopped.
+// Drum machine (sampled or synthesized kits, mixed into both outputs after
+// the effects; see DRUMS.md). Defaults, changeable over USB serial and saved
+// to EEPROM. The drums always start stopped.
 // ---------------------------------------------------------------------------
 #define DEFAULT_DRUM_STYLE 2        // 1-based: 1 metronome, 2 rock, ... (see `drum style`)
 #define DEFAULT_DRUM_TEMPO 100      // BPM, 40 .. 240
 #define DEFAULT_DRUM_VOLUME 60      // 0 .. 100 (100 = 0 dB)
 #define DEFAULT_DRUM_COUNT_IN 1     // one bar of clicks before the pattern
+#define DEFAULT_DRUM_KIT 2          // 1-based: 1 synth, 2 rock (see `drum kit`)
+#define DEFAULT_DRUM_CRASH 4        // crash on beat 1 of every 2/4/8/16 bars, 0 = off
 // Speed trainer: +STEP BPM every EVERY bars, up to TARGET.
 #define DEFAULT_TRAINER_ON 0
 #define DEFAULT_TRAINER_STEP 5      // 1 .. 20 BPM

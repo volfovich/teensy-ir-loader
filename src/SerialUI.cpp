@@ -4,6 +4,7 @@
 #include <Audio.h>
 
 #include "AudioGraph.h"
+#include "DrumKit.h"
 #include "DrumMachine.h"
 #include "IRLibrary.h"
 #include "Settings.h"
@@ -12,6 +13,14 @@
 static bool g_meter = false;
 
 static float toDb(float lin) { return lin > 1e-6f ? 20.0f * log10f(lin) : -120.0f; }
+
+// "every 4 bars" or "off".
+FLASHMEM static const char* crashText() {
+  static char buf[16];
+  if (!g_settings.drumCrash) return "off";
+  snprintf(buf, sizeof(buf), "every %u bars", g_settings.drumCrash);
+  return buf;
+}
 
 FLASHMEM void printHelp() {
   Serial.printf(
@@ -34,6 +43,8 @@ FLASHMEM void printHelp() {
       "  drum         start / stop the drums (now %s)\n"
       "  bpm <40-240> drum tempo (now %u)\n"
       "  drum style [n|name]  list the styles / choose one (now %s)\n"
+      "  drum kit [n|name]    list the kits / choose one (now %s)\n"
+      "  drum crash <0|2|4|8|16>  crash every N bars, 0 = off (now %s)\n"
       "  drum vol <0-100>     drum volume (now %u)\n"
       "  drum count   toggle the count-in bar (now %s)\n"
       "  drum train [step every target]  toggle / set the speed trainer (now %s)\n"
@@ -51,7 +62,8 @@ FLASHMEM void printHelp() {
       g_settings.delayTimeMs, g_settings.delayFeedback, g_settings.delayTone, g_settings.delayMod,
       delayTypeName(g_settings.delayType), g_settings.delayDuck, g_settings.delayDrive,
       g_settings.delayEra, convolver.drumsPlaying() ? "playing" : "stopped", g_settings.drumTempo,
-      irdsp::drumStyle(g_settings.drumStyle).name, g_settings.drumVolume,
+      irdsp::drumStyle(g_settings.drumStyle).name, irdsp::drumKit(g_settings.drumKit).name, crashText(),
+      g_settings.drumVolume,
       g_settings.drumCountIn ? "on" : "off", g_settings.trainerOn ? "on" : "off", g_settings.reverbOn ? "on" : "off", g_settings.reverbMix,
       g_settings.reverbSize, g_settings.reverbTone);
 }
@@ -73,7 +85,8 @@ FLASHMEM static void printDrums() {
     Serial.printf("Drums:     stopped, %s, %u BPM", irdsp::drumStyle(g_settings.drumStyle).title,
                   g_settings.drumTempo);
   }
-  Serial.printf(", vol %u%%, count-in %s", g_settings.drumVolume, g_settings.drumCountIn ? "on" : "off");
+  Serial.printf(", kit %s, crash %s, vol %u%%, count-in %s", irdsp::drumKit(g_settings.drumKit).name, crashText(),
+                g_settings.drumVolume, g_settings.drumCountIn ? "on" : "off");
   if (g_settings.trainerOn)
     Serial.printf(", trainer +%u every %u bar%s to %u", g_settings.trainerStep, g_settings.trainerEvery,
                   g_settings.trainerEvery == 1 ? "" : "s", g_settings.trainerTarget);
@@ -84,6 +97,13 @@ FLASHMEM static void printStyles() {
   for (int i = 0; i < irdsp::drumStyleCount(); i++) {
     const irdsp::DrumStyle& s = irdsp::drumStyle(i);
     Serial.printf("%c %2d  %-10s %s\n", i == g_settings.drumStyle ? '>' : ' ', i + 1, s.name, s.title);
+  }
+}
+
+FLASHMEM static void printKits() {
+  for (int i = 0; i < irdsp::drumKitCount(); i++) {
+    const irdsp::DrumKit& k = irdsp::drumKit(i);
+    Serial.printf("%c %2d  %-10s %s\n", i == g_settings.drumKit ? '>' : ' ', i + 1, k.name, k.title);
   }
 }
 
@@ -100,6 +120,14 @@ FLASHMEM static void drumCommand(char* arg) {
     const int idx = irdsp::findDrumStyle(val);
     if (idx < 0) Serial.println("No such style (type 'drum style').");
     else setDrumStyle(idx);
+  } else if (!strcmp(arg, "kit")) {
+    if (!val || !*val) { printKits(); return; }
+    const int idx = irdsp::findDrumKit(val);
+    if (idx < 0) Serial.println("No such kit (type 'drum kit').");
+    else setDrumKit(idx);
+  } else if (!strcmp(arg, "crash")) {
+    if (!val || !*val) Serial.printf("Crash %s\n", crashText());
+    else setDrumCrash(atoi(val));
   } else if (!strcmp(arg, "vol") && val) {
     setDrumVolume(atoi(val));
   } else if (!strcmp(arg, "count")) {

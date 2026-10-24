@@ -114,6 +114,8 @@ class AudioConvolverIR : public AudioStream {
   void setDrumVolume(float v) { drums_.setVolume(v); }
   void setDrumCountIn(bool on) { drums_.setCountIn(on); }
   void setDrumTrainer(bool on, int step, int every, int target) { drums_.setTrainer(on, step, every, target); }
+  void setDrumKit(int idx) { drums_.setKit(&irdsp::drumKit(idx)); }
+  void setDrumCrash(int bars) { drums_.setCrashEvery(bars); }
   bool drumsPlaying() const { return drums_.playing(); }
   bool drumsCountingIn() const { return drums_.countingIn(); }
   float drumTempoNow() const { return drums_.tempoNow(); }

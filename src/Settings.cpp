@@ -3,11 +3,13 @@
 #include <Arduino.h>
 #include <EEPROM.h>
 
+#include "DrumKit.h"
 #include "DrumMachine.h"
 
 Settings g_settings;
 
-static const uint32_t kSettingsMagic = 0x49524C35;  // "IRL5"
+static const uint32_t kSettingsMagic = 0x49524C36;  // "IRL6"
+static const uint32_t kSettingsMagicV5 = 0x49524C35;  // "IRL5": no kit or crash
 static const uint32_t kSettingsMagicV4 = 0x49524C34;  // "IRL4": no drums
 static const uint32_t kSettingsMagicV3 = 0x49524C33;  // "IRL3": one delay type
 static const uint32_t kSettingsMagicV2 = 0x49524C32;  // "IRL2": no delay fields
@@ -48,6 +50,11 @@ FLASHMEM static void defaultDrumSettings() {
   g_settings.trainerTarget = DEFAULT_TRAINER_TARGET;
 }
 
+FLASHMEM static void defaultKitSettings() {
+  g_settings.drumKit = DEFAULT_DRUM_KIT - 1;
+  g_settings.drumCrash = DEFAULT_DRUM_CRASH;
+}
+
 FLASHMEM static void defaultSettings() {
   memset(&g_settings, 0, sizeof(g_settings));
   g_settings.magic = kSettingsMagic;
@@ -59,6 +66,7 @@ FLASHMEM static void defaultSettings() {
   defaultDelaySettings();
   defaultDelayTypeSettings();
   defaultDrumSettings();
+  defaultKitSettings();
 }
 
 FLASHMEM void loadSettings() {
@@ -77,13 +85,21 @@ FLASHMEM void loadSettings() {
     defaultDelayTypeSettings();
   }
   if (g_settings.magic == kSettingsMagicV4) {
-    g_settings.magic = kSettingsMagic;
+    g_settings.magic = kSettingsMagicV5;
     defaultDrumSettings();
   }
-  // The style list can change between firmware versions: a style that no
-  // longer exists falls back to the default, without resetting the rest.
-  if (g_settings.magic == kSettingsMagic && g_settings.drumStyle >= irdsp::drumStyleCount())
-    g_settings.drumStyle = DEFAULT_DRUM_STYLE - 1;
+  if (g_settings.magic == kSettingsMagicV5) {
+    g_settings.magic = kSettingsMagic;
+    defaultKitSettings();
+  }
+  // The style and kit lists can change between firmware versions: one that
+  // no longer exists falls back to the default, without resetting the rest.
+  if (g_settings.magic == kSettingsMagic) {
+    if (g_settings.drumStyle >= irdsp::drumStyleCount()) g_settings.drumStyle = DEFAULT_DRUM_STYLE - 1;
+    if (g_settings.drumKit >= irdsp::drumKitCount()) g_settings.drumKit = 0;
+    const uint8_t c = g_settings.drumCrash;
+    if (c != 0 && c != 2 && c != 4 && c != 8 && c != 16) g_settings.drumCrash = DEFAULT_DRUM_CRASH;
+  }
   if (g_settings.magic != kSettingsMagic || g_settings.lineIn > 15 ||
       g_settings.lineOut < 13 || g_settings.lineOut > 31 ||
       !(g_settings.outGainDb >= -60.0f && g_settings.outGainDb <= 24.0f) ||
