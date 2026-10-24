@@ -25,6 +25,11 @@ struct Settings {
   uint8_t delayTone;      // 0 .. 100
   uint8_t delayMod;       // 0 .. 100
   uint16_t delayTimeMs;   // 20 .. DELAY_MAX_MS
+  // Added in "IRL4"; older records are upgraded with the defaults.
+  uint8_t delayType;   // 0 = ping-pong, 1 = studio 80s
+  uint8_t delayDuck;   // 0 .. 100 (studio 80s only)
+  uint8_t delayDrive;  // 0 .. 100 (studio 80s only)
+  uint8_t delayEra;    // 0 .. 100 (studio 80s only)
 };
 
 extern Settings g_settings;

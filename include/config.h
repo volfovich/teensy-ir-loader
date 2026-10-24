@@ -50,7 +50,9 @@
 #define DEFAULT_HP_VOLUME 0.5f
 
 // ---------------------------------------------------------------------------
-// Delay (stereo ping-pong between the IR and the reverb, ported from HexeFX)
+// Delay (between the IR and the reverb): two types sharing the same lines
+//   0 = stereo ping-pong (ported from HexeFX), tape-like
+//   1 = studio 80s: wet/dry/wet dual delay after the digital racks of the era
 // ---------------------------------------------------------------------------
 // Longest delay time. The two float delay lines need 2 x 4 bytes per sample
 // of delay (750 ms = 265 KB), split between RAM1 and RAM2; with the IR and the
@@ -59,17 +61,29 @@
 #define DELAY_MAX_MS 750
 // Defaults, changeable over USB serial and saved to EEPROM.
 #define DEFAULT_DELAY_ON 0
+#define DEFAULT_DELAY_TYPE 1        // 0 = ping-pong, 1 = studio 80s
 #define DEFAULT_DELAY_MIX 30        // 0 = dry only, 100 = wet only
 #define DEFAULT_DELAY_TIME_MS 380   // 20 .. DELAY_MAX_MS
 #define DEFAULT_DELAY_FEEDBACK 35   // repeats, 0 .. 100
 #define DEFAULT_DELAY_TONE 60       // brightness of the repeats, 100 = no treble loss
 #define DEFAULT_DELAY_MOD 15        // modulation depth (tape-like wobble), 0 .. 100
-// Fixed voicing, 0.0 .. 1.0.
+// Studio 80s only (the ping-pong ignores them), 0 .. 100.
+#define DEFAULT_DELAY_DUCK 40       // repeats duck while you play (0 = off, 100 = -24 dB)
+#define DEFAULT_DELAY_DRIVE 20      // rack input preamp grit
+#define DEFAULT_DELAY_ERA 40        // 0 = late-80s 16-bit / 16 kHz, 100 = early 10-bit / 6 kHz
+// Ping-pong fixed voicing, 0.0 .. 1.0.
 #define DELAY_BASS_CUT 0.2f   // bass loss per repeat
 #define DELAY_TREBLE 1.0f     // treble of the delayed signal (1 = flat)
 #define DELAY_BASS 1.0f       // bass of the delayed signal (1 = flat)
 #define DELAY_MOD_RATE 0.35f  // modulation rate (cubic, 0.35 = about 0.7 Hz)
 #define DELAY_INERTIA 0.9f    // how slowly a new delay time is reached (pitch glide)
+// Studio 80s fixed voicing.
+#define DELAY80_RIGHT_RATIO 0.75f        // right time = left time x this (0.1 .. 1)
+#define DELAY80_CROSS 0.2f               // share of each side's repeats fed to the other (0 .. 0.5)
+#define DELAY80_BASS_CUT 0.15f           // bass loss per repeat (0 .. 1)
+#define DELAY80_MOD_RATE_HZ 0.8f         // chorus rate of the tail
+#define DELAY80_DUCK_THRESHOLD_DB -36.0f // input level where ducking starts (full 12 dB above)
+#define DELAY80_DUCK_RELEASE_MS 200.0f   // how fast the repeats swell back after you stop
 
 // ---------------------------------------------------------------------------
 // Reverb (stereo plate after the delay, ported from HexeFX)

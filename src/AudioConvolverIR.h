@@ -5,7 +5,8 @@
 // runs in 32-bit float inside update():
 //
 //   in -> IR convolution -> IR bypass blend x output gain = core (mono)
-//   core   -> ping-pong delay (mono in, stereo out, dry/wet) -> dL, dR
+//   core   -> delay (mono in, stereo out, dry/wet)           -> dL, dR
+//             (ping-pong or studio 80s, sharing the same lines)
 //   dL, dR -> plate reverb (stereo in, stereo out, dry/wet)  -> out L / R
 //
 // Adds smoothed output gain, click-free IR bypass, on/off for each effect
@@ -22,6 +23,7 @@
 #include "PartitionedConvolver.h"
 #include "PlateReverb.h"
 #include "StereoDelay.h"
+#include "StudioDelay.h"
 #include "config.h"
 
 class AudioConvolverIR : public AudioStream {
@@ -31,6 +33,7 @@ class AudioConvolverIR : public AudioStream {
   AudioConvolverIR()
       : AudioStream(1, inputQueue_),
         delay_(AUDIO_SAMPLE_RATE_EXACT),
+        studio_(AUDIO_SAMPLE_RATE_EXACT),
         reverb_(AUDIO_SAMPLE_RATE_EXACT),
         dlSlot_(AUDIO_SAMPLE_RATE_EXACT),
         rvSlot_(AUDIO_SAMPLE_RATE_EXACT) {}
@@ -44,11 +47,12 @@ class AudioConvolverIR : public AudioStream {
     reverb_.init(mem);
     __enable_irq();
   }
-  // Hands the delay its two lines (len floats each). Until this is called
-  // the delay stays off.
+  // Hands the delay its two lines (len floats each), shared by both delay
+  // types. Until this is called the delay stays off.
   void beginDelay(float* lineA, float* lineB, int len) {
     __disable_irq();
     delay_.init(lineA, lineB, len);
+    studio_.init(lineA, lineB, len);
     __enable_irq();
   }
 
@@ -65,6 +69,25 @@ class AudioConvolverIR : public AudioStream {
   void setDelayMod(float v) { dlMod_ = v; }    // modulation depth
   void setDelayShape(float bassCut, float treble, float bass, float modRate, float inertia) {
     dlBassCut_ = bassCut; dlTreble_ = treble; dlBass_ = bass; dlModRate_ = modRate; dlInertia_ = inertia;
+  }
+  // 0 = ping-pong, 1 = studio 80s. A switch while repeats ring fades them
+  // out (20 ms), clears the lines (about 12 ms) and starts the new type.
+  void setDelayType(int type) { dlType_ = type == kStudio ? kStudio : kPingPong; }
+  int delayType() const { return dlType_; }
+  // Studio 80s only, all 0..1.
+  void setDelayDuck(float v) { dlDuck_ = v; }
+  void setDelayDrive(float v) { dlDrive_ = v; }
+  void setDelayEra(float v) { dlEra_ = v; }
+  // Studio 80s fixed voicing. Applied directly (single values; the mod rate
+  // and duck release are converted here rather than every block).
+  void setDelayStudioShape(float rightRatio, float cross, float bassCut, float modRateHz,
+                           float duckThresholdDb, float duckReleaseMs) {
+    studio_.setRightRatio(rightRatio);
+    studio_.setCross(cross);
+    dl80BassCut_ = bassCut;
+    studio_.setModRate(modRateHz);
+    studio_.setDuckThresholdDb(duckThresholdDb);
+    studio_.setDuckReleaseMs(duckReleaseMs);
   }
   // True while the delay is on or its repeats are still ringing out.
   bool delayActive() const { return dlSlot_.running(); }
@@ -216,30 +239,82 @@ class AudioConvolverIR : public AudioStream {
   // The delay stage: core -> out L/R. Returns false while the delay is idle
   // (the caller uses core for both channels).
   bool processDelay(const float* core, float* outL, float* outR) {
+    // Idle with clean lines: a type change takes effect at once.
+    if (!dlClearing_ && !dlSlot_.running()) {
+      dlActive_ = dlType_;
+      dlSwitchClearing_ = false;
+      dlTypeGain_ = 1.0f;
+    }
+    return dlActive_ == kStudio ? runDelay(studio_, core, outL, outR)
+                                : runDelay(delay_, core, outL, outR);
+  }
+
+  template <class Fx>
+  bool runDelay(Fx& fx, const float* core, float* outL, float* outR) {
     constexpr int B = AUDIO_BLOCK_SAMPLES;
-    if (!finishClearing(dlClearing_, dlSlot_, delay_)) return false;
+    if (!finishClearing(dlClearing_, dlSlot_, fx)) return false;
     const bool wasRunning = dlSlot_.running();
-    if (!dlSlot_.begin(delay_.ready())) return false;
+    if (!dlSlot_.begin(fx.ready())) return false;
 
-    // Time changes glide (tape-like), except when starting from idle: the
-    // lines are empty then, so jump straight to the set time.
-    delay_.setDelaySamples(dlTimeMs_ * (AUDIO_SAMPLE_RATE_EXACT / 1000.0f), !wasRunning);
-    delay_.setFeedback(dlFeedback_);
-    delay_.setTrebleCut(1.0f - dlTone_);
-    delay_.setModDepth(dlMod_);
-    delay_.setBassCut(dlBassCut_);
-    delay_.setTreble(dlTreble_);
-    delay_.setBass(dlBass_);
-    delay_.setModRate(dlModRate_);
-    delay_.setInertia(dlInertia_);
+    // Time changes glide or crossfade, except when starting from idle or
+    // after a type switch: the lines are empty then, so jump straight to
+    // the set time.
+    applyDelayParams(fx, !wasRunning || dlRestart_);
+    dlRestart_ = false;
 
-    float in[B];
-    dlSlot_.feed(core, in);
-    delay_.process(in, outL, outR, B);
+    // Type switch while running: fade the repeats out, clear the lines a few
+    // KB per block, then hand over. The dry signal is not affected. Once the
+    // clearing has started it is finished even if the type is switched back.
+    const bool switching = dlSwitchClearing_ || dlType_ != dlActive_;
+    const float t0 = dlTypeGain_, t1 = ramp(t0, switching ? 0.0f : 1.0f);
+    if (switching && t0 == 0.0f) {
+      dlSwitchClearing_ = true;
+      if (fx.clearStep(4096)) {
+        dlSwitchClearing_ = false;
+        dlActive_ = dlType_;
+        dlRestart_ = true;
+      }
+      for (int i = 0; i < B; i++) outL[i] = outR[i] = 0.0f;
+    } else {
+      float in[B];
+      dlSlot_.feed(core, in);
+      fx.process(in, outL, outR, B);
+      if (t0 != 1.0f || t1 != 1.0f) {
+        for (int i = 0; i < B; i++) {
+          const float g = t0 + (t1 - t0) * (float)(i + 1) / (float)B;
+          outL[i] *= g;
+          outR[i] *= g;
+        }
+      }
+    }
+    dlTypeGain_ = t1;
     dlSlot_.mix(core, outL);
     dlSlot_.mix(core, outR);
     if (dlSlot_.end()) dlClearing_ = true;
     return true;
+  }
+
+  void applyDelayParams(irdsp::StereoDelay& d, bool force) {
+    d.setDelaySamples(dlTimeMs_ * (AUDIO_SAMPLE_RATE_EXACT / 1000.0f), force);
+    d.setFeedback(dlFeedback_);
+    d.setTrebleCut(1.0f - dlTone_);
+    d.setModDepth(dlMod_);
+    d.setBassCut(dlBassCut_);
+    d.setTreble(dlTreble_);
+    d.setBass(dlBass_);
+    d.setModRate(dlModRate_);
+    d.setInertia(dlInertia_);
+  }
+
+  void applyDelayParams(irdsp::StudioDelay& d, bool force) {
+    d.setDelaySamples(dlTimeMs_ * (AUDIO_SAMPLE_RATE_EXACT / 1000.0f), force);
+    d.setFeedback(dlFeedback_);
+    d.setTone(dlTone_);
+    d.setModDepth(dlMod_);
+    d.setBassCut(dl80BassCut_);
+    d.setDuck(dlDuck_);
+    d.setDrive(dlDrive_);
+    d.setEra(dlEra_);
   }
 
   // The reverb stage: in L/R -> out L/R. Returns false while the reverb is
@@ -268,10 +343,17 @@ class AudioConvolverIR : public AudioStream {
 
   audio_block_t* inputQueue_[1];
   Engine engine_;
+  static constexpr int kPingPong = 0, kStudio = 1;
   irdsp::StereoDelay delay_;
+  irdsp::StudioDelay studio_;
   irdsp::PlateReverb reverb_;
   irdsp::FxSlot<AUDIO_BLOCK_SAMPLES> dlSlot_, rvSlot_;
   bool dlClearing_ = false, rvClearing_ = false;  // audio interrupt only
+  // Delay type switching (audio interrupt only, except dlType_).
+  volatile int dlType_ = kPingPong;
+  int dlActive_ = kPingPong;
+  bool dlSwitchClearing_ = false, dlRestart_ = false;
+  float dlTypeGain_ = 1.0f;
   volatile float gainTarget_ = 0.5f, gainCur_ = 0.5f;
   volatile float wetTarget_ = 1.0f, wetCur_ = 1.0f;
   volatile float inPeak_ = 0.0f, outPeak_ = 0.0f;
@@ -282,6 +364,7 @@ class AudioConvolverIR : public AudioStream {
   // Effect settings (written by setters, read once per block).
   volatile float dlTimeMs_ = 380.0f, dlFeedback_ = 0.35f, dlTone_ = 0.6f, dlMod_ = 0.0f;
   volatile float dlBassCut_ = 0.0f, dlTreble_ = 1.0f, dlBass_ = 1.0f, dlModRate_ = 0.0f, dlInertia_ = 0.0f;
+  volatile float dlDuck_ = 0.0f, dlDrive_ = 0.0f, dlEra_ = 0.0f, dl80BassCut_ = 0.0f;
   volatile float rvSize_ = 0.5f, rvTone_ = 0.5f;
   volatile float rvDiffusion_ = 1.0f, rvLoDamp_ = 0.0f, rvLowpass_ = 0.0f, rvHipass_ = 0.0f;
 };

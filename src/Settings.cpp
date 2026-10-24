@@ -5,7 +5,8 @@
 
 Settings g_settings;
 
-static const uint32_t kSettingsMagic = 0x49524C33;  // "IRL3"
+static const uint32_t kSettingsMagic = 0x49524C34;  // "IRL4"
+static const uint32_t kSettingsMagicV3 = 0x49524C33;  // "IRL3": one delay type
 static const uint32_t kSettingsMagicV2 = 0x49524C32;  // "IRL2": no delay fields
 static const uint32_t kSettingsMagicV1 = 0x49524C31;  // "IRL1": no reverb or delay fields
 static uint32_t g_saveAt = 0;  // millis() when a pending save is due (0 = none)
@@ -26,6 +27,13 @@ static void defaultDelaySettings() {
   g_settings.delayTimeMs = DEFAULT_DELAY_TIME_MS;
 }
 
+static void defaultDelayTypeSettings() {
+  g_settings.delayType = DEFAULT_DELAY_TYPE;
+  g_settings.delayDuck = DEFAULT_DELAY_DUCK;
+  g_settings.delayDrive = DEFAULT_DELAY_DRIVE;
+  g_settings.delayEra = DEFAULT_DELAY_ERA;
+}
+
 static void defaultSettings() {
   memset(&g_settings, 0, sizeof(g_settings));
   g_settings.magic = kSettingsMagic;
@@ -35,6 +43,7 @@ static void defaultSettings() {
   g_settings.lineOut = DEFAULT_LINE_OUT_LEVEL;
   defaultReverbSettings();
   defaultDelaySettings();
+  defaultDelayTypeSettings();
 }
 
 void loadSettings() {
@@ -45,8 +54,12 @@ void loadSettings() {
     defaultReverbSettings();
   }
   if (g_settings.magic == kSettingsMagicV2) {
-    g_settings.magic = kSettingsMagic;
+    g_settings.magic = kSettingsMagicV3;
     defaultDelaySettings();
+  }
+  if (g_settings.magic == kSettingsMagicV3) {
+    g_settings.magic = kSettingsMagic;
+    defaultDelayTypeSettings();
   }
   if (g_settings.magic != kSettingsMagic || g_settings.lineIn > 15 ||
       g_settings.lineOut < 13 || g_settings.lineOut > 31 ||
@@ -56,7 +69,9 @@ void loadSettings() {
       g_settings.reverbSize > 100 || g_settings.reverbTone > 100 ||
       g_settings.delayOn > 1 || g_settings.delayMix > 100 || g_settings.delayFeedback > 100 ||
       g_settings.delayTone > 100 || g_settings.delayMod > 100 ||
-      g_settings.delayTimeMs < 20 || g_settings.delayTimeMs > DELAY_MAX_MS) {
+      g_settings.delayTimeMs < 20 || g_settings.delayTimeMs > DELAY_MAX_MS ||
+      g_settings.delayType > 1 || g_settings.delayDuck > 100 || g_settings.delayDrive > 100 ||
+      g_settings.delayEra > 100) {
     defaultSettings();
   }
   g_settings.irPath[IR_PATH_MAX - 1] = 0;

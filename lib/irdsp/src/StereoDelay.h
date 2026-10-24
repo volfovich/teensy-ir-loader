@@ -160,10 +160,10 @@ class StereoDelay {
       const float dB = dCur - lfo_.value(0) * depth;
       const float dA = dCur - lfo_.value(43) * depth;  // +60 degrees
 
-      const float b = readHermite(b_, dB);
+      const float b = readHermite(b_, len_, idx_, dB);
       float acc = fltFb_.process(b, tCut, bCut, kBassLossF, kTrebleLossF) * fb;
       acc = fltIn_.process(acc + in[i] * inGain, tre, bas, kBassLossF, kTrebleLossF);
-      const float a = readHermite(a_, dA);
+      const float a = readHermite(a_, len_, idx_, dA);
       b_[idx_] = a;
       a_[idx_] = acc;
       if (++idx_ >= len_) idx_ = 0;
@@ -183,29 +183,6 @@ class StereoDelay {
   static constexpr float kBassLossF = 0.05f;
   static constexpr float kLfoMaxHz = 16.0f;
   static constexpr float kLfoMaxDepth = 127.0f;
-
-  // Hermite-interpolated read d samples back (the original's getTapHermite,
-  // which addresses the line by write index + (len - d)). Must run before
-  // this sample is written.
-  inline float readHermite(const float* bf, float d) const {
-    const float lo = 4.0f, hi = (float)(len_ - 1);
-    d = d < lo ? lo : (d > hi ? hi : d);
-    const float p = (float)len_ - d;
-    const int ip = (int)p;
-    const float f = p - (float)ip;
-    int t = idx_ + ip;
-    if (t >= len_) t -= len_;
-    const int tm1 = t == 0 ? len_ - 1 : t - 1;
-    const int t1 = t + 1 >= len_ ? t + 1 - len_ : t + 1;
-    const int t2 = t1 + 1 >= len_ ? t1 + 1 - len_ : t1 + 1;
-    const float xm1 = bf[tm1], x0 = bf[t], x1 = bf[t1], x2 = bf[t2];
-    const float c = (x1 - xm1) * 0.5f;
-    const float v = x0 - x1;
-    const float w = c + v;
-    const float a = w + v + (x2 - x0) * 0.5f;
-    const float bNeg = w + a;
-    return (((a * f) - bNeg) * f + c) * f + x0;
-  }
 
   const float fs_;
   float* a_ = nullptr;

@@ -3,8 +3,9 @@
 A low-latency guitar cabinet IR loader for the **Teensy 4.0 + Audio Shield (Rev D)**.
 
 ```
-tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──► ping-pong delay ──► plate reverb ──► LINE OUT L/R + headphone jack
-                                                (IR from SD card)    (mono in, stereo)    (stereo)
+tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──► delay ──────────────► plate reverb ──► LINE OUT L/R + headphone jack
+                                                (IR from SD card)    (studio 80s or        (stereo)
+                                                                      ping-pong, stereo)
                                                                      each effect: dry/wet mix, on/off
 ```
 
@@ -19,12 +20,10 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
   - Each IR is loudness-normalized on load, so switching IRs does not cause big level jumps.
   - Leading silence (pure latency) and the inaudible tail (wasted CPU) are trimmed automatically.
 - **Click-free switching:** IR changes use a 25 ms crossfade, and the audio never drops out while a file loads.
-- **Stereo ping-pong delay after the IR:**
-  - Ported from the [HexeFX](https://github.com/hexeguitar/hexefx_audiolib_F32) `AudioEffectDelayStereo_F32` (MIT, Piotr Zapart).
-  - Repeats alternate left and right. Reads are Hermite-interpolated, and there are damping filters in the feedback path.
-  - Optional tape-like modulation. Changing the delay time glides instead of jumping.
-  - Delay time from 20 to 750 ms, stored in 32-bit float. The maximum is set by RAM; see `DELAY_MAX_MS` in `include/config.h`.
-  - It uses one ping-pong pair instead of HexeFX's two. With a mono guitar input both of its pairs carry the same signal, so one pair sounds the same with modulation off, at half the memory.
+- **Stereo delay after the IR, two types** (details in [DELAY.md](DELAY.md)):
+  - **Studio 80s** (default): a wet/dry/wet dual delay voiced after the digital racks of 80s guitar rigs (TC 2290, Korg SDD-3000, Roland SDE-3000). Left repeats at T and right at ¾ T. Pitch-stable repeats, with ducking under your playing, input-preamp grit and an "era" control for converter bandwidth and resolution.
+  - **Ping-pong:** a port of the [HexeFX](https://github.com/hexeguitar/hexefx_audiolib_F32) `AudioEffectDelayStereo_F32` (MIT, Piotr Zapart). The repeats alternate left and right, with tape-like wobble and gliding time changes.
+  - Delay time from 20 to 750 ms, in 32-bit float. Both types share the same memory and controls, and switching between them is click-free.
 - **Stereo plate reverb after the delay:**
   - Ported from the [HexeFX](https://github.com/hexeguitar/hexefx_audiolib_F32) `AudioEffectPlateReverb_F32` (MIT, Piotr Zapart). The port matches the original algorithm and its parameter ranges.
   - Dry/wet mix, size and tone controls.
@@ -85,12 +84,16 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `3` | Load IR number 3 |
 | `n` / `p` | Next / previous IR |
 | `b` | Toggle IR bypass (raw amp signal, with a click-free fade). The delay and reverb are not affected. |
-| `dl` | Toggle the delay on/off (the repeats ring out) |
+| `dl` | Toggle the delay on/off (the repeats ring out). All delay commands are explained in [DELAY.md](DELAY.md#controls). |
 | `dmix 0..100` | Delay dry/wet blend (0 = dry only, 100 = repeats only) |
-| `dtime 20..750` | Delay time in ms. Changes glide, like turning a tape delay's time knob. |
+| `dtime 20..750` | Delay time in ms (the left time on the studio 80s; the right is ¾ of it) |
 | `dfb 0..100` | Delay repeats (feedback) |
 | `dtone 0..100` | Brightness of the repeats (lower values make each repeat darker) |
-| `dmod 0..100` | Delay modulation depth (tape-like wobble) |
+| `dmod 0..100` | Delay modulation depth (tape-like wobble, or chorus on the studio 80s type) |
+| `dtype` / `dtype 0\|1` | Toggle / set the delay type: 0 = ping-pong, 1 = studio 80s |
+| `dduck 0..100` | Studio 80s: how far the repeats duck while you play (100 = −24 dB) |
+| `ddrive 0..100` | Studio 80s: input preamp grit |
+| `dera 0..100` | Studio 80s: converter era, 0 = 16-bit / 16 kHz, 100 = 10-bit / 6 kHz |
 | `rv` | Toggle the reverb on/off (the tail rings out) |
 | `mix 0..100` | Reverb dry/wet blend (0 = dry only, 100 = reverb only). Equal-power crossfade. |
 | `size 0..100` | Reverb time (about 1.1 to 6 s) |
@@ -118,7 +121,7 @@ The codec's ADC and DAC add their own fixed delay on top of the buffering. To me
 
 CPU cost scales with IR length. A typical 2048-sample cabinet IR uses about a quarter of the figures above.
 
-The reverb adds about 6 % CPU (measured with 32-sample blocks) and the delay about 3 %, while each is on or still ringing out. Neither uses any CPU once its tail has died away. Run `s` to see the current values. The fixed voicing of both effects (diffusion, damping, filters, modulation rate, time glide) is set in `include/config.h`.
+The reverb adds about 6 % CPU (measured with 32-sample blocks), the ping-pong delay about 3 % and the studio 80s delay about 4.5 %, while each is on or still ringing out. Neither uses any CPU once its tail has died away. Run `s` to see the current values. The fixed voicing of both effects (diffusion, damping, filters, modulation rate, time glide) is set in `include/config.h`; see [DELAY.md](DELAY.md#fixed-voicing-configh) for the delay's.
 
 Smaller blocks cost more CPU because the same IR is split into more partitions, and every partition is processed each block. At 16 samples there is still plenty of headroom, so try it if you want the lowest possible latency.
 
@@ -140,13 +143,7 @@ The convolution uses **uniformly partitioned overlap-save** (UPOLS):
 
 When switching IRs, the new IR's spectra are computed in the background into a second buffer. For 25 ms both IRs are evaluated against the same input history and crossfaded. That is why switching causes no click and no tail cut-off.
 
-The delay is a cross-coupled pair of delay lines:
-
-1. The input plus the filtered feedback goes into line A.
-2. Line A's output is the left repeat, and it also feeds line B.
-3. Line B's output is the right repeat, and it feeds back into line A.
-
-So the repeats alternate left and right at the delay time. Both lines are read with 4-point Hermite interpolation, which allows smooth modulation and time glides.
+The two delay types and how they work are described in [DELAY.md](DELAY.md).
 
 The reverb is an FV-1-style plate:
 
@@ -170,9 +167,10 @@ src/AudioConvolverIR.h      Teensy Audio Library object (IR, gain, bypass, delay
 lib/irdsp/src/              portable DSP core (no Arduino dependencies)
   PartitionedConvolver.h    the UPOLS convolution engine
   StereoDelay.h             the ping-pong delay (port of HexeFX)
+  StudioDelay.h             the studio 80s dual delay
   PlateReverb.h             the stereo plate reverb (port of HexeFX)
   FxSlot.h                  on/off with trails, dry/wet mix and idle detection per effect
-  irdsp_blocks.h            shared shelving filter, LFO and mix law
+  irdsp_blocks.h            shared shelving filter, biquad lowpass, Hermite read, LFO and mix law
   irdsp_fft.h               small radix-2 FFT
   IRLoader.{h,cpp}          WAV parser, resampler, IR trimming and normalization
 test/host/                  PC tests for the DSP core
@@ -191,7 +189,7 @@ The tests check:
 
 - Convolution against a direct (time-domain) reference for block sizes 16–128 and IR lengths 1–8192.
 - That crossfades are exact.
-- That the delay's repeats alternate left and right at exactly the set time with the expected gains, that it stays stable at maximum feedback, its fractional delays are accurate, time changes glide without jumps, its tail dies out, and clearing empties both lines.
+- Both delay types: repeat timing and gains, stability, time changes, tails, clearing, and the studio 80s ducking, drive and era (see [DELAY.md](DELAY.md#code-and-tests)).
 - That the reverb stays stable at maximum size, its decay time rises with size, its tail dies out, its left and right channels are decorrelated, its wet level matches the dry level, and the mix law behaves correctly.
 - WAV decoding for every supported format.
 - Resampling accuracy at 22.05, 32, 48, 88.2, 96 and 192 kHz.

@@ -34,6 +34,13 @@ static void applyLevels() {
   convolver.setDelayFeedback(g_settings.delayFeedback / 100.0f);
   convolver.setDelayTone(g_settings.delayTone / 100.0f);
   convolver.setDelayMod(g_settings.delayMod / 100.0f);
+  convolver.setDelayStudioShape(DELAY80_RIGHT_RATIO, DELAY80_CROSS, DELAY80_BASS_CUT,
+                                DELAY80_MOD_RATE_HZ, DELAY80_DUCK_THRESHOLD_DB,
+                                DELAY80_DUCK_RELEASE_MS);
+  convolver.setDelayType(g_settings.delayType);
+  convolver.setDelayDuck(g_settings.delayDuck / 100.0f);
+  convolver.setDelayDrive(g_settings.delayDrive / 100.0f);
+  convolver.setDelayEra(g_settings.delayEra / 100.0f);
   convolver.setDelayMix(g_settings.delayMix / 100.0f);
   convolver.setDelayOn(g_settings.delayOn);
   convolver.setReverbShape(REVERB_DIFFUSION, REVERB_LODAMP, REVERB_LOWPASS, REVERB_HIPASS);
@@ -121,6 +128,36 @@ void setDelayMod(int percent) {
   convolver.setDelayMod(g_settings.delayMod / 100.0f);
   scheduleSave();
   Serial.printf("Delay modulation %u%%\n", g_settings.delayMod);
+}
+
+const char* delayTypeName(int type) { return type ? "studio 80s" : "ping-pong"; }
+
+void setDelayType(int type) {
+  g_settings.delayType = constrain(type, 0, 1);
+  convolver.setDelayType(g_settings.delayType);
+  scheduleSave();
+  Serial.printf("Delay type %s\n", delayTypeName(g_settings.delayType));
+}
+
+void setDelayDuck(int percent) {
+  g_settings.delayDuck = constrain(percent, 0, 100);
+  convolver.setDelayDuck(g_settings.delayDuck / 100.0f);
+  scheduleSave();
+  Serial.printf("Delay ducking %u%%\n", g_settings.delayDuck);
+}
+
+void setDelayDrive(int percent) {
+  g_settings.delayDrive = constrain(percent, 0, 100);
+  convolver.setDelayDrive(g_settings.delayDrive / 100.0f);
+  scheduleSave();
+  Serial.printf("Delay drive %u%%\n", g_settings.delayDrive);
+}
+
+void setDelayEra(int percent) {
+  g_settings.delayEra = constrain(percent, 0, 100);
+  convolver.setDelayEra(g_settings.delayEra / 100.0f);
+  scheduleSave();
+  Serial.printf("Delay era %u%%\n", g_settings.delayEra);
 }
 
 void setReverbOn(bool on) {

@@ -26,6 +26,10 @@ void printHelp() {
       "  dfb <0-100>  delay repeats (now %u)\n"
       "  dtone <0-100> delay brightness (now %u)\n"
       "  dmod <0-100> delay modulation depth (now %u)\n"
+      "  dtype [0|1]  delay type, 0 = ping-pong, 1 = studio 80s (now %s)\n"
+      "  dduck <0-100> studio 80s: repeats duck while you play (now %u)\n"
+      "  ddrive <0-100> studio 80s: input grit (now %u)\n"
+      "  dera <0-100> studio 80s: 0 = 16-bit/16 kHz, 100 = 10-bit/6 kHz (now %u)\n"
       "  rv           toggle reverb (now %s)\n"
       "  mix <0-100>  reverb dry/wet, 0 = dry only (now %u)\n"
       "  size <0-100> reverb time (now %u)\n"
@@ -38,7 +42,8 @@ void printHelp() {
       "  r            rescan SD card\n",
       g_settings.outGainDb, g_settings.delayOn ? "on" : "off", g_settings.delayMix, DELAY_MAX_MS,
       g_settings.delayTimeMs, g_settings.delayFeedback, g_settings.delayTone, g_settings.delayMod,
-      g_settings.reverbOn ? "on" : "off", g_settings.reverbMix,
+      delayTypeName(g_settings.delayType), g_settings.delayDuck, g_settings.delayDrive,
+      g_settings.delayEra, g_settings.reverbOn ? "on" : "off", g_settings.reverbMix,
       g_settings.reverbSize, g_settings.reverbTone);
 }
 
@@ -57,10 +62,14 @@ static void printStatus() {
                 convolver.bypassed() ? "BYPASSED" : "active");
   Serial.printf("Latency:   ~%.2f ms buffering (2 x %d-sample blocks) + codec\n",
                 2 * blockMs, AUDIO_BLOCK_SAMPLES);
-  Serial.printf("Delay:     %s, mix %u%%, %u ms, repeats %u%%, tone %u%%, mod %u%%\n",
+  Serial.printf("Delay:     %s, %s, mix %u%%, %u ms, repeats %u%%, tone %u%%, mod %u%%",
                 g_settings.delayOn ? "on" : (convolver.delayActive() ? "off (repeats ringing)" : "off"),
-                g_settings.delayMix, g_settings.delayTimeMs, g_settings.delayFeedback,
-                g_settings.delayTone, g_settings.delayMod);
+                delayTypeName(g_settings.delayType), g_settings.delayMix, g_settings.delayTimeMs,
+                g_settings.delayFeedback, g_settings.delayTone, g_settings.delayMod);
+  if (g_settings.delayType)
+    Serial.printf(", duck %u%%, drive %u%%, era %u%%", g_settings.delayDuck, g_settings.delayDrive,
+                  g_settings.delayEra);
+  Serial.println();
   Serial.printf("Reverb:    %s, mix %u%%, size %u%%, tone %u%%\n",
                 g_settings.reverbOn ? "on" : (convolver.reverbActive() ? "off (tail ringing)" : "off"),
                 g_settings.reverbMix, g_settings.reverbSize, g_settings.reverbTone);
@@ -110,6 +119,14 @@ static void handleCommand(char* line) {
     setDelayTone(atoi(arg));
   } else if (!strcmp(line, "dmod") && arg) {
     setDelayMod(atoi(arg));
+  } else if (!strcmp(line, "dtype")) {
+    setDelayType(arg ? atoi(arg) : !g_settings.delayType);
+  } else if (!strcmp(line, "dduck") && arg) {
+    setDelayDuck(atoi(arg));
+  } else if (!strcmp(line, "ddrive") && arg) {
+    setDelayDrive(atoi(arg));
+  } else if (!strcmp(line, "dera") && arg) {
+    setDelayEra(atoi(arg));
   } else if (!strcmp(line, "rv")) {
     setReverbOn(!g_settings.reverbOn);
   } else if (!strcmp(line, "mix") && arg) {

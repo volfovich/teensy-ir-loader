@@ -4,3 +4,4 @@ test/host/test_convolver
 test/host/test_reverb
 test/host/test_delay
 test/host/irtool
+test/host/test_studio_delay

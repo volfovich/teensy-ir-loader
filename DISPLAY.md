@@ -241,6 +241,10 @@ Every serial command has a place:
 | | Repeats | 0–100 %, 1 | `setDelayFeedback` | `dfb` |
 | | Tone | 0–100 %, 1 | `setDelayTone` | `dtone` |
 | | Mod | 0–100 %, 1 | `setDelayMod` | `dmod` |
+| | Type | ping-pong / studio 80s | `setDelayType` | `dtype` |
+| | Duck | 0–100 %, 1 (studio 80s) | `setDelayDuck` | `dduck` |
+| | Drive | 0–100 %, 1 (studio 80s) | `setDelayDrive` | `ddrive` |
+| | Era | 0–100 %, 1 (studio 80s) | `setDelayEra` | `dera` |
 | **Reverb** | On | toggle | `setReverbOn` | `rv` |
 | | Mix | 0–100 %, 1 | `setReverbMix` | `mix` |
 | | Size | 0–100 %, 1 | `setReverbSize` | `size` |
@@ -351,18 +355,18 @@ void loop() {
 
 ### The problem
 
-These numbers are measured from the current build with `teensy_size` and `arm-none-eabi-nm`:
+These numbers are measured with `teensy_size` and `arm-none-eabi-nm` from the build that includes the studio 80s delay:
 
 | | Size |
 |---|---|
-| ITCM (code in RAM1) | 121,296 B code + 9,768 B padding = **4 x 32 KB banks** |
-| RAM1 variables | 351,616 B (`convolver` 200 KB, `g_delayA` 132 KB, …) |
-| RAM1 free for the stack | **41,600 B** |
+| ITCM (code in RAM1) | 128,600 B code + 2,472 B padding = **4 x 32 KB banks** |
+| RAM1 variables | 351,936 B (`convolver` 200 KB, `g_delayA` 132 KB, …) |
+| RAM1 free for the stack | **41,280 B** |
 | RAM2 free for malloc | 147,072 B |
 
 On the Teensy 4, RAM1 is shared between code (ITCM) and data (DTCM) in 32 KB banks.
 
-- **More code can push ITCM into a 5th bank.** If it grows by more than about 9.7 KB, it takes a 5th bank, which comes out of DTCM. The stack would shrink from 41.6 KB to about 9 KB, which is not safe.
+- **More code can push ITCM into a 5th bank.** If it grows by more than about 2.4 KB, it takes a 5th bank, which comes out of DTCM. The stack would shrink from 41 KB to about 9 KB, which is not safe.
 - **Constant data also costs RAM1.** The linker copies `.rodata` into DTCM (`imxrt1062.ld`), so plain `const` tables and string literals use RAM1 unless they are marked `PROGMEM`. On the Teensy 4, `F("...")` is only a cast and does not move the string. `PSTR("...")` does.
 
 So the display must not be added the "normal" way:
@@ -386,7 +390,7 @@ So the display must not be added the "normal" way:
 
 - Much of what is in ITCM today never runs in the audio interrupt: `serviceSerial` (1.9 KB), `scanCard` (1.8 KB), `loadIRIndex` (1.3 KB), `audioBegin` (1.2 KB), Settings, the setters, the `AudioConvolverIR` constructor, and `irdsp::prepareIR` with the WAV decoder (about 5 KB).
 - Mark them `FLASHMEM`. For `lib/irdsp`, which must stay Arduino-free for the host tests, add an `IRDSP_COLD` macro that is empty on the host build and means `__attribute__((section(".flashmem")))` on the Teensy.
-- **Gain:** about 12–15 KB of ITCM, so about 22 KB of headroom inside the existing 4 banks for future features.
+- **Gain:** about 12–15 KB of ITCM, so about 15 KB of headroom inside the existing 4 banks for future features.
 - **Check:** IR load time against the 29 ms baseline. The resampler's inner loops fit in the cache, so little change is expected.
 
 #### C. Gain a whole 32 KB bank of RAM1 (only if a future feature needs it)

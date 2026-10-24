@@ -1,5 +1,6 @@
-// irdsp_blocks.h - small DSP building blocks shared by PlateReverb and
-// StereoDelay (ported from hexefx_audiolib_F32, MIT, Piotr Zapart).
+// irdsp_blocks.h - small DSP building blocks shared by PlateReverb,
+// StereoDelay and StudioDelay (mostly ported from hexefx_audiolib_F32, MIT,
+// Piotr Zapart).
 #pragma once
 
 #include <math.h>
@@ -45,6 +46,53 @@ struct Shelf {
   }
   static constexpr float kStep = 0.02f;
 };
+
+// 2-pole lowpass (RBJ cookbook, transposed direct form II). The coefficients
+// may change between samples; the state carries over.
+struct Biquad {
+  float b0 = 1.0f, b1 = 0.0f, b2 = 0.0f, a1 = 0.0f, a2 = 0.0f;
+  float z1 = 0.0f, z2 = 0.0f;
+  void clear() { z1 = 0.0f; z2 = 0.0f; }
+  void setLowpass(float hz, float sampleRate, float q = 0.70710678f) {
+    const float w = 6.2831853f * hz / sampleRate;
+    const float c = cosf(w), alpha = sinf(w) / (2.0f * q);
+    const float inv = 1.0f / (1.0f + alpha);
+    b0 = b2 = 0.5f * (1.0f - c) * inv;
+    b1 = (1.0f - c) * inv;
+    a1 = -2.0f * c * inv;
+    a2 = (1.0f - alpha) * inv;
+  }
+  inline float process(float x) {
+    const float y = b0 * x + z1;
+    z1 = b1 * x - a1 * y + z2;
+    z2 = b2 * x - a2 * y;
+    return y;
+  }
+};
+
+// 4-point Hermite-interpolated read of a circular line of len samples, d
+// samples behind the write index idx (HexeFX getTapHermite, which addresses
+// the line by write index + (len - d)). d is clamped to 4 .. len - 1. Must
+// run before this sample is written.
+inline float readHermite(const float* bf, int len, int idx, float d) {
+  const float lo = 4.0f, hi = (float)(len - 1);
+  d = d < lo ? lo : (d > hi ? hi : d);
+  const float p = (float)len - d;
+  const int ip = (int)p;
+  const float f = p - (float)ip;
+  int t = idx + ip;
+  if (t >= len) t -= len;
+  const int tm1 = t == 0 ? len - 1 : t - 1;
+  const int t1 = t + 1 >= len ? t + 1 - len : t + 1;
+  const int t2 = t1 + 1 >= len ? t1 + 1 - len : t1 + 1;
+  const float xm1 = bf[tm1], x0 = bf[t], x1 = bf[t1], x2 = bf[t2];
+  const float c = (x1 - xm1) * 0.5f;
+  const float v = x0 - x1;
+  const float w = c + v;
+  const float a = w + v + (x2 - x0) * 0.5f;
+  const float bNeg = w + a;
+  return (((a * f) - bNeg) * f + c) * f + x0;
+}
 
 // 1 + sin(2 pi i / 256), i = 0..256 (filled on first use; call it once
 // outside the audio interrupt, e.g. from a constructor).
