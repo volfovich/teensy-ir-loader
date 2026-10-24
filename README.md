@@ -3,7 +3,7 @@
 A low-latency guitar cabinet IR loader for the **Teensy 4.0 + Audio Shield (Rev D)**.
 
 ```
-tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──► delay ──────────────► plate reverb ──► LINE OUT L/R + headphone jack
+tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──► delay ──────────────► reverb ────────► LINE OUT L/R + headphone jack
                                                 (IR from SD card)    (studio 80s or        (stereo)
                                                                       ping-pong, stereo)
                                                                      each effect: dry/wet mix, on/off
@@ -25,8 +25,12 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
   - **Studio 80s** (default): a wet/dry/wet dual delay voiced after the digital racks of 80s guitar rigs (TC 2290, Korg SDD-3000, Roland SDE-3000). Left repeats at T and right at ¾ T. Pitch-stable repeats, with ducking under your playing, input-preamp grit and an "era" control for converter bandwidth and resolution.
   - **Ping-pong:** a port of the [HexeFX](https://github.com/hexeguitar/hexefx_audiolib_F32) `AudioEffectDelayStereo_F32` (MIT, Piotr Zapart). The repeats alternate left and right, with tape-like wobble and gliding time changes.
   - Delay time from 20 to 750 ms, in 32-bit float. Both types share the same memory and controls, and switching between them is click-free.
-- **Stereo plate reverb after the delay:**
-  - Ported from the [HexeFX](https://github.com/hexeguitar/hexefx_audiolib_F32) `AudioEffectPlateReverb_F32` (MIT, Piotr Zapart). The port matches the original algorithm and its parameter ranges.
+- **Stereo reverb after the delay, two types** (details in [REVERB.md](REVERB.md)):
+  - **Plate** (default): ported from the [HexeFX](https://github.com/hexeguitar/hexefx_audiolib_F32) `AudioEffectPlateReverb_F32` (MIT, Piotr Zapart). The port matches the original algorithm and its parameter ranges.
+  - **80s:** the rack reverbs of 80s rock and metal records, in two modes:
+    - a Lexicon-style **hall**: big, wide, chorused tail, pre-delay
+    - an AMS "Nonlin"-style **gated** reverb: a dense burst that stops dead
+    - both with pre-delay and the era's converter character
   - Dry/wet mix, size and tone controls.
 - **Both effects:**
   - They run in 32-bit float in the same audio object as the convolution, so the path from the IR through the delay and reverb never drops to 16 bits.
@@ -115,8 +119,14 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `drum train [step every target]` | Toggle / set the speed trainer (+step BPM every `every` bars, up to `target`) |
 | `rv` | Toggle the reverb on/off (the tail rings out) |
 | `mix 0..100` | Reverb dry/wet blend (0 = dry only, 100 = reverb only). Equal-power crossfade. |
-| `size 0..100` | Reverb time (about 1.1 to 6 s) |
+| `size 0..100` | Reverb time (plate about 1.1 to 6 s, 80s hall 0.8 to 8 s); 80s gated: the burst's shape |
 | `tone 0..100` | Reverb brightness (100 = brightest tail) |
+| `rtype [0\|1]` | Reverb type: 0 = plate, 1 = 80s. All reverb commands are explained in [REVERB.md](REVERB.md#controls). |
+| `rmode [hall\|gated]` | 80s reverb: hall or gated |
+| `rpre 0..150` | 80s reverb: pre-delay (ms) |
+| `rmod 0..100` | 80s hall: chorus in the tail |
+| `rera 0..100` | 80s reverb: converter era (0 = 16-bit/16 kHz, 100 = 10-bit/6 kHz) |
+| `rgate 100..600` | 80s gated: burst length (ms) |
 | `g -6` | Output gain after the IR, in dB |
 | `in 0..15` | Line-in sensitivity (0 = 3.12 V peak-to-peak, 5 = 1.33 V peak-to-peak) |
 | `out 13..31` | Line-out level (13 = loudest, 3.16 V peak-to-peak) |
@@ -140,14 +150,14 @@ The codec's ADC and DAC add their own fixed delay on top of the buffering. To me
 
 CPU cost scales with IR length. A typical 2048-sample cabinet IR uses about a quarter of the figures above.
 
-The reverb adds about 6 % CPU (measured with 32-sample blocks), the ping-pong delay about 3 %, the studio 80s delay about 4.5 % and the drum machine about 2.5 % (recorded kits, including its drum-bus compressor), while each is on (or playing) or still ringing out. None of them uses any CPU once its tail has died away. Run `s` to see the current values. The fixed voicing of both effects (diffusion, damping, filters, modulation rate, time glide) is set in `include/config.h`; see [DELAY.md](DELAY.md#fixed-voicing-configh) for the delay's.
+The reverb adds about 6 % CPU (measured with 32-sample blocks; the 80s hall 7.5 %), the ping-pong delay about 3 %, the studio 80s delay about 4.5 % and the drum machine about 2.5 % (recorded kits, including its drum-bus compressor), while each is on (or playing) or still ringing out. None of them uses any CPU once its tail has died away. Run `s` to see the current values. The fixed voicing of both effects (diffusion, damping, filters, modulation rate, time glide) is set in `include/config.h`; see [DELAY.md](DELAY.md#fixed-voicing-configh) for the delay's.
 
 Smaller blocks cost more CPU because the same IR is split into more partitions, and every partition is processed each block. At 16 samples there is still plenty of headroom, so try it if you want the lowest possible latency.
 
 Memory use with 32-sample blocks:
 
 - **RAM1 (fast DTCM/ITCM):** about 470 of 512 KB. This holds the code, the IR spectra and the input history used every block (about 200 KB), and one delay line (about 130 KB).
-- **RAM2 (OCRAM/DMAMEM):** about 370 of 512 KB. This holds the reverb's delay lines (about 120 KB), the other delay line (about 130 KB), and the file list and file-loading buffers (about 110 KB).
+- **RAM2 (OCRAM/DMAMEM):** about 370 of 512 KB. This holds the reverb's delay lines (136 KB, shared by both types), the other delay line (about 130 KB), and the file list and file-loading buffers (about 110 KB).
 
 About 40 KB stays free in RAM1 and 145 KB in RAM2, for the stack and the heap. To get more room, lower `DELAY_MAX_MS`.
 
@@ -164,12 +174,7 @@ When switching IRs, the new IR's spectra are computed in the background into a s
 
 The two delay types and how they work are described in [DELAY.md](DELAY.md), the drum machine in [DRUMS.md](DRUMS.md).
 
-The reverb is an FV-1-style plate:
-
-1. The mono signal goes through two chains of four allpass diffusers with different lengths, one for each side.
-2. The chains feed a loop of four delay lines and allpasses. Each stage has shelving filters for bass and treble loss and is scaled by the reverb time.
-3. The left and right outputs are taken from different points in the loop, which gives a wide, decorrelated stereo image.
-4. Two slow LFOs modulate the loop delays, which keeps the tail smooth and free of metallic ringing.
+The two reverb types (the plate, and the 80s hall and gated reverb) and how they work are described in [REVERB.md](REVERB.md).
 
 ## Project layout
 
@@ -191,6 +196,7 @@ lib/irdsp/src/              portable DSP core (no Arduino dependencies)
   DrumPatterns.cpp          the drum styles
   DrumKit.h                 the drum kit format (DrumKitData.cpp is generated from kits/)
   PlateReverb.h             the stereo plate reverb (port of HexeFX)
+  Reverb80.{h,cpp}          the 80s reverb (Lexicon-style hall, AMS-style gated)
   FxSlot.h                  on/off with trails, dry/wet mix and idle detection per effect
   irdsp_blocks.h            shared shelving filter, biquad filters, Hermite read, LFO and mix law
   irdsp_fft.h               small radix-2 FFT
@@ -215,7 +221,8 @@ The tests check:
 - That crossfades are exact.
 - Both delay types: repeat timing and gains, stability, time changes, tails, clearing, and the studio 80s ducking, drive and era (see [DELAY.md](DELAY.md#code-and-tests)).
 - The drum machine: sample-accurate timing, count-in, speed trainer, style and tempo change points, the shuffle grid, stopping, every style's lanes and level, sampled-kit playback (onsets, velocity layers, fades, cymbal voices), crash accents, dynamics, humanize and panning, and the real kits' samples, layers and balance (see [DRUMS.md](DRUMS.md#code-and-tests)).
-- That the reverb stays stable at maximum size, its decay time rises with size, its tail dies out, its left and right channels are decorrelated, its wet level matches the dry level, and the mix law behaves correctly.
+- That the plate reverb stays stable at maximum size, its decay time rises with size, its tail dies out, its left and right channels are decorrelated, its wet level matches the dry level, and the mix law behaves correctly.
+- The 80s reverb: the hall's decay time, pre-delay, stereo, chorus, era and level, and the gated reverb's cut-off, burst shapes and level (see [REVERB.md](REVERB.md#code-and-tests)).
 - WAV decoding for every supported format.
 - Resampling accuracy at 22.05, 32, 48, 88.2, 96 and 192 kHz.
 - Anti-aliasing, trimming, truncation and normalization.

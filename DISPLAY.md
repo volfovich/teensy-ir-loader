@@ -246,9 +246,15 @@ Every serial command has a place:
 | | Drive | 0–100 %, 1 (studio 80s) | `setDelayDrive` | `ddrive` |
 | | Era | 0–100 %, 1 (studio 80s) | `setDelayEra` | `dera` |
 | **Reverb** | On | toggle | `setReverbOn` | `rv` |
+| | Type | choice: plate / 80s | `setReverbType` | `rtype` |
+| | Mode (80s) | choice: hall / gated | `setReverbMode` | `rmode` |
 | | Mix | 0–100 %, 1 | `setReverbMix` | `mix` |
 | | Size | 0–100 %, 1 | `setReverbSize` | `size` |
 | | Tone | 0–100 %, 1 | `setReverbTone` | `tone` |
+| | Pre-delay (80s) | 0–150 ms, 1 | `setReverbPreDelay` | `rpre` |
+| | Mod (80s hall) | 0–100 %, 1 | `setReverbMod` | `rmod` |
+| | Era (80s) | 0–100 %, 1 | `setReverbEra` | `rera` |
+| | Gate (80s gated) | 100–600 ms, 10 | `setReverbGate` | `rgate` |
 | **Drums** | Play | toggle | `setDrumsPlaying` | `drum` |
 | | Style | 1–8, shown by name | `setDrumStyle` | `drum style` |
 | | Kit | 1–3, shown by name | `setDrumKit` | `drum kit` |

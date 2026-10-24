@@ -1,6 +1,6 @@
 # Delay
 
-The delay sits between the IR and the plate reverb. It takes the mono signal after the IR and gives a stereo output. It has two types, which share the same memory and the same basic controls:
+The delay sits between the IR and the reverb ([REVERB.md](REVERB.md)). It takes the mono signal after the IR and gives a stereo output. It has two types, which share the same memory and the same basic controls:
 
 | Type | `dtype` | Character |
 |---|---|---|
