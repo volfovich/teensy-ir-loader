@@ -204,8 +204,9 @@ FLASHMEM void setDrumsPlaying(bool on) {
     Serial.println("DRUMS STOP");
     return;
   }
-  Serial.printf("DRUMS START: %s, %u BPM%s\n", irdsp::drumStyle(g_settings.drumStyle).title,
-                g_settings.drumTempo, g_settings.drumCountIn ? ", count-in" : "");
+  Serial.printf("DRUMS START: %s, %u BPM", irdsp::drumStyle(g_settings.drumStyle).title, g_settings.drumTempo);
+  if (g_settings.drumCountIn) Serial.printf(", %u-bar count-in", g_settings.drumCountIn);
+  Serial.println();
 }
 
 FLASHMEM void setDrumStyle(int idx) {
@@ -230,11 +231,14 @@ FLASHMEM void setDrumVolume(int percent) {
   Serial.printf("Drum volume %u%%\n", g_settings.drumVolume);
 }
 
-FLASHMEM void setDrumCountIn(bool on) {
-  g_settings.drumCountIn = on;
-  convolver.setDrumCountIn(on);
+FLASHMEM void setDrumCountIn(int bars) {
+  g_settings.drumCountIn = constrain(bars, 0, 4);
+  convolver.setDrumCountIn(g_settings.drumCountIn);
   scheduleSave();
-  Serial.println(on ? "Count-in on" : "Count-in off");
+  if (g_settings.drumCountIn)
+    Serial.printf("Count-in %u bar%s\n", g_settings.drumCountIn, g_settings.drumCountIn == 1 ? "" : "s");
+  else
+    Serial.println("Count-in off");
 }
 
 FLASHMEM void setDrumKit(int idx) {

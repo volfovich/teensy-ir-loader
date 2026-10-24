@@ -213,7 +213,7 @@ void DrumMachine::fireStep(uint64_t sample) {
   } else {
     // A crash accent replaces the bar's first hat or ride hit.
     const int every = crashEvery_;
-    const bool crash = step_ == 0 && every > 0 && p.drums && bar_ % every == 0;
+    const bool crash = step_ == 0 && every > 0 && p.drums && phrase_ % every == 0;
     if (crash) trigger(kCrash, 9, sample);
     for (int v = 0; v < kDrumVoices; v++) {
       const int lvl = p.vel[v][step_];
@@ -226,13 +226,20 @@ void DrumMachine::fireStep(uint64_t sample) {
 
 void DrumMachine::endBar() {
   if (countIn_) {
-    countIn_ = false;
+    if (--countLeft_ <= 0) {
+      countIn_ = false;
+      phrase_ = 0;  // the groove (re)starts: crash accents count from here
+    }
   } else {
     bar_ = bar_ + 1;
+    phrase_++;
     if (trOn_ && bpmNow_ < (float)trTarget_ && ++trBars_ >= trEvery_) {
       trBars_ = 0;
       const float b = bpmNow_ + (float)trStep_;
       bpmNow_ = b > (float)trTarget_ ? (float)trTarget_ : b;
+      // A count-in at the new tempo before the groove goes on.
+      countLeft_ = countInBars_;
+      countIn_ = countLeft_ > 0;
     }
   }
   if (swapReq_) swapPattern();
@@ -427,8 +434,10 @@ bool DrumMachine::process(float* outL, float* outR, int n) {
     if (swapReq_) swapPattern();
     step_ = 0;
     bar_ = 0;
+    phrase_ = 0;
     trBars_ = 0;
-    countIn_ = countInOn_;
+    countLeft_ = countInBars_;
+    countIn_ = countLeft_ > 0;
     bpmNow_ = baseBpm_;
     tempoReq_ = false;
     toNext_ = 0.0;

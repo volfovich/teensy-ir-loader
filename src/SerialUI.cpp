@@ -22,6 +22,14 @@ FLASHMEM static const char* crashText() {
   return buf;
 }
 
+// "2 bars", "1 bar" or "off".
+FLASHMEM static const char* countText() {
+  static char buf[12];
+  if (!g_settings.drumCountIn) return "off";
+  snprintf(buf, sizeof(buf), "%u bar%s", g_settings.drumCountIn, g_settings.drumCountIn == 1 ? "" : "s");
+  return buf;
+}
+
 FLASHMEM void printHelp() {
   Serial.printf(
       "\nCommands:\n"
@@ -46,7 +54,7 @@ FLASHMEM void printHelp() {
       "  drum kit [n|name]    list the kits / choose one (now %s)\n"
       "  drum crash <0|2|4|8|16>  crash every N bars, 0 = off (now %s)\n"
       "  drum vol <0-100>     drum volume (now %u)\n"
-      "  drum count   toggle the count-in bar (now %s)\n"
+      "  drum count [0-4]     count-in bars, 0 = off; alone toggles (now %s)\n"
       "  drum train [step every target]  toggle / set the speed trainer (now %s)\n"
       "  rv           toggle reverb (now %s)\n"
       "  mix <0-100>  reverb dry/wet, 0 = dry only (now %u)\n"
@@ -64,7 +72,7 @@ FLASHMEM void printHelp() {
       g_settings.delayEra, convolver.drumsPlaying() ? "playing" : "stopped", g_settings.drumTempo,
       irdsp::drumStyle(g_settings.drumStyle).name, irdsp::drumKit(g_settings.drumKit).name, crashText(),
       g_settings.drumVolume,
-      g_settings.drumCountIn ? "on" : "off", g_settings.trainerOn ? "on" : "off", g_settings.reverbOn ? "on" : "off", g_settings.reverbMix,
+      countText(), g_settings.trainerOn ? "on" : "off", g_settings.reverbOn ? "on" : "off", g_settings.reverbMix,
       g_settings.reverbSize, g_settings.reverbTone);
 }
 
@@ -86,7 +94,7 @@ FLASHMEM static void printDrums() {
                   g_settings.drumTempo);
   }
   Serial.printf(", kit %s, crash %s, vol %u%%, count-in %s", irdsp::drumKit(g_settings.drumKit).name, crashText(),
-                g_settings.drumVolume, g_settings.drumCountIn ? "on" : "off");
+                g_settings.drumVolume, countText());
   if (g_settings.trainerOn)
     Serial.printf(", trainer +%u every %u bar%s to %u", g_settings.trainerStep, g_settings.trainerEvery,
                   g_settings.trainerEvery == 1 ? "" : "s", g_settings.trainerTarget);
@@ -131,7 +139,8 @@ FLASHMEM static void drumCommand(char* arg) {
   } else if (!strcmp(arg, "vol") && val) {
     setDrumVolume(atoi(val));
   } else if (!strcmp(arg, "count")) {
-    setDrumCountIn(!g_settings.drumCountIn);
+    if (val && *val) setDrumCountIn(atoi(val));
+    else setDrumCountIn(g_settings.drumCountIn ? 0 : DEFAULT_DRUM_COUNT_IN);
   } else if (!strcmp(arg, "train")) {
     // Three numbers, or none to toggle. (No sscanf: it would pull about
     // 30 KB of locale tables into RAM1.)

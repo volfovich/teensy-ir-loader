@@ -112,7 +112,7 @@ class AudioConvolverIR : public AudioStream {
   void setDrumStyle(int idx) { drums_.setStyle(idx); }
   void setDrumTempo(float bpm) { drums_.setTempo(bpm); }
   void setDrumVolume(float v) { drums_.setVolume(v); }
-  void setDrumCountIn(bool on) { drums_.setCountIn(on); }
+  void setDrumCountIn(int bars) { drums_.setCountIn(bars); }
   void setDrumTrainer(bool on, int step, int every, int target) { drums_.setTrainer(on, step, every, target); }
   void setDrumKit(int idx) { drums_.setKit(&irdsp::drumKit(idx)); }
   void setDrumCrash(int bars) { drums_.setCrashEvery(bars); }

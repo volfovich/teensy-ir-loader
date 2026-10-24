@@ -33,7 +33,7 @@ struct Settings {
   // Added in "IRL5"; older records are upgraded with the defaults.
   uint8_t drumStyle;      // 0-based style index
   uint8_t drumVolume;     // 0 .. 100
-  uint8_t drumCountIn;    // 0 / 1
+  uint8_t drumCountIn;    // count-in bars, 0 (off) .. 4 (before "IRL7": 0 / 1)
   uint8_t trainerOn;      // 0 / 1
   uint8_t trainerStep;    // 1 .. 20 BPM
   uint8_t trainerEvery;   // 1 .. 16 bars

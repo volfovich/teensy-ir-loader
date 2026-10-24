@@ -21,8 +21,11 @@
 // change at the next step. Stopping lets the voices ring out; once they are
 // silent the machine is idle and process() costs almost nothing.
 //
+// Count-in: clicks on the beats for 0-4 bars before the groove, and again
+// after every speed-trainer tempo step, at the new tempo.
+//
 // Crash accents: a crash on the first beat of every N bars (counted from the
-// first bar after the count-in), in place of that step's hat or ride hit.
+// first bar after a count-in), in place of that step's hat or ride hit.
 //
 // Dynamics: every hit has a velocity 1..9 from its lane, varied at random
 // per lane (hats and cymbals the most, the click not at all). A sampled
@@ -68,7 +71,8 @@ class DrumMachine {
   void setStyle(int idx);      // at the next bar (at once when stopped)
   void setTempo(float bpm);    // at the next step; restarts the trainer
   void setVolume(float n);     // 0..1 (0 = silent, 1 = 0 dB)
-  void setCountIn(bool on) { countInOn_ = on; }
+  // Count-in bars (0 = off): before the groove, and after each trainer step.
+  void setCountIn(int bars) { countInBars_ = bars < 0 ? 0 : bars; }
   // The kit to play (kept, not copied); its sounding samples fade out.
   void setKit(const DrumKit* kit) { kitReq_ = kit; }
   // A crash on the first beat of every `bars` bars; 0 = off.
@@ -84,7 +88,7 @@ class DrumMachine {
   bool playing() const { return startReq_ || (playing_ && !stopReq_); }
   bool active() const { return active_; }  // playing or still ringing
   bool countingIn() const { return countIn_; }
-  int bar() const { return bar_; }          // bars played after the count-in
+  int bar() const { return bar_; }          // groove bars played (not count-ins)
   float tempoNow() const { return bpmNow_; }
   int style() const { return styleReq_; }
   int samplesPlaying() const;  // sample voices sounding (for tests)
@@ -141,8 +145,9 @@ class DrumMachine {
   Pattern pat_[2];
   volatile int cur_ = 0;
   volatile bool swapReq_ = false, startReq_ = false, stopReq_ = false, tempoReq_ = false;
-  volatile bool playing_ = false, active_ = false, countInOn_ = true, countIn_ = false;
-  volatile int styleReq_ = 0, bar_ = 0;
+  volatile bool playing_ = false, active_ = false, countIn_ = false;
+  volatile int styleReq_ = 0, bar_ = 0, countInBars_ = 1;
+  int countLeft_ = 0, phrase_ = 0;  // count-in bars to go; bars since one
   volatile float baseBpm_ = 100.0f, bpmNow_ = 100.0f;
   volatile bool trOn_ = false;
   volatile int trStep_ = 5, trEvery_ = 4, trTarget_ = 140;

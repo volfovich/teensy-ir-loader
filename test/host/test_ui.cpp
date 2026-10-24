@@ -157,6 +157,14 @@ static void testDrumsPage() {
   m.push();
   m.push();
   check(h.v[ui::kDrumCrash] == 0, "  ... 16 bars, then off", h.v[ui::kDrumCrash]);
+  m.turn(3, 0);
+  m.push();
+  check(m.current()->id == ui::kDrumCountIn && h.v[ui::kDrumCountIn] == 3, "Count-in: push steps 2 -> 3 bars", h.v[ui::kDrumCountIn]);
+  m.push();
+  m.push();
+  char b2[16];
+  ui::formatValue(*m.current(), h.v[ui::kDrumCountIn], false, b2, sizeof(b2));
+  check(h.v[ui::kDrumCountIn] == 0 && !std::strcmp(b2, "off"), "  ... 4 bars, then off", h.v[ui::kDrumCountIn]);
   const ui::MenuItem bars{"e", ui::Kind::kValue, ui::kTrainerEvery, 0, 1, 16, 1, ui::Unit::kBars, 0, nullptr};
   char b[16], b1[16];
   ui::formatValue(bars, 4, false, b, sizeof(b));

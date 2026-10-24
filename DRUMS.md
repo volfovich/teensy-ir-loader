@@ -35,7 +35,7 @@ drum style shuffle  choose one (by name or number)
 drum kit rock       a recorded kit (or: drum kit pearl, drum kit synth)
 drum crash 4        a crash every 4 bars (0 = off)
 bpm 90              set the tempo
-drum                start: one bar of count-in clicks, then the groove
+drum                start: two bars of count-in clicks, then the groove
 drum                stop
 ```
 
@@ -53,44 +53,48 @@ Playing is never saved, so the drums are always stopped after power-up. Everythi
 | `drum kit <n\|name>` | 1–3 or a name | rock | Changes the kit at once. Hits still ringing fade out over 5 ms. |
 | `drum crash <0\|2\|4\|8\|16>` | off, 2, 4, 8, 16 bars | 4 | A crash on beat 1 of every N bars (see [Crash accents](#crash-accents)). `drum crash` alone shows the setting. |
 | `drum vol` | 0–100 | 60 | Drum volume: 100 = 0 dB, 60 ≈ −8 dB, 0 = silent. |
-| `drum count` | toggle | on | One bar of clicks before the pattern starts. |
+| `drum count [0-4]` | off, 1–4 bars | 2 bars | Bars of count-in clicks before the groove starts, and after every speed-trainer tempo step. `drum count` alone toggles between off and 2 bars. |
 | `drum train` | toggle | off | Speed trainer on/off. |
 | `drum train <step> <every> <target>` | 1–20 BPM, 1–16 bars, 40–240 BPM | 5, 4, 140 | Turns the trainer on with these settings. |
 
 `s` shows the drums' state and settings, the current tempo (which rises with the trainer), the bar number and the drums' share of the CPU, for example:
 
 ```
-Drums:     playing blues shuffle, 105 BPM, bar 9, kit rock, crash every 4 bars, vol 60%, count-in on, trainer +5 every 4 bars to 140
+Drums:     playing blues shuffle, 105 BPM, bar 9, kit rock, crash every 4 bars, vol 60%, count-in 2 bars, trainer +5 every 4 bars to 140
 ```
 
 **On the OLED** (once the module is wired), the menu has a **Drums** page:
 - Play, Style, **Kit**, **Crash**, Tempo, Volume, Count-in, and **Trainer**, which opens its own page: On, Step, Every and Target. All four are always shown, so the trainer can be set up before it's switched on. The Trainer row on the Drums page shows ON/OFF.
-- Style and Kit are chosen by turning the encoder and are shown by name. Each push on Crash steps it: off, 2, 4, 8, 16 bars.
+- Style and Kit are chosen by turning the encoder and are shown by name.
+- Each push on Crash steps it: off, 2, 4, 8, 16 bars.
+- Each push on Count-in steps it: off, 1, 2, 3, 4 bars.
 - While the drums play, the home screen shows them on row 5, for example `DRM rock 100   bar 3`.
 
 See [DISPLAY.md](DISPLAY.md#menu-tree) and the renders `screenshots/12_menu_drums.png`, `13_edit_drum_style.png`, `14_menu_trainer.png`, `15_edit_trainer_target.png` and `16_edit_drum_kit.png`.
 
 ## Count-in and speed trainer
 
-**Count-in:** one bar of clicks on the beats, with a higher click on beat 1. Then the pattern starts exactly one bar later. In 4/4 that's four clicks, and in 6/8 two (on the dotted quarters).
+**Count-in:** two bars of clicks on the beats by default (`drum count 0`–`4` sets 0–4 bars), with a higher click on each bar's beat 1. Then the groove starts exactly on the next bar line. In 4/4 that's four clicks a bar, and in 6/8 two (on the dotted quarters).
 
 **Speed trainer:** for working a riff up to speed.
 - It starts at the set tempo (`bpm`). After every `every` bars it adds `step` BPM, until it reaches `target`, and then it holds there.
 - The tempo always changes on a bar line, never mid-bar.
 - `s` shows the tempo it has reached.
 - Changing `bpm` restarts the climb from the new tempo.
+- **Count-in at each step:** with the count-in on, every tempo step plays the count-in again (2 bars by default) at the **new** tempo before the groove goes on, so you hear the new speed before you play it. The count-in bars don't count toward `every`.
+- Once the trainer reaches its target, it plays on with no more count-ins.
 
 ```
 bpm 100
-drum train 5 4 140     100 BPM for 4 bars, then 105, 110, ... up to 140
-drum                   start
+drum train 5 4 140     100 BPM for 4 bars, then 2 bars of clicks at 105,
+drum                   4 bars at 105, 2 bars of clicks at 110, ... up to 140
 ```
 
 ## Crash accents
 
 A crash on the first beat of every 2, 4, 8 or 16 bars (`drum crash`, default every 4), the way a drummer marks the start of each phrase:
 
-- **Counting:** bars count from the first bar after the count-in. So the groove always opens with a crash, and with every 4 the crashes land on bars 1, 5, 9…
+- **Counting:** bars count from the first bar after a count-in, including the count-ins between trainer steps. So the groove always opens, and reopens, with a crash; with every 4 the crashes land on bars 1, 5, 9…
 - **Replaces the hat:** the crash takes the place of that step's hi-hat or ride hit. The kick and snare stay.
 - **Timing of changes:** a change takes effect from the next bar, in time with the bar count from the start.
 - **Exceptions:** no crash during the count-in or in the metronome style.
@@ -356,7 +360,7 @@ A kit is a folder in `kits/` with a `kit.txt` and its WAVs. Every kit there is c
 | `DEFAULT_DRUM_STYLE` | 2 | Style number, 1-based (2 = rock) |
 | `DEFAULT_DRUM_TEMPO` | 100 | BPM |
 | `DEFAULT_DRUM_VOLUME` | 60 | 0–100 |
-| `DEFAULT_DRUM_COUNT_IN` | 1 | Count-in on |
+| `DEFAULT_DRUM_COUNT_IN` | 2 | Count-in bars (0 = off, up to 4) |
 | `DEFAULT_DRUM_KIT` | 2 | Kit number, 1-based (1 = synth, 2 = rock, 3 = pearl) |
 | `DEFAULT_DRUM_CRASH` | 4 | Crash every 4 bars (0 = off, or 2, 4, 8, 16) |
 | `DEFAULT_TRAINER_ON` | 0 | Trainer off |
@@ -380,7 +384,10 @@ These are used when the EEPROM is blank, and when settings saved by older firmwa
 
 `make -C test/host test` runs `test_drums`, which checks:
 - **Timing:** the beat grid at 120 and 97 BPM over 16 bars.
-- **Count-in:** four clicks, then the first kick exactly one bar later.
+- **Count-in:**
+  - With 1 bar: four clicks, then the first kick exactly one bar later.
+  - With 2 bars: eight clicks, then the groove at bar 3.
+  - With the trainer: 2 count-in bars at each new tempo, the groove resuming right after, none once at the target, and crash accents restarting after each count-in.
 - **Speed trainer:** bar lengths step 100, 100, 105, 105, 110 BPM and then hold.
 - **Changes:** a style change lands on the next bar and a tempo change on the next step.
 - **Shuffle:** the hits land on the triplet grid.
@@ -411,7 +418,7 @@ These are used when the EEPROM is blank, and when settings saved by older firmwa
   - The hats sit more than 6 dB below the kick and snare.
   - Every style with each recorded kit stays below clipping at volume 100, and within 3 dB of the synth kit's loudness.
 
-To listen on your computer, `make -C test/host render` writes 8 bars of every style with every kit, with the count-in and a crash every 4 bars, to `test/host/out/drums_<n>_<style>_<kit>.wav` (stereo).
+To listen on your computer, `make -C test/host render` writes 8 bars of every style with every kit, with a 2-bar count-in and a crash every 4 bars, to `test/host/out/drums_<n>_<style>_<kit>.wav` (stereo).
 
 ## Ideas for later
 

@@ -38,7 +38,7 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
     - a synthesized kit.
   - Crash accents on beat 1 of every 2, 4, 8 or 16 bars.
   - Played like a drummer: velocities that follow the groove (softer hats under the snare), recorded velocity layers, a little random variation, and stereo panning from the drummer's seat.
-  - A count-in bar, and a speed trainer that raises the tempo every few bars up to a target.
+  - A count-in (2 bars by default), and a speed trainer that raises the tempo every few bars up to a target, with a count-in at each new tempo.
   - Mixed into the outputs in stereo after the effects, with its own volume, so the drums never go through your guitar effects.
 - **Remembers settings:** the last IR, your levels and the delay, reverb and drum settings are stored in EEPROM.
 - **Controls:** USB serial commands, plus optional *next*, *previous*, *bypass*, *reverb* and *delay* buttons.
@@ -111,7 +111,7 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `drum kit [n\|name]` | List the kits / choose one (synth, rock, pearl) |
 | `drum crash 0\|2\|4\|8\|16` | Crash on beat 1 of every N bars, 0 = off |
 | `drum vol 0..100` | Drum volume |
-| `drum count` | Toggle the count-in bar |
+| `drum count [0-4]` | Count-in bars (0 = off; alone toggles off / 2), also played at each trainer tempo step |
 | `drum train [step every target]` | Toggle / set the speed trainer (+step BPM every `every` bars, up to `target`) |
 | `rv` | Toggle the reverb on/off (the tail rings out) |
 | `mix 0..100` | Reverb dry/wet blend (0 = dry only, 100 = reverb only). Equal-power crossfade. |

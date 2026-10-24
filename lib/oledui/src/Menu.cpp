@@ -57,10 +57,13 @@ UI_LABEL(kC2Bars, "2 bars");
 UI_LABEL(kC4Bars, "4 bars");
 UI_LABEL(kC8Bars, "8 bars");
 UI_LABEL(kC16Bars, "16 bars");
+UI_LABEL(kC1Bar, "1 bar");
+UI_LABEL(kC3Bars, "3 bars");
 #undef UI_LABEL
 
 static const char* const UI_PROGMEM kTypeNames[] = {kCPing, kC80s};
 static const char* const UI_PROGMEM kCrashNames[] = {kCOff, kC2Bars, kC4Bars, kC8Bars, kC16Bars};
+static const char* const UI_PROGMEM kCountNames[] = {kCOff, kC1Bar, kC2Bars, kC3Bars, kC4Bars};
 
 using K = Kind;
 using U = Unit;
@@ -112,7 +115,7 @@ static const MenuItem UI_PROGMEM kDrumItems[] = {
     {kLCrash, K::kChoice, kDrumCrash, 0, 0, 4, 1, U::kNone, kNoItem, kCrashNames},
     {kLTempo, K::kValue, kDrumTempo, 0, 40, 240, 1, U::kBpm, kNoItem, nullptr},
     {kLVolume, K::kValue, kDrumVolume, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
-    {kLCountIn, K::kToggle, kDrumCountIn, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
+    {kLCountIn, K::kChoice, kDrumCountIn, 0, 0, 4, 1, U::kNone, kNoItem, kCountNames},
     {kLTrainer, K::kSubmenu, kTrainerOn, 5, 0, 0, 0, U::kNone, kNoItem, nullptr},
 };
 

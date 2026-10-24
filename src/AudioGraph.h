@@ -35,7 +35,7 @@ void setDrumsPlaying(bool on);
 void setDrumStyle(int idx);           // 0-based, see irdsp::drumStyle()
 void setDrumTempo(int bpm);           // 40 .. 240
 void setDrumVolume(int percent);      // 0 .. 100
-void setDrumCountIn(bool on);
+void setDrumCountIn(int bars);        // 0 (off) .. 4
 void setDrumTrainer(bool on, int step, int every, int target);  // BPM, bars, BPM
 void setDrumKit(int idx);             // 0-based, see irdsp::drumKit()
 void setDrumCrash(int bars);          // crash every 2/4/8/16 bars, 0 = off

@@ -107,7 +107,8 @@
 #define DEFAULT_DRUM_STYLE 2        // 1-based: 1 metronome, 2 rock, ... (see `drum style`)
 #define DEFAULT_DRUM_TEMPO 100      // BPM, 40 .. 240
 #define DEFAULT_DRUM_VOLUME 60      // 0 .. 100 (100 = 0 dB)
-#define DEFAULT_DRUM_COUNT_IN 1     // one bar of clicks before the pattern
+#define DEFAULT_DRUM_COUNT_IN 2     // bars of clicks before the groove (0 = off, up to 4);
+                                    // also after each speed-trainer tempo step
 #define DEFAULT_DRUM_KIT 2          // 1-based: 1 synth, 2 rock (see `drum kit`)
 #define DEFAULT_DRUM_CRASH 4        // crash on beat 1 of every 2/4/8/16 bars, 0 = off
 // Speed trainer: +STEP BPM every EVERY bars, up to TARGET.

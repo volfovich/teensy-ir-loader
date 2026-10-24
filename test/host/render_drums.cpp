@@ -1,4 +1,4 @@
-// Renders 8 bars of every drum style (with the count-in and a crash every
+// Renders 8 bars of every drum style (with a 2-bar count-in and a crash every
 // 4 bars) with every kit to 16-bit stereo WAV files, to listen to the sounds
 // on a computer.
 //   make -C test/host render_drums && ./test/host/render_drums [out_dir]
@@ -45,9 +45,9 @@ int main(int argc, char** argv) {
       d->setStyle(s);
       d->setTempo(bpm);
       d->setVolume(0.85f);
-      d->setCountIn(true);
+      d->setCountIn(2);
       d->start();
-      const double seconds = 9 * st.beats * 60.0 / bpm + 1.0;  // count-in + 8 bars + tail
+      const double seconds = 10 * st.beats * 60.0 / bpm + 1.0;  // count-in + 8 bars + tail
       std::vector<float> out;
       float bl[B], br[B];
       for (int i = 0; i < (int)(seconds * fs) / B; i++) {
