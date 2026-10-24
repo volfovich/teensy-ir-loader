@@ -1,6 +1,8 @@
 // IRLoader.cpp - see IRLoader.h
 #include "IRLoader.h"
 
+#include "irdsp_port.h"
+
 #include <math.h>
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -46,7 +48,7 @@ inline float decode(const uint8_t* p, int bytes, bool isFloat) {
 }
 
 // Modified Bessel function of the first kind, order 0 (for the Kaiser window).
-double besselI0(double x) {
+IRDSP_COLD double besselI0(double x) {
   double sum = 1.0, term = 1.0, q = x * x / 4.0;
   for (int k = 1; k < 50; k++) {
     term *= q / ((double)k * k);
@@ -66,7 +68,7 @@ class Decoder {
   bool start() { return src_.seek(info_.dataOffset); }
 
   // Decodes up to n frames into dst; returns fewer only at the end of the data.
-  int read(float* dst, int n) {
+  IRDSP_COLD int read(float* dst, int n) {
     if (n > (int)left_) n = (int)left_;
     const int block = info_.blockAlign;
     const int bytes = block / info_.channels;
@@ -144,7 +146,7 @@ struct StreamInput {
 
 // The resampler proper, for either input type (see resampleIR()).
 template <class Input>
-int resampleCore(Input& in, int inLen, double ratio, float* out, int maxOut,
+IRDSP_COLD int resampleCore(Input& in, int inLen, double ratio, float* out, int maxOut,
                  float* table, int tableCap) {
   int outLen = (int)ceil(inLen / ratio);
   if (outLen > maxOut) outLen = maxOut;
@@ -220,14 +222,14 @@ int resampleCore(Input& in, int inLen, double ratio, float* out, int maxOut,
 }
 
 // Window size the streaming resampler needs for a given ratio.
-int resampleSpan(double ratio) {
+IRDSP_COLD int resampleSpan(double ratio) {
   const double fc = 0.5 * (ratio > 1.0 ? 1.0 / ratio : 1.0) * 0.97;
   return (int)(kResampleZeroCrossings / fc) + 2;
 }
 
 }  // namespace
 
-bool parseWav(ByteSource& src, WavInfo& info, const char** err) {
+IRDSP_COLD bool parseWav(ByteSource& src, WavInfo& info, const char** err) {
   info = WavInfo();
   uint8_t h[12];
   if (!src.seek(0) || !readExact(src, h, 12)) { *err = "file too short"; return false; }
@@ -279,14 +281,14 @@ bool parseWav(ByteSource& src, WavInfo& info, const char** err) {
   return true;
 }
 
-int readWavSamples(ByteSource& src, const WavInfo& info, ChannelMode mode,
+IRDSP_COLD int readWavSamples(ByteSource& src, const WavInfo& info, ChannelMode mode,
                    float* dst, int maxFrames) {
   Decoder dec(src, info, mode);
   if (!dec.start()) return 0;
   return dec.read(dst, maxFrames);
 }
 
-int resampleIR(const float* in, int inLen, double fsIn, double fsOut,
+IRDSP_COLD int resampleIR(const float* in, int inLen, double fsIn, double fsOut,
                float* out, int maxOut, float* table, int tableCap) {
   const double ratio = fsIn / fsOut;  // input samples per output sample
   if (fabs(ratio - 1.0) < 1e-9) {
@@ -298,7 +300,7 @@ int resampleIR(const float* in, int inLen, double fsIn, double fsOut,
   return resampleCore(input, inLen, ratio, out, maxOut, table, tableCap);
 }
 
-bool prepareIR(ByteSource& src, const IRPrepOptions& opt, float* scratch,
+IRDSP_COLD bool prepareIR(ByteSource& src, const IRPrepOptions& opt, float* scratch,
                int scratchCap, float* out, int maxLen, IRPrepResult& res,
                const char** err) {
   res = IRPrepResult();

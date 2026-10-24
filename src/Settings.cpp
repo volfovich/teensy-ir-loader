@@ -11,14 +11,14 @@ static const uint32_t kSettingsMagicV2 = 0x49524C32;  // "IRL2": no delay fields
 static const uint32_t kSettingsMagicV1 = 0x49524C31;  // "IRL1": no reverb or delay fields
 static uint32_t g_saveAt = 0;  // millis() when a pending save is due (0 = none)
 
-static void defaultReverbSettings() {
+FLASHMEM static void defaultReverbSettings() {
   g_settings.reverbOn = DEFAULT_REVERB_ON;
   g_settings.reverbMix = DEFAULT_REVERB_MIX;
   g_settings.reverbSize = DEFAULT_REVERB_SIZE;
   g_settings.reverbTone = DEFAULT_REVERB_TONE;
 }
 
-static void defaultDelaySettings() {
+FLASHMEM static void defaultDelaySettings() {
   g_settings.delayOn = DEFAULT_DELAY_ON;
   g_settings.delayMix = DEFAULT_DELAY_MIX;
   g_settings.delayFeedback = DEFAULT_DELAY_FEEDBACK;
@@ -27,14 +27,14 @@ static void defaultDelaySettings() {
   g_settings.delayTimeMs = DEFAULT_DELAY_TIME_MS;
 }
 
-static void defaultDelayTypeSettings() {
+FLASHMEM static void defaultDelayTypeSettings() {
   g_settings.delayType = DEFAULT_DELAY_TYPE;
   g_settings.delayDuck = DEFAULT_DELAY_DUCK;
   g_settings.delayDrive = DEFAULT_DELAY_DRIVE;
   g_settings.delayEra = DEFAULT_DELAY_ERA;
 }
 
-static void defaultSettings() {
+FLASHMEM static void defaultSettings() {
   memset(&g_settings, 0, sizeof(g_settings));
   g_settings.magic = kSettingsMagic;
   g_settings.outGainDb = DEFAULT_OUTPUT_GAIN_DB;
@@ -46,7 +46,7 @@ static void defaultSettings() {
   defaultDelayTypeSettings();
 }
 
-void loadSettings() {
+FLASHMEM void loadSettings() {
   EEPROM.get(0, g_settings);
   // Older firmware: keep what it stored, add defaults for the newer fields.
   if (g_settings.magic == kSettingsMagicV1) {
@@ -79,7 +79,7 @@ void loadSettings() {
 
 void scheduleSave() { g_saveAt = millis() + 3000; if (!g_saveAt) g_saveAt = 1; }
 
-void serviceSave() {
+FLASHMEM void serviceSave() {
   if (g_saveAt && (int32_t)(millis() - g_saveAt) >= 0) {
     EEPROM.put(0, g_settings);
     g_saveAt = 0;

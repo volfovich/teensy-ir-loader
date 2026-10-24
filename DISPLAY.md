@@ -355,18 +355,18 @@ void loop() {
 
 ### The problem
 
-These numbers are measured with `teensy_size` and `arm-none-eabi-nm` from the build that includes the studio 80s delay:
+These numbers are measured with `teensy_size` and `arm-none-eabi-nm` from the build with the studio 80s delay and option B (below) done:
 
 | | Size |
 |---|---|
-| ITCM (code in RAM1) | 128,600 B code + 2,472 B padding = **4 x 32 KB banks** |
+| ITCM (code in RAM1) | 114,808 B code + 16,264 B padding = **4 x 32 KB banks** |
 | RAM1 variables | 351,936 B (`convolver` 200 KB, `g_delayA` 132 KB, …) |
 | RAM1 free for the stack | **41,280 B** |
 | RAM2 free for malloc | 147,072 B |
 
 On the Teensy 4, RAM1 is shared between code (ITCM) and data (DTCM) in 32 KB banks.
 
-- **More code can push ITCM into a 5th bank.** If it grows by more than about 2.4 KB, it takes a 5th bank, which comes out of DTCM. The stack would shrink from 41 KB to about 9 KB, which is not safe.
+- **More code can push ITCM into a 5th bank.** If it grows by more than about 16 KB, it takes a 5th bank, which comes out of DTCM. The stack would shrink from 41 KB to about 9 KB, which is not safe.
 - **Constant data also costs RAM1.** The linker copies `.rodata` into DTCM (`imxrt1062.ld`), so plain `const` tables and string literals use RAM1 unless they are marked `PROGMEM`. On the Teensy 4, `F("...")` is only a cast and does not move the string. `PSTR("...")` does.
 
 So the display must not be added the "normal" way:
@@ -376,7 +376,7 @@ So the display must not be added the "normal" way:
 
 ### The options
 
-**No current feature has to be removed.** Option A alone is enough. Option B adds cheap extra margin. C and D are only for the future.
+**No current feature has to be removed.** Option A keeps the UI out of RAM1, and option B is already done. C and D are only for the future.
 
 #### A. Keep the UI out of RAM1 (recommended, part of this plan)
 
@@ -386,17 +386,18 @@ So the display must not be added the "normal" way:
 - Our own small driver instead of a library, so everything above is under our control.
 - **RAM1 cost:** the encoder ISR plus a few state variables, about 0.5 KB. ITCM stays at 4 banks and the stack keeps about 41 KB.
 
-#### B. Move existing non-real-time code to flash (low risk, more headroom)
+#### B. Move existing non-real-time code to flash (done)
 
-- Much of what is in ITCM today never runs in the audio interrupt: `serviceSerial` (1.9 KB), `scanCard` (1.8 KB), `loadIRIndex` (1.3 KB), `audioBegin` (1.2 KB), Settings, the setters, the `AudioConvolverIR` constructor, and `irdsp::prepareIR` with the WAV decoder (about 5 KB).
-- Mark them `FLASHMEM`. For `lib/irdsp`, which must stay Arduino-free for the host tests, add an `IRDSP_COLD` macro that is empty on the host build and means `__attribute__((section(".flashmem")))` on the Teensy.
-- **Gain:** about 12–15 KB of ITCM, so about 15 KB of headroom inside the existing 4 banks for future features.
-- **Check:** IR load time against the 29 ms baseline. The resampler's inner loops fit in the cache, so little change is expected.
+- The code that never runs in the audio interrupt is marked `FLASHMEM`: the serial UI, the SD scan and IR loading, `audioBegin` and the setters, the settings and `setup()`.
+- In `lib/irdsp`, which must stay Arduino-free for the host tests, `IRDSP_COLD` (`irdsp_port.h`) does the same. It means `__attribute__((section(".flashmem")))` on the Teensy and nothing on the host. It is on `prepareIR`, the WAV parser and decoder, and the resampler.
+- **Exceptions:** GCC can't put constructors (`AudioConvolverIR()`, 1.7 KB) or member functions of templates (`installIR`, 0.5 KB) in a named section, so those two stay in ITCM.
+- **Result:** ITCM code went from 128,600 to 114,808 B (−13.8 KB), so there are about 16 KB of headroom inside the 4 banks.
+- **Cost:** none measured. IR load time stays at 29–31 ms, and CPU is unchanged. The resampler, which now also runs from flash, only runs for IRs that aren't 44.1 kHz.
 
 #### C. Gain a whole 32 KB bank of RAM1 (only if a future feature needs it)
 
 - Use a custom linker script (`board_build.ldscript` in `platformio.ini`, a copy of `imxrt1062.ld`) that places the `.text` of SdFat/ExFat (about 25 KB) and newlib's printf/strtod (about 20 KB) in flash.
-- Together with B, ITCM fits in 3 banks, which gives **+32 KB of DTCM**.
+- With B done, ITCM would fit in 3 banks, which gives **+32 KB of DTCM**.
 - This is more work to maintain across Teensyduino updates, so don't do it until it is needed.
 
 #### D. Options that do cost something (not needed)
@@ -412,7 +413,6 @@ So the display must not be added the "normal" way:
 4. **Home screen:** IR name and number, badges, meters, IR browsing with load-on-stop.
 5. **Menus:** menu table, list, value editor, IR browser, Status, full-screen Meter.
 6. **Remove `Buttons.{h,cpp}`** and the `BUTTON_*` defines. Update the README (hardware table, controls, project layout, *Ideas for next steps*).
-7. **Optional:** option B (`FLASHMEM` on the existing cold code).
 
 Each step builds and runs on its own, so steps can be tested on the hardware one at a time.
 
@@ -446,4 +446,4 @@ These are defaults. Each one is easy to change.
 1. **Button mapping on the home screen:** CONFIRM = delay and BACK = reverb, with bypass on a long press of the encoder. Swap them if bypass should be one short press.
 2. **IR browsing:** loads 300 ms after you stop turning, or loads only on push.
 3. **Bus:** shared `Wire` (18/19, 400 kHz) or a separate `Wire1` (16/17, 1 MHz).
-4. **Option B now or later:** it isn't needed for the display, but it is cheap headroom.
+4. **Option B:** done before the display work.

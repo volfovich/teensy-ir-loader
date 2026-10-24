@@ -24,7 +24,7 @@
 #include "Settings.h"
 #include "config.h"
 
-void setup() {
+FLASHMEM void setup() {
   buttonsBegin();
   loadSettings();
 

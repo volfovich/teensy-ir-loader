@@ -33,17 +33,17 @@ int irCount() { return g_numFiles; }
 int irCurrent() { return g_current; }
 const char* irPath(int idx) { return g_files[idx]; }
 
-static bool isWavName(const char* n) {
+FLASHMEM static bool isWavName(const char* n) {
   if (n[0] == '.') return false;  // hidden files, macOS "._" resource forks
   size_t len = strlen(n);
   return len > 4 && strcasecmp(n + len - 4, ".wav") == 0;
 }
 
-static int cmpPath(const void* a, const void* b) {
+FLASHMEM static int cmpPath(const void* a, const void* b) {
   return strcasecmp((const char*)a, (const char*)b);
 }
 
-static void scanDir(const char* dir) {
+FLASHMEM static void scanDir(const char* dir) {
   File d = SD.open(dir);
   if (!d || !d.isDirectory()) return;
   while (g_numFiles < IR_MAX_FILES) {
@@ -61,7 +61,7 @@ static void scanDir(const char* dir) {
   d.close();
 }
 
-void scanCard() {
+FLASHMEM void scanCard() {
   g_numFiles = 0;
   g_current = -1;
   g_sdOk = SD.begin(SDCARD_CS_PIN);
@@ -88,7 +88,7 @@ class SdSource : public irdsp::ByteSource {
   File& f_;
 };
 
-bool loadIRIndex(int idx) {
+FLASHMEM bool loadIRIndex(int idx) {
   if (idx < 0 || idx >= g_numFiles) return false;
   auto& eng = convolver.engine();
   // A previous crossfade may still be running (25 ms max).
@@ -141,7 +141,7 @@ bool loadIRIndex(int idx) {
   return true;
 }
 
-void loadRelative(int step) {
+FLASHMEM void loadRelative(int step) {
   if (g_numFiles == 0) { Serial.println("No IR files."); return; }
   int start = g_current < 0 ? (step > 0 ? -1 : 0) : g_current;
   // Skip over files that fail to load.
@@ -151,7 +151,7 @@ void loadRelative(int step) {
   }
 }
 
-void loadStartupIR() {
+FLASHMEM void loadStartupIR() {
   if (g_numFiles == 0) return;
   for (int i = 0; i < g_numFiles; i++) {
     if (strcasecmp(g_files[i], g_settings.irPath) == 0) {

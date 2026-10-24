@@ -12,7 +12,7 @@ static bool g_meter = false;
 
 static float toDb(float lin) { return lin > 1e-6f ? 20.0f * log10f(lin) : -120.0f; }
 
-void printHelp() {
+FLASHMEM void printHelp() {
   Serial.printf(
       "\nCommands:\n"
       "  l            list IR files\n"
@@ -47,14 +47,14 @@ void printHelp() {
       g_settings.reverbSize, g_settings.reverbTone);
 }
 
-static void printList() {
+FLASHMEM static void printList() {
   if (!irSdOk()) { Serial.println("No SD card."); return; }
   for (int i = 0; i < irCount(); i++)
     Serial.printf("%c %3d  %s\n", i == irCurrent() ? '>' : ' ', i + 1, irPath(i));
   if (irCount() == 0) Serial.println("No .wav files in / or /IR");
 }
 
-static void printStatus() {
+FLASHMEM static void printStatus() {
   auto& eng = convolver.engine();
   const float blockMs = AUDIO_BLOCK_SAMPLES * 1000.0f / AUDIO_SAMPLE_RATE_EXACT;
   Serial.printf("\nIR:        %s\n", irCurrent() >= 0 ? irPath(irCurrent()) : "(none - passthrough)");
@@ -88,7 +88,7 @@ static void printStatus() {
   AudioProcessorUsageMaxReset();
 }
 
-static void handleCommand(char* line) {
+FLASHMEM static void handleCommand(char* line) {
   while (*line == ' ') line++;
   for (char* e = line + strlen(line); e > line && e[-1] == ' ';) *--e = 0;
   if (!*line) return;
@@ -155,7 +155,7 @@ static void handleCommand(char* line) {
   }
 }
 
-void serviceSerial() {
+FLASHMEM void serviceSerial() {
   static char buf[64];
   static int len = 0;
   while (Serial.available()) {
@@ -170,7 +170,7 @@ void serviceSerial() {
   }
 }
 
-void serviceMeter() {
+FLASHMEM void serviceMeter() {
   static uint32_t last = 0;
   if (!g_meter || millis() - last < 200) return;
   last = millis();
