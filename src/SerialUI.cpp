@@ -60,9 +60,9 @@ FLASHMEM void printHelp() {
       "  mix <0-100>  reverb dry/wet, 0 = dry only (now %u)\n"
       "  size <0-100> reverb time (now %u)\n"
       "  tone <0-100> reverb brightness (now %u)\n"
-      "  in <0-15>    line-in sensitivity, 0 = 3.12 Vpp (least sensitive)\n"
-      "  out <13-31>  line-out level, 13 = loudest\n"
-      "  hp <0-100>   headphone volume %%\n"
+      "  in <0-15>    line-in sensitivity, 0 = 3.12 Vpp, least sensitive (now %u)\n"
+      "  out <13-31>  line-out level, 13 = loudest (now %u)\n"
+      "  hp <0-100>   headphone volume (now %d%%)\n"
       "  m            toggle live level meter\n"
       "  s            status (CPU, levels, latency)\n"
       "  r            rescan SD card\n",
@@ -73,7 +73,8 @@ FLASHMEM void printHelp() {
       irdsp::drumStyle(g_settings.drumStyle).name, irdsp::drumKit(g_settings.drumKit).name, crashText(),
       g_settings.drumVolume,
       countText(), g_settings.trainerOn ? "on" : "off", g_settings.reverbOn ? "on" : "off", g_settings.reverbMix,
-      g_settings.reverbSize, g_settings.reverbTone);
+      g_settings.reverbSize, g_settings.reverbTone, g_settings.lineIn, g_settings.lineOut,
+      (int)lroundf(g_settings.hpVolume * 100));
 }
 
 FLASHMEM static void printList() {
@@ -244,12 +245,15 @@ FLASHMEM static void handleCommand(char* line) {
     setReverbTone(atoi(arg));
   } else if (!strcmp(line, "g") && arg) {
     setOutputGainDb((float)atof(arg));
-  } else if (!strcmp(line, "in") && arg) {
-    setLineInLevel(atoi(arg));
-  } else if (!strcmp(line, "out") && arg) {
-    setLineOutLevel(atoi(arg));
-  } else if (!strcmp(line, "hp") && arg) {
-    setHeadphoneVolume(atoi(arg));
+  } else if (!strcmp(line, "in")) {
+    if (arg) setLineInLevel(atoi(arg));
+    else Serial.printf("Line-in level %u\n", g_settings.lineIn);
+  } else if (!strcmp(line, "out")) {
+    if (arg) setLineOutLevel(atoi(arg));
+    else Serial.printf("Line-out level %u\n", g_settings.lineOut);
+  } else if (!strcmp(line, "hp")) {
+    if (arg) setHeadphoneVolume(atoi(arg));
+    else Serial.printf("Headphone volume %d%%\n", (int)lroundf(g_settings.hpVolume * 100));
   } else if (!strcmp(line, "m")) {
     g_meter = !g_meter;
   } else if (!strcmp(line, "s")) {
