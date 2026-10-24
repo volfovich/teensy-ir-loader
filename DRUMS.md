@@ -15,6 +15,7 @@ A small drum machine to practice along with. It plays one of eight built-in styl
 - [Timing, levels, CPU and memory](#timing-levels-cpu-and-memory)
 - [Defaults (`config.h`)](#defaults-configh)
 - [Code and tests](#code-and-tests)
+- [Ideas for later](#ideas-for-later)
 
 ## Quick start
 
@@ -230,3 +231,14 @@ These are used when the EEPROM is blank, and when settings saved by older firmwa
 - **Every style:** its lanes fit, it stays below full scale and it is clearly audible.
 
 To listen on your computer, `make -C test/host render` writes 8 bars of every style, with the count-in, to `test/host/out/drums_*.wav`.
+
+## Ideas for later
+
+None of these are built yet. They're practice features worth adding next:
+
+1. **Swing amount:** a 0–66 % swing control, so offbeat 8ths or rock can go from straight, to a light swing, to a full shuffle. The sequencer would delay every second subdivision by the swing amount.
+2. **Gap trainer:** the drums drop out for 1–2 bars out of every 4 (or another chosen ratio), then come back. If you're still on the grid when they return, your timing is solid.
+3. **Phrase markers:** a crash cymbal on bar 1 and a short fill every 4 or 8 bars, so you don't lose your place in a song form. This needs a crash voice, which can be built from the existing metal and noise sources, and a tom for fills.
+4. **12-bar blues mode:** the shuffle with a bar counter (1–12) in `s` and on the display, plus a fill on the turnaround (bars 11–12), for practicing blues changes.
+5. **Tap tempo:** tap `t` over serial, or later a key on the display, a few times to set the tempo from a song.
+6. **More meters:** a 3/4 waltz and a 12/8 slow blues, a very common practice groove. Both fit the existing style format (3 beats x 4 steps, and 4 beats x 3 steps).
