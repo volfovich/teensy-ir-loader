@@ -23,7 +23,7 @@ test_ui: test_ui.cpp $(UI_DEPS)
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_ui.cpp $(UI_SRC)
 
 render_ui: render_ui.cpp $(UI_DEPS)
-	$(CXX) $(CXXFLAGS) $(INC) -o $@ render_ui.cpp $(UI_SRC)
+	$(CXX) $(CXXFLAGS) $(INC) -o $@ render_ui.cpp $(UI_SRC) -lz
 
 # Renders every OLED screen to out/*.png.
 render: render_ui

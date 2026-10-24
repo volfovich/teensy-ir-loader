@@ -8,20 +8,14 @@
 #include <string>
 #include <vector>
 
+#include <zlib.h>
+
 #include "Canvas.h"
 #include "Menu.h"
 #include "Screens.h"
 #include "ui_fake.h"
 
-// ---- Minimal PNG writer (8-bit grayscale, stored deflate blocks) -------------
-
-static uint32_t crc32(const uint8_t* p, size_t n, uint32_t c = 0xFFFFFFFFu) {
-  for (size_t i = 0; i < n; i++) {
-    c ^= p[i];
-    for (int k = 0; k < 8; k++) c = (c >> 1) ^ (0xEDB88320u & (0u - (c & 1)));
-  }
-  return c;
-}
+// ---- Minimal PNG writer (8-bit grayscale, zlib-compressed) --------------------
 
 static void put32(std::vector<uint8_t>& v, uint32_t x) {
   for (int s = 24; s >= 0; s -= 8) v.push_back((uint8_t)(x >> s));
@@ -32,7 +26,7 @@ static void chunk(std::vector<uint8_t>& out, const char* type, const std::vector
   std::vector<uint8_t> td(type, type + 4);
   td.insert(td.end(), data.begin(), data.end());
   out.insert(out.end(), td.begin(), td.end());
-  put32(out, crc32(td.data(), td.size()) ^ 0xFFFFFFFFu);
+  put32(out, (uint32_t)crc32(0, td.data(), (uInt)td.size()));
 }
 
 static bool writePng(const std::string& path, int w, int h, const std::vector<uint8_t>& gray) {
@@ -41,17 +35,10 @@ static bool writePng(const std::string& path, int w, int h, const std::vector<ui
     raw.push_back(0);  // filter: none
     raw.insert(raw.end(), gray.begin() + (size_t)y * w, gray.begin() + (size_t)(y + 1) * w);
   }
-  std::vector<uint8_t> z = {0x78, 0x01};
-  uint32_t a = 1, b = 0;
-  for (uint8_t c : raw) { a = (a + c) % 65521; b = (b + a) % 65521; }
-  for (size_t i = 0; i < raw.size(); i += 65535) {
-    const size_t n = std::min<size_t>(65535, raw.size() - i);
-    z.push_back(i + n == raw.size() ? 1 : 0);
-    z.push_back((uint8_t)n); z.push_back((uint8_t)(n >> 8));
-    z.push_back((uint8_t)~n); z.push_back((uint8_t)(~n >> 8));
-    z.insert(z.end(), raw.begin() + i, raw.begin() + i + n);
-  }
-  put32(z, (b << 16) | a);
+  uLongf zLen = compressBound((uLong)raw.size());
+  std::vector<uint8_t> z(zLen);
+  if (compress2(z.data(), &zLen, raw.data(), (uLong)raw.size(), 9) != Z_OK) return false;
+  z.resize(zLen);
   std::vector<uint8_t> png = {0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A}, ihdr;
   put32(ihdr, w); put32(ihdr, h);
   ihdr.insert(ihdr.end(), {8, 0, 0, 0, 0});
