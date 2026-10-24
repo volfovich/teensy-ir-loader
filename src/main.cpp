@@ -19,6 +19,7 @@
 
 #include "AudioGraph.h"
 #include "Buttons.h"
+#include "DrumSongs.h"
 #include "IRLibrary.h"
 #include "SerialUI.h"
 #include "Settings.h"
@@ -39,6 +40,8 @@ FLASHMEM void setup() {
 
   scanCard();
   loadStartupIR();
+  // The drum song saved last time (an SD file may have gone: then none).
+  if (g_settings.drumSong && !selectDrumSong(g_settings.drumSong, true)) selectDrumSong(0);
   printHelp();
 }
 

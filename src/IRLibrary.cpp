@@ -4,6 +4,7 @@
 #include <SD.h>
 
 #include "AudioGraph.h"
+#include "DrumSongs.h"
 #include "IRLoader.h"
 #include "Settings.h"
 #include "config.h"
@@ -73,6 +74,7 @@ FLASHMEM void scanCard() {
   for (const char* d : dirs) scanDir(d);
   qsort(g_files, g_numFiles, IR_PATH_MAX, cmpPath);
   Serial.printf("Found %d IR file(s).\n", g_numFiles);
+  scanDrumSongs();
 }
 
 // ---------------------------------------------------------------------------

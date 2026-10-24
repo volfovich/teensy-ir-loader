@@ -8,7 +8,8 @@
 
 Settings g_settings;
 
-static const uint32_t kSettingsMagic = 0x49524C38;  // "IRL8"
+static const uint32_t kSettingsMagic = 0x49524C39;  // "IRL9"
+static const uint32_t kSettingsMagicV8 = 0x49524C38;  // "IRL8": no drum songs
 static const uint32_t kSettingsMagicV7 = 0x49524C37;  // "IRL7": plate reverb only
 static const uint32_t kSettingsMagicV6 = 0x49524C36;  // "IRL6": count-in on/off
 static const uint32_t kSettingsMagicV5 = 0x49524C35;  // "IRL5": no kit or crash
@@ -110,8 +111,12 @@ FLASHMEM void loadSettings() {
     if (g_settings.drumCountIn) g_settings.drumCountIn = DEFAULT_DRUM_COUNT_IN;
   }
   if (g_settings.magic == kSettingsMagicV7) {
-    g_settings.magic = kSettingsMagic;
+    g_settings.magic = kSettingsMagicV8;
     defaultReverb80Settings();
+  }
+  if (g_settings.magic == kSettingsMagicV8) {
+    g_settings.magic = kSettingsMagic;
+    g_settings.drumSong = 0;
   }
   // The style and kit lists can change between firmware versions: one that
   // no longer exists falls back to the default, without resetting the rest.

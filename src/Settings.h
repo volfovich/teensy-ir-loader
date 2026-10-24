@@ -49,6 +49,8 @@ struct Settings {
   uint8_t reverbMod;      // 80s hall: 0 .. 100
   uint8_t reverbEra;      // 80s: 0 .. 100
   uint16_t reverbGateMs;  // 80s gated: 100 .. 600
+  // Added in "IRL9"; older records are upgraded with no song.
+  uint8_t drumSong;       // 0 = none (the style), else 1-based (built-in songs, then /DRUMS)
 };
 
 extern Settings g_settings;

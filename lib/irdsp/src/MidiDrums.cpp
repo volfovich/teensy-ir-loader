@@ -85,7 +85,7 @@ IRDSP_COLD void Reader::skip(uint32_t n) {
 // Shell sort by the packed value (tick, then lane). The hits come mostly in
 // order already; this stays out of RAM1, unlike std::sort.
 IRDSP_COLD void sortEvents(SongEvent* e, uint32_t n) {
-  static const uint32_t kGaps[] = {701, 301, 132, 57, 23, 10, 4, 1};
+  static const uint32_t IRDSP_PROGMEM kGaps[] = {701, 301, 132, 57, 23, 10, 4, 1};
   for (uint32_t gap : kGaps)
     for (uint32_t i = gap; i < n; i++) {
       const SongEvent v = e[i];
@@ -110,8 +110,10 @@ struct Collect {
   int meterCount = 0;
 };
 
+// t (in the file's ticks) to our ticks, rounded. 32-bit only: a 64-bit
+// division would pull a library routine into RAM1.
 IRDSP_COLD uint32_t quantize(uint32_t t, uint32_t ppq) {
-  return (uint32_t)(((uint64_t)t * kSongPpq + ppq / 2) / ppq);
+  return (t / ppq) * kSongPpq + ((t % ppq) * kSongPpq + ppq / 2) / ppq;
 }
 
 // Parses one track. In pass 1 (onlyTrack < 0) it takes channel-10 notes and
