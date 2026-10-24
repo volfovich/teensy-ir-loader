@@ -33,6 +33,6 @@ hatc    7    hat-closed-7.wav  42-SabianRockHatClosed-4.flac   0.30  0.10  -14
 hatc    9    hat-closed-9.wav  42-SabianRockHatClosed-5.flac   0.30  0.10  -14
 hato    7    hat-open-7.wav    46-SabianRockHatSemiOpen-4.flac 0.60  0.15  -14
 ride    7    ride-7.wav        51-ZildjianA24Ride-4.flac       2.00  0.60  -14
-crash   7    crash-7.wav       57-ZildjianK17Crash-4.flac      2.50  0.80  -17
+crash   7    crash-7.wav       57-ZildjianK17Crash-4.flac      2.50  0.80  -16
 tomh    7    tom-high-7.wav    45-Ludwig14Tom-4.flac           0.45  0.20  -5
 toml    7    tom-low-7.wav     41-Ludwig16FloorTom-4.flac      0.45  0.20  -5
