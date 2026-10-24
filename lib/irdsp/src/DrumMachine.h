@@ -88,6 +88,7 @@ class DrumMachine {
     uint8_t vel[kDrumVoices][kMaxSteps] = {};
   };
 
+  void init();  // the constructor's work, kept in flash (IRDSP_COLD)
   void fireStep(uint64_t sample);
   void endBar();
   void swapPattern();

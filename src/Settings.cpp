@@ -3,9 +3,12 @@
 #include <Arduino.h>
 #include <EEPROM.h>
 
+#include "DrumMachine.h"
+
 Settings g_settings;
 
-static const uint32_t kSettingsMagic = 0x49524C34;  // "IRL4"
+static const uint32_t kSettingsMagic = 0x49524C35;  // "IRL5"
+static const uint32_t kSettingsMagicV4 = 0x49524C34;  // "IRL4": no drums
 static const uint32_t kSettingsMagicV3 = 0x49524C33;  // "IRL3": one delay type
 static const uint32_t kSettingsMagicV2 = 0x49524C32;  // "IRL2": no delay fields
 static const uint32_t kSettingsMagicV1 = 0x49524C31;  // "IRL1": no reverb or delay fields
@@ -34,6 +37,17 @@ FLASHMEM static void defaultDelayTypeSettings() {
   g_settings.delayEra = DEFAULT_DELAY_ERA;
 }
 
+FLASHMEM static void defaultDrumSettings() {
+  g_settings.drumStyle = DEFAULT_DRUM_STYLE - 1;
+  g_settings.drumTempo = DEFAULT_DRUM_TEMPO;
+  g_settings.drumVolume = DEFAULT_DRUM_VOLUME;
+  g_settings.drumCountIn = DEFAULT_DRUM_COUNT_IN;
+  g_settings.trainerOn = DEFAULT_TRAINER_ON;
+  g_settings.trainerStep = DEFAULT_TRAINER_STEP;
+  g_settings.trainerEvery = DEFAULT_TRAINER_EVERY;
+  g_settings.trainerTarget = DEFAULT_TRAINER_TARGET;
+}
+
 FLASHMEM static void defaultSettings() {
   memset(&g_settings, 0, sizeof(g_settings));
   g_settings.magic = kSettingsMagic;
@@ -44,6 +58,7 @@ FLASHMEM static void defaultSettings() {
   defaultReverbSettings();
   defaultDelaySettings();
   defaultDelayTypeSettings();
+  defaultDrumSettings();
 }
 
 FLASHMEM void loadSettings() {
@@ -58,8 +73,12 @@ FLASHMEM void loadSettings() {
     defaultDelaySettings();
   }
   if (g_settings.magic == kSettingsMagicV3) {
-    g_settings.magic = kSettingsMagic;
+    g_settings.magic = kSettingsMagicV4;
     defaultDelayTypeSettings();
+  }
+  if (g_settings.magic == kSettingsMagicV4) {
+    g_settings.magic = kSettingsMagic;
+    defaultDrumSettings();
   }
   if (g_settings.magic != kSettingsMagic || g_settings.lineIn > 15 ||
       g_settings.lineOut < 13 || g_settings.lineOut > 31 ||
@@ -71,7 +90,11 @@ FLASHMEM void loadSettings() {
       g_settings.delayTone > 100 || g_settings.delayMod > 100 ||
       g_settings.delayTimeMs < 20 || g_settings.delayTimeMs > DELAY_MAX_MS ||
       g_settings.delayType > 1 || g_settings.delayDuck > 100 || g_settings.delayDrive > 100 ||
-      g_settings.delayEra > 100) {
+      g_settings.delayEra > 100 || g_settings.drumStyle >= irdsp::drumStyleCount() ||
+      g_settings.drumTempo < 40 || g_settings.drumTempo > 240 || g_settings.drumVolume > 100 ||
+      g_settings.drumCountIn > 1 || g_settings.trainerOn > 1 || g_settings.trainerStep < 1 ||
+      g_settings.trainerStep > 20 || g_settings.trainerEvery < 1 || g_settings.trainerEvery > 16 ||
+      g_settings.trainerTarget < 40 || g_settings.trainerTarget > 240) {
     defaultSettings();
   }
   g_settings.irPath[IR_PATH_MAX - 1] = 0;

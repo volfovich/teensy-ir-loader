@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <Audio.h>
 
+#include "DrumMachine.h"
 #include "Settings.h"
 #include "config.h"
 
@@ -48,6 +49,12 @@ FLASHMEM static void applyLevels() {
   convolver.setReverbTone(g_settings.reverbTone / 100.0f);
   convolver.setReverbMix(g_settings.reverbMix / 100.0f);
   convolver.setReverbOn(g_settings.reverbOn);
+  convolver.setDrumStyle(g_settings.drumStyle);
+  convolver.setDrumTempo(g_settings.drumTempo);
+  convolver.setDrumVolume(g_settings.drumVolume / 100.0f);
+  convolver.setDrumCountIn(g_settings.drumCountIn);
+  convolver.setDrumTrainer(g_settings.trainerOn, g_settings.trainerStep, g_settings.trainerEvery,
+                           g_settings.trainerTarget);
 }
 
 FLASHMEM void audioBegin() {
@@ -186,6 +193,59 @@ FLASHMEM void setReverbTone(int percent) {
   convolver.setReverbTone(g_settings.reverbTone / 100.0f);
   scheduleSave();
   Serial.printf("Reverb tone %u%%\n", g_settings.reverbTone);
+}
+
+FLASHMEM void setDrumsPlaying(bool on) {
+  convolver.setDrumsPlaying(on);
+  if (!on) {
+    Serial.println("DRUMS STOP");
+    return;
+  }
+  Serial.printf("DRUMS START: %s, %u BPM%s\n", irdsp::drumStyle(g_settings.drumStyle).title,
+                g_settings.drumTempo, g_settings.drumCountIn ? ", count-in" : "");
+}
+
+FLASHMEM void setDrumStyle(int idx) {
+  g_settings.drumStyle = constrain(idx, 0, irdsp::drumStyleCount() - 1);
+  convolver.setDrumStyle(g_settings.drumStyle);
+  scheduleSave();
+  Serial.printf("Drum style %s%s\n", irdsp::drumStyle(g_settings.drumStyle).title,
+                convolver.drumsPlaying() ? " (from the next bar)" : "");
+}
+
+FLASHMEM void setDrumTempo(int bpm) {
+  g_settings.drumTempo = constrain(bpm, 40, 240);
+  convolver.setDrumTempo(g_settings.drumTempo);
+  scheduleSave();
+  Serial.printf("Tempo %u BPM\n", g_settings.drumTempo);
+}
+
+FLASHMEM void setDrumVolume(int percent) {
+  g_settings.drumVolume = constrain(percent, 0, 100);
+  convolver.setDrumVolume(g_settings.drumVolume / 100.0f);
+  scheduleSave();
+  Serial.printf("Drum volume %u%%\n", g_settings.drumVolume);
+}
+
+FLASHMEM void setDrumCountIn(bool on) {
+  g_settings.drumCountIn = on;
+  convolver.setDrumCountIn(on);
+  scheduleSave();
+  Serial.println(on ? "Count-in on" : "Count-in off");
+}
+
+FLASHMEM void setDrumTrainer(bool on, int step, int every, int target) {
+  g_settings.trainerOn = on;
+  g_settings.trainerStep = constrain(step, 1, 20);
+  g_settings.trainerEvery = constrain(every, 1, 16);
+  g_settings.trainerTarget = constrain(target, 40, 240);
+  convolver.setDrumTrainer(on, g_settings.trainerStep, g_settings.trainerEvery, g_settings.trainerTarget);
+  scheduleSave();
+  if (on)
+    Serial.printf("Speed trainer on: +%u BPM every %u bar%s, up to %u BPM\n", g_settings.trainerStep,
+                  g_settings.trainerEvery, g_settings.trainerEvery == 1 ? "" : "s", g_settings.trainerTarget);
+  else
+    Serial.println("Speed trainer off");
 }
 
 FLASHMEM void setHeadphoneVolume(int percent) {

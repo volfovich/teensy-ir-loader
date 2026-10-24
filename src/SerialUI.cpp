@@ -4,6 +4,7 @@
 #include <Audio.h>
 
 #include "AudioGraph.h"
+#include "DrumMachine.h"
 #include "IRLibrary.h"
 #include "Settings.h"
 #include "config.h"
@@ -30,6 +31,12 @@ FLASHMEM void printHelp() {
       "  dduck <0-100> studio 80s: repeats duck while you play (now %u)\n"
       "  ddrive <0-100> studio 80s: input grit (now %u)\n"
       "  dera <0-100> studio 80s: 0 = 16-bit/16 kHz, 100 = 10-bit/6 kHz (now %u)\n"
+      "  drum         start / stop the drums (now %s)\n"
+      "  bpm <40-240> drum tempo (now %u)\n"
+      "  drum style [n|name]  list the styles / choose one (now %s)\n"
+      "  drum vol <0-100>     drum volume (now %u)\n"
+      "  drum count   toggle the count-in bar (now %s)\n"
+      "  drum train [step every target]  toggle / set the speed trainer (now %s)\n"
       "  rv           toggle reverb (now %s)\n"
       "  mix <0-100>  reverb dry/wet, 0 = dry only (now %u)\n"
       "  size <0-100> reverb time (now %u)\n"
@@ -43,7 +50,9 @@ FLASHMEM void printHelp() {
       g_settings.outGainDb, g_settings.delayOn ? "on" : "off", g_settings.delayMix, DELAY_MAX_MS,
       g_settings.delayTimeMs, g_settings.delayFeedback, g_settings.delayTone, g_settings.delayMod,
       delayTypeName(g_settings.delayType), g_settings.delayDuck, g_settings.delayDrive,
-      g_settings.delayEra, g_settings.reverbOn ? "on" : "off", g_settings.reverbMix,
+      g_settings.delayEra, convolver.drumsPlaying() ? "playing" : "stopped", g_settings.drumTempo,
+      irdsp::drumStyle(g_settings.drumStyle).name, g_settings.drumVolume,
+      g_settings.drumCountIn ? "on" : "off", g_settings.trainerOn ? "on" : "off", g_settings.reverbOn ? "on" : "off", g_settings.reverbMix,
       g_settings.reverbSize, g_settings.reverbTone);
 }
 
@@ -52,6 +61,62 @@ FLASHMEM static void printList() {
   for (int i = 0; i < irCount(); i++)
     Serial.printf("%c %3d  %s\n", i == irCurrent() ? '>' : ' ', i + 1, irPath(i));
   if (irCount() == 0) Serial.println("No .wav files in / or /IR");
+}
+
+FLASHMEM static void printDrums() {
+  if (convolver.drumsPlaying()) {
+    Serial.printf("Drums:     playing %s, %.0f BPM, ", irdsp::drumStyle(g_settings.drumStyle).title,
+                  convolver.drumTempoNow());
+    if (convolver.drumsCountingIn()) Serial.print("counting in");
+    else Serial.printf("bar %d", convolver.drumBar() + 1);
+  } else {
+    Serial.printf("Drums:     stopped, %s, %u BPM", irdsp::drumStyle(g_settings.drumStyle).title,
+                  g_settings.drumTempo);
+  }
+  Serial.printf(", vol %u%%, count-in %s", g_settings.drumVolume, g_settings.drumCountIn ? "on" : "off");
+  if (g_settings.trainerOn)
+    Serial.printf(", trainer +%u every %u bar%s to %u", g_settings.trainerStep, g_settings.trainerEvery,
+                  g_settings.trainerEvery == 1 ? "" : "s", g_settings.trainerTarget);
+  Serial.println();
+}
+
+FLASHMEM static void printStyles() {
+  for (int i = 0; i < irdsp::drumStyleCount(); i++) {
+    const irdsp::DrumStyle& s = irdsp::drumStyle(i);
+    Serial.printf("%c %2d  %-10s %s\n", i == g_settings.drumStyle ? '>' : ' ', i + 1, s.name, s.title);
+  }
+}
+
+// "drum ..." subcommands; arg is the rest of the line (may be null).
+FLASHMEM static void drumCommand(char* arg) {
+  if (!arg || !*arg) {
+    setDrumsPlaying(!convolver.drumsPlaying());
+    return;
+  }
+  char* val = strchr(arg, ' ');
+  if (val) { *val++ = 0; while (*val == ' ') val++; }
+  if (!strcmp(arg, "style")) {
+    if (!val || !*val) { printStyles(); return; }
+    const int idx = irdsp::findDrumStyle(val);
+    if (idx < 0) Serial.println("No such style (type 'drum style').");
+    else setDrumStyle(idx);
+  } else if (!strcmp(arg, "vol") && val) {
+    setDrumVolume(atoi(val));
+  } else if (!strcmp(arg, "count")) {
+    setDrumCountIn(!g_settings.drumCountIn);
+  } else if (!strcmp(arg, "train")) {
+    // Three numbers, or none to toggle. (No sscanf: it would pull about
+    // 30 KB of locale tables into RAM1.)
+    int n[3], count = 0;
+    for (char* p = val; p && *p && count < 3;) {
+      n[count++] = (int)strtol(p, &p, 10);
+      while (*p == ' ') p++;
+    }
+    if (count == 3) setDrumTrainer(true, n[0], n[1], n[2]);
+    else setDrumTrainer(!g_settings.trainerOn, g_settings.trainerStep, g_settings.trainerEvery, g_settings.trainerTarget);
+  } else {
+    printHelp();
+  }
 }
 
 FLASHMEM static void printStatus() {
@@ -70,12 +135,13 @@ FLASHMEM static void printStatus() {
     Serial.printf(", duck %u%%, drive %u%%, era %u%%", g_settings.delayDuck, g_settings.delayDrive,
                   g_settings.delayEra);
   Serial.println();
+  printDrums();
   Serial.printf("Reverb:    %s, mix %u%%, size %u%%, tone %u%%\n",
                 g_settings.reverbOn ? "on" : (convolver.reverbActive() ? "off (tail ringing)" : "off"),
                 g_settings.reverbMix, g_settings.reverbSize, g_settings.reverbTone);
-  Serial.printf("CPU:       IR + effects %.1f%% avg / %.1f%% max (delay %.1f%%, reverb %.1f%%), audio total %.1f%% max\n",
+  Serial.printf("CPU:       IR + effects %.1f%% avg / %.1f%% max (delay %.1f%%, reverb %.1f%%, drums %.1f%%), audio total %.1f%% max\n",
                 convolver.cpuPercent(), convolver.cpuPercentMax(), convolver.delayCpuPercent(),
-                convolver.reverbCpuPercent(), AudioProcessorUsageMax());
+                convolver.reverbCpuPercent(), convolver.drumCpuPercent(), AudioProcessorUsageMax());
   Serial.printf("Memory:    audio blocks %d / %d used (max)\n", AudioMemoryUsageMax(),
                 AUDIO_MEMORY_BLOCKS);
   Serial.printf("Levels:    in %.1f dBFS, out %.1f dBFS peak, clipped samples %lu\n",
@@ -127,6 +193,10 @@ FLASHMEM static void handleCommand(char* line) {
     setDelayDrive(atoi(arg));
   } else if (!strcmp(line, "dera") && arg) {
     setDelayEra(atoi(arg));
+  } else if (!strcmp(line, "drum")) {
+    drumCommand(arg);
+  } else if (!strcmp(line, "bpm") && arg) {
+    setDrumTempo(atoi(arg));
   } else if (!strcmp(line, "rv")) {
     setReverbOn(!g_settings.reverbOn);
   } else if (!strcmp(line, "mix") && arg) {

@@ -100,6 +100,21 @@
 #define REVERB_HIPASS 0.0f     // bass cut on the reverb output
 
 // ---------------------------------------------------------------------------
+// Drum machine (synthesized, mixed into both outputs after the effects; see
+// DRUMS.md). Defaults, changeable over USB serial and saved to EEPROM. The
+// drums always start stopped.
+// ---------------------------------------------------------------------------
+#define DEFAULT_DRUM_STYLE 2        // 1-based: 1 metronome, 2 rock, ... (see `drum style`)
+#define DEFAULT_DRUM_TEMPO 100      // BPM, 40 .. 240
+#define DEFAULT_DRUM_VOLUME 60      // 0 .. 100 (100 = 0 dB)
+#define DEFAULT_DRUM_COUNT_IN 1     // one bar of clicks before the pattern
+// Speed trainer: +STEP BPM every EVERY bars, up to TARGET.
+#define DEFAULT_TRAINER_ON 0
+#define DEFAULT_TRAINER_STEP 5      // 1 .. 20 BPM
+#define DEFAULT_TRAINER_EVERY 4     // 1 .. 16 bars
+#define DEFAULT_TRAINER_TARGET 140  // 40 .. 240 BPM
+
+// ---------------------------------------------------------------------------
 // Hardware
 // ---------------------------------------------------------------------------
 #define SDCARD_CS_PIN 10  // SD slot on the Teensy 4 Audio Shield (Rev D)

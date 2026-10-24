@@ -8,6 +8,7 @@
 //   core   -> delay (mono in, stereo out, dry/wet)           -> dL, dR
 //             (ping-pong or studio 80s, sharing the same lines)
 //   dL, dR -> plate reverb (stereo in, stereo out, dry/wet)  -> out L / R
+//   + drum machine (mono, added to both outputs, never through the effects)
 //
 // Adds smoothed output gain, click-free IR bypass, on/off for each effect
 // (tails ring out when switched off; an idle effect passes its input through
@@ -19,6 +20,7 @@
 #include <AudioStream.h>
 #include <math.h>
 
+#include "DrumMachine.h"
 #include "FxSlot.h"
 #include "PartitionedConvolver.h"
 #include "PlateReverb.h"
@@ -36,7 +38,8 @@ class AudioConvolverIR : public AudioStream {
         studio_(AUDIO_SAMPLE_RATE_EXACT),
         reverb_(AUDIO_SAMPLE_RATE_EXACT),
         dlSlot_(AUDIO_SAMPLE_RATE_EXACT),
-        rvSlot_(AUDIO_SAMPLE_RATE_EXACT) {}
+        rvSlot_(AUDIO_SAMPLE_RATE_EXACT),
+        drums_(AUDIO_SAMPLE_RATE_EXACT) {}
 
   Engine& engine() { return engine_; }
 
@@ -103,6 +106,19 @@ class AudioConvolverIR : public AudioStream {
   // True while the reverb is on or its tail is still ringing out.
   bool reverbActive() const { return rvSlot_.running(); }
 
+  // Drum machine controls (see DrumMachine.h). Style and tempo apply at the
+  // next bar / step; volume 0..1.
+  void setDrumsPlaying(bool on) { if (on) drums_.start(); else drums_.stop(); }
+  void setDrumStyle(int idx) { drums_.setStyle(idx); }
+  void setDrumTempo(float bpm) { drums_.setTempo(bpm); }
+  void setDrumVolume(float v) { drums_.setVolume(v); }
+  void setDrumCountIn(bool on) { drums_.setCountIn(on); }
+  void setDrumTrainer(bool on, int step, int every, int target) { drums_.setTrainer(on, step, every, target); }
+  bool drumsPlaying() const { return drums_.playing(); }
+  bool drumsCountingIn() const { return drums_.countingIn(); }
+  float drumTempoNow() const { return drums_.tempoNow(); }
+  int drumBar() const { return drums_.bar(); }
+
   // Meters: return the peak (linear, 1.0 = full scale) since the last call.
   float takeInputPeak() { float p = inPeak_; inPeak_ = 0.0f; return p; }
   float takeOutputPeak() { float p = outPeak_; outPeak_ = 0.0f; return p; }
@@ -114,6 +130,7 @@ class AudioConvolverIR : public AudioStream {
   // Shares of the above spent in the delay and the reverb.
   float delayCpuPercent() const { return cyclesToPercent(dlSlot_.cyclesAvg()); }
   float reverbCpuPercent() const { return cyclesToPercent(rvSlot_.cyclesAvg()); }
+  float drumCpuPercent() const { return cyclesToPercent(drumCyclesAvg_); }
   void resetCpuMax() { cyclesMax_ = 0; }
 
   void update(void) override {
@@ -164,22 +181,28 @@ class AudioConvolverIR : public AudioStream {
     const float* fl = reverbed ? ol : sl;
     const float* fr = reverbed ? orr : sr;
 
+    // Drums, added to both outputs below (nullptr while idle).
+    const uint32_t t3 = ARM_DWT_CYCCNT;
+    float drum[B];
+    const float* add = drums_.process(drum, B) ? drum : nullptr;
+    drumCyclesAvg_ = drumCyclesAvg_ + ((float)(ARM_DWT_CYCCNT - t3) - drumCyclesAvg_) * 0.01f;
+
     float opk = outPeak_;
     uint32_t clips = 0;
     audio_block_t* outL = allocate();
     if (!outL) return;
     if (!delayed && !reverbed) {
-      // Effects idle: the dry signal goes to both outputs unchanged.
-      toInt16(y, outL->data, opk, clips);
+      // Effects idle: the dry signal (plus drums) goes to both outputs.
+      toInt16(y, add, outL->data, opk, clips);
       transmit(outL, 0);
       transmit(outL, 1);
       release(outL);
     } else {
       audio_block_t* outR = allocate();
-      toInt16(fl, outL->data, opk, clips);
+      toInt16(fl, add, outL->data, opk, clips);
       transmit(outL, 0);
       if (outR) {
-        toInt16(fr, outR->data, opk, clips);
+        toInt16(fr, add, outR->data, opk, clips);
         transmit(outR, 1);
         release(outR);
       } else {
@@ -207,10 +230,11 @@ class AudioConvolverIR : public AudioStream {
     return target > cur ? fminf(cur + step, target) : fmaxf(cur - step, target);
   }
 
-  // Clips to full scale (counting clipped samples) and converts to int16.
-  static void toInt16(const float* v, int16_t* out, float& peak, uint32_t& clips) {
+  // Adds add (if any), clips to full scale (counting clipped samples) and
+  // converts to int16.
+  static void toInt16(const float* v, const float* add, int16_t* out, float& peak, uint32_t& clips) {
     for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++) {
-      float s = v[i];
+      float s = add ? v[i] + add[i] : v[i];
       const float a = fabsf(s);
       peak = fmaxf(peak, a);
       if (a > 0.99997f) {
@@ -348,6 +372,8 @@ class AudioConvolverIR : public AudioStream {
   irdsp::StudioDelay studio_;
   irdsp::PlateReverb reverb_;
   irdsp::FxSlot<AUDIO_BLOCK_SAMPLES> dlSlot_, rvSlot_;
+  irdsp::DrumMachine drums_;
+  volatile float drumCyclesAvg_ = 0.0f;
   bool dlClearing_ = false, rvClearing_ = false;  // audio interrupt only
   // Delay type switching (audio interrupt only, except dlType_).
   volatile int dlType_ = kPingPong;

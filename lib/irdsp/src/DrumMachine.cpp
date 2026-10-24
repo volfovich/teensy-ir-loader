@@ -36,6 +36,11 @@ inline float softClip(float x) {
 
 DrumMachine::DrumMachine(float sampleRate)
     : fs_(sampleRate), hzToInc_(4294967296.0f / sampleRate), sin_(lfoSineTable()) {
+  init();
+}
+
+// GCC can't put a constructor in flash, so its work is done here.
+IRDSP_COLD void DrumMachine::init() {
   kickAmpK_ = decayK(0.6f, fs_);
   kickPitchK_ = decayK(0.12f, fs_);
   kickClickK_ = decayK(0.012f, fs_);
