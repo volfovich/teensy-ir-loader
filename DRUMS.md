@@ -335,7 +335,7 @@ The source has 5 velocity layers per drum; layers 1–5 are velocities 1, 3, 5, 
 | Closed hat | Sabian Rock hat (2, 3, 4, 5 → 3, 5, 7, 9) | 0.3 s | 103 KB |
 | Open hat | Sabian Rock hat, semi-open (4 → 7) | 0.6 s | 50 KB |
 | Ride | Zildjian A 24" ride (4 → 7) | 2.0 s | 172 KB |
-| Crash | Zildjian K 17" crash (4 → 7), dark and smooth, levelled 12 dB below the kick | 2.5 s | 215 KB |
+| Crash | Zildjian K 17" crash (4 → 7), dark and smooth, peaking at −17 dBFS (14 dB under the kick) | 2.5 s | 215 KB |
 | Rack tom | Ludwig 14" tom (4 → 7) | 0.45 s | 39 KB |
 | Floor tom | Ludwig 16" floor tom (4 → 7) | 0.45 s | 39 KB |
 
