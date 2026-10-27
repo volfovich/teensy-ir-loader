@@ -259,7 +259,7 @@ Every serial command has a place:
 | | Style | 1–8, shown by name | `setDrumStyle` | `drum style` |
 | | Song | off or 1–n, shown by name | `selectDrumSong` | `drum song` |
 | | Loop from / Loop to (with a song) | off or 1–bars / 1–bars | `setDrumLoop` | `drum loop` |
-| | Kit | 1–3, shown by name | `setDrumKit` | `drum kit` |
+| | Kit | 1–2, shown by name | `setDrumKit` | `drum kit` |
 | | Crash | push steps off / 2 / 4 / 8 / 16 bars | `setDrumCrash` | `drum crash` |
 | | Tempo | 40–240 BPM, 1 | `setDrumTempo` | `bpm` |
 | | Volume | 0–100 %, 1 | `setDrumVolume` | `drum vol` |

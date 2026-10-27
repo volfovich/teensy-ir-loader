@@ -128,7 +128,7 @@ FLASHMEM void loadSettings() {
   // no longer exists falls back to the default, without resetting the rest.
   if (g_settings.magic == kSettingsMagic) {
     if (g_settings.drumStyle >= irdsp::drumStyleCount()) g_settings.drumStyle = DEFAULT_DRUM_STYLE - 1;
-    if (g_settings.drumKit >= irdsp::drumKitCount()) g_settings.drumKit = 0;
+    if (g_settings.drumKit >= irdsp::drumKitCount()) g_settings.drumKit = DEFAULT_DRUM_KIT - 1;
     const uint8_t c = g_settings.drumCrash;
     if (c != 0 && c != 2 && c != 4 && c != 8 && c != 16) g_settings.drumCrash = DEFAULT_DRUM_CRASH;
   }

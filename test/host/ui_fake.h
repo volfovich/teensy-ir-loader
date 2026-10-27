@@ -35,8 +35,8 @@ struct FakeHost : ui::MenuHost {
     return names[i < 0 || i > 5 ? 0 : i];
   }
   static const char* kitName(int i) {
-    static const char* names[] = {"synth", "rock (AVL)", "black pearl"};
-    return names[i < 0 || i > 2 ? 0 : i];
+    static const char* names[] = {"synth", "rock (AVL)"};
+    return names[i < 0 || i > 1 ? 0 : i];
   }
   int get(uint8_t id) override {
     if (id == ui::kIsStudioDelay) return v[ui::kDelayType] == 1;

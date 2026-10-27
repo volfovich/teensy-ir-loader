@@ -507,13 +507,14 @@ static void testRealKits() {
   }
   check(ok, "samples start and end at 0, onset within 2 ms", irdsp::drumKitCount());
 
-  // Layers: 2 kick, 3 snare, 4 closed hat; within a lane the peaks follow
-  // the velocities (peak / vel equal within 0.5 dB).
+  // Layers: 1-4 per sampled lane, with a kick, snare and closed hat; within a
+  // lane the peaks follow the velocities (peak / vel equal within 0.5 dB).
   bool layers = true, levels = true;
   for (int k = 1; k < irdsp::drumKitCount(); k++) {
     const irdsp::DrumKit& kit = irdsp::drumKit(k);
-    layers = layers && kit.count[irdsp::kKick] == 2 && kit.count[irdsp::kSnare] == 3 && kit.count[irdsp::kHatClosed] == 4;
+    layers = layers && kit.count[irdsp::kKick] && kit.count[irdsp::kSnare] && kit.count[irdsp::kHatClosed];
     for (int v = 0; v < irdsp::kDrumVoices; v++) {
+      layers = layers && kit.count[v] <= 4;
       double lo = 1e9, hi = 0;
       for (int j = 0; j < kit.count[v]; j++) {
         const irdsp::DrumSample& smp = kit.samples[kit.first[v] + j];
@@ -527,7 +528,7 @@ static void testRealKits() {
   bool toms = true;
   for (int k = 1; k < irdsp::drumKitCount(); k++)
     toms = toms && irdsp::drumKit(k).count[irdsp::kTomHi] == 1 && irdsp::drumKit(k).count[irdsp::kTomLo] == 1;
-  check(layers, "velocity layers: 2 kick, 3 snare, 4 closed hat", layers);
+  check(layers, "velocity layers: 1-4 per lane, kick, snare and closed hat sampled", layers);
   check(toms, "every recorded kit has a rack and a floor tom", toms);
   check(levels, "  ... each layer's peak follows its velocity", levels);
 
@@ -557,7 +558,7 @@ static void testRealKits() {
     std::snprintf(what, sizeof(what), "%s: hats vs kick + snare in rock (dB)", irdsp::drumKit(k).name);
     check(db < -6.0, what, db);
   }
-  check(irdsp::findDrumKit("ROCK") == 1 && irdsp::findDrumKit("pearl") == 2 && irdsp::findDrumKit("1") == 0 &&
+  check(irdsp::findDrumKit("ROCK") == 1 && irdsp::findDrumKit("2") == 1 && irdsp::findDrumKit("1") == 0 &&
             irdsp::findDrumKit("jazz") == -1,
         "find a kit by name (any case) or number", 0);
 
@@ -589,14 +590,17 @@ static void testBusLoudness() {
       rms[c] = 10 * std::log10(e / n);
     }
     const bool sampled = irdsp::drumKit(k).samples != nullptr;
-    const double minDb = sampled ? -20.0 : -22.0, maxDb = sampled ? -14.0 : -15.0;
+    // The rock kit's own kick, snare and hat are short and kept at their own
+    // level, so it sits about 5 dB under synth (more drum volume makes up).
+    const double minDb = sampled ? -25.0 : -22.0, maxDb = sampled ? -14.0 : -15.0;
     char what[96];
     std::snprintf(what, sizeof(what), "%s kit: RMS %.1f / %.1f / %.1f dBFS (Comp 0 / 40 / 100)", irdsp::drumKit(k).name,
                   rms[0], rms[1], rms[2]);
     // Comp changes the character (body, sustain, flatter hits), not much
-    // the level: all three within 2 dB, and in range at the default.
+    // the level: all three within 2 dB (3.5 for the quieter sampled kit,
+    // which the compressor lifts more), and in range at the default.
     const double spread = std::max(rms[0], std::max(rms[1], rms[2])) - std::min(rms[0], std::min(rms[1], rms[2]));
-    check(spread <= 2.0 && rms[1] >= minDb && rms[1] <= maxDb, what, rms[1]);
+    check(spread <= (sampled ? 3.5 : 2.0) && rms[1] >= minDb && rms[1] <= maxDb, what, rms[1]);
     check(peak <= 0.945, "  ... peaks at the limiter's ceiling (-0.5 dBFS)", peak);
     check(crest0 >= 15.5, "  ... Comp 0: natural dynamics (crest factor >= 15.5 dB)", crest0);
   }

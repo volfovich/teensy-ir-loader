@@ -1,4 +1,5 @@
-# The "rock" kit: AVL Drumkits "Red Zeppelin" (CC-BY-SA 3.0, see CREDITS.md).
+# The "rock" kit: our own kick, snare and closed hi-hat (originals/), and the
+# rest from the AVL Drumkits "Red Zeppelin" (CC-BY-SA 3.0, see CREDITS.md).
 #
 # tools/import_kit.py builds the WAVs here from the source samples;
 # tools/make_kits.py compiles the WAVs into the firmware.
@@ -12,8 +13,10 @@
 #            velocities 1, 3, 5, 7, 9). A hit plays the sample nearest its
 #            velocity, scaled by hit velocity / sample velocity.
 #   max/fade the length kept and the fade-out at its end, in seconds
+#   source   a file in this folder (originals/Kick1.wav), or else a file
+#            under the `source` URL
 #   peak     the lane's level at velocity 9 (dBFS); each sample peaks at
-#            peak x vel / 9
+#            peak x vel / 9. `-` keeps the sample's own level.
 
 name   rock
 order  1
@@ -21,16 +24,10 @@ title  rock (AVL)
 source https://raw.githubusercontent.com/studiorack/avl-drumkits/main/Samples/
 
 # lane  vel  file              source                          max   fade  peak
-kick    7    kick-7.wav        36-Ludwig26Kick-4.flac          0.80  0.30  -3
-kick    9    kick-9.wav        36-Ludwig26Kick-5.flac          0.80  0.30  -3
-snare   5    snare-5.wav       38-PorkpieSnare-3.flac          0.60  0.20  -4
-snare   7    snare-7.wav       38-PorkpieSnare-4.flac          0.60  0.20  -4
-snare   9    snare-9.wav       38-PorkpieSnare-5.flac          0.60  0.20  -4
+kick    9    kick-9.wav        originals/Kick1.wav             0.30  0.02  -
+snare   9    snare-9.wav       originals/Snare1.wav            0.30  0.02  -
 rim     7    rim-7.wav         37-Sidestick2-4.flac            0.30  0.10  -10
-hatc    3    hat-closed-3.wav  42-SabianRockHatClosed-2.flac   0.30  0.10  -14
-hatc    5    hat-closed-5.wav  42-SabianRockHatClosed-3.flac   0.30  0.10  -14
-hatc    7    hat-closed-7.wav  42-SabianRockHatClosed-4.flac   0.30  0.10  -14
-hatc    9    hat-closed-9.wav  42-SabianRockHatClosed-5.flac   0.30  0.10  -14
+hatc    9    hat-closed-9.wav  originals/Closed1.wav           0.30  0.02  -
 hato    7    hat-open-7.wav    46-SabianRockHatSemiOpen-4.flac 0.60  0.15  -14
 ride    7    ride-7.wav        51-ZildjianA24Ride-4.flac       2.00  0.60  -14
 crash   7    crash-7.wav       57-ZildjianK17Crash-4.flac      2.50  0.80  -16

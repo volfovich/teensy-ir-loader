@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Builds a drum kit's WAVs from its source samples (run by hand, once).
 
-For each sample line in kits/<kit>/kit.txt it downloads the source file
-(kit.txt's `source` URL + the file name) unless it is already in the cache,
-decodes it (FLAC needs the `flac` tool: brew install flac), and writes a
-16-bit mono 44.1 kHz WAV into the kit folder:
+For each sample line in kits/<kit>/kit.txt it reads the source file: a
+file in the kit folder (originals/Kick1.wav), or else kit.txt's `source` URL
++ the file name, downloaded unless it is already in the cache. It decodes it
+(FLAC needs the `flac` tool: brew install flac) and writes a 16-bit mono
+44.1 kHz WAV into the kit folder:
 
   - the leading silence is trimmed, so the hit starts on its step (0.5 ms
     before the onset, faded in)
@@ -13,6 +14,7 @@ decodes it (FLAC needs the `flac` tool: brew install flac), and writes a
   - each sample peaks at the lane's `peak` (dBFS) x velocity / 9, so a layer
     played at its own velocity has that velocity's level (the engine scales
     a hit by its velocity / the layer's)
+  - with `peak -` the sample keeps its own level
 
   python3 tools/import_kit.py kits/rock [--cache DIR]
 
@@ -87,13 +89,17 @@ def main():
     kit, samples = read_kit(folder)
     shaped = []
     for s in samples:
-        src = os.path.join(cache, s["source"])
-        fetch(kit["source"] + s["source"], src)
+        src = os.path.join(folder, s["source"])
+        if not os.path.isfile(src):
+            src = os.path.join(cache, s["source"])
+            fetch(kit["source"] + s["source"], src)
         rate, x = decode(src)
         if rate != FS:
             sys.exit("%s: %d Hz; only %d Hz sources for now" % (s["source"], rate, FS))
         shaped.append(shape(x, rate, s))
     for i, s in enumerate(samples):
+        if s["peak"] is None:
+            continue
         gain = 10 ** (s["peak"] / 20) * s["vel"] / 9 / max(abs(v) for v in shaped[i])
         shaped[i] = [v * gain for v in shaped[i]]
     total = 0

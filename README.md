@@ -38,8 +38,8 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
 - **Practice drum machine** (details in [DRUMS.md](DRUMS.md)):
   - **Songs:** five built-in 32-bar songs in the style of classic rock songs, and any General MIDI drum file (`.mid`) copied to `/DRUMS` on the SD card, with section looping.
   - Eight one-bar styles at 40–240 BPM, with sample-accurate timing: metronome, rock, three practice beats (hat only on the offbeat 8ths, offbeat 16ths, or triplets), pop, blues shuffle and 6/8 ballad.
-  - Three kits:
-    - two recorded acoustic kits, played from flash: the AVL Drumkits "Red Zeppelin" (rock) and "Black Pearl" (CC BY-SA 3.0).
+  - Two kits:
+    - a recorded acoustic kit, played from flash: our own kick, snare and closed hi-hat, with cymbals, rim and toms from the AVL Drumkits "Red Zeppelin" (CC BY-SA 3.0).
     - a synthesized kit.
   - Crash accents on beat 1 of every 2, 4, 8 or 16 bars.
   - Played like a drummer: velocities that follow the groove (softer hats under the snare), recorded velocity layers, a little random variation, and stereo panning from the drummer's seat.
@@ -113,7 +113,7 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `drum` | Start / stop the drum machine (count-in, then the groove). All drum commands are explained in [DRUMS.md](DRUMS.md#controls). |
 | `bpm 40..240` | Drum tempo |
 | `drum style [n\|name]` | List the styles / choose one (from the next bar while playing) |
-| `drum kit [n\|name]` | List the kits / choose one (synth, rock, pearl) |
+| `drum kit [n\|name]` | List the kits / choose one (synth, rock) |
 | `drum song [n\|name\|off]` | List the songs (built-in + `/DRUMS/*.mid`) / play one instead of the style |
 | `drum loop <a> <b>` / `drum loop off` | Loop bars a–b of the song |
 | `drum comp 0..100` | Drum-bus compression: 0 = natural, 100 = squashed |
@@ -207,7 +207,7 @@ lib/irdsp/src/              portable DSP core (no Arduino dependencies)
   irdsp_blocks.h            shared shelving filter, biquad filters, Hermite read, LFO and mix law
   irdsp_fft.h               small radix-2 FFT
   IRLoader.{h,cpp}          WAV parser, resampler, IR trimming and normalization
-kits/rock/, kits/pearl/     the recorded drum kits (WAVs, kit.txt, credits)
+kits/rock/                  the recorded drum kit (WAVs, kit.txt, credits, our originals)
 songs/                      the built-in drum songs (text, compiled in)
 tools/                      drum kit tools: import_kit.py (build a kit's WAVs), make_kits.py (compile kits in)
 test/host/                  PC tests for the DSP core
