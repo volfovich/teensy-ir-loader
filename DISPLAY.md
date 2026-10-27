@@ -226,6 +226,14 @@ OUT #######.....|.CLIP
   - The clip counter from `convolver.clipCount()` also triggers it, so short clips aren't missed between screen updates.
 - **Update rate:** 20–25 Hz, and only rows 6 and 7 are sent. Two 128-byte pages take about 7 ms of I2C at 400 kHz, sent one page per `loop()` pass. This doesn't affect the audio, which runs in its own interrupt.
 
+**Cost of meters that move all the time:**
+
+- **Audio:** none. The audio runs in its own interrupt, which always takes priority over `loop()`, where all the display work happens. The meters can delay `loop()` (serial, saving, the start of an IR load) by one page flush of about 3.3 ms, but never the audio.
+- **I2C:** only pages 6–7 are redrawn at the meter rate. That is about 50 pages a second, roughly 165 ms of I2C time per second, one page per `loop()` pass. The rest of the home screen is redrawn only when something on it changes (a beat dot, a setting).
+- **Interrupt:** the readings come from the display peak pair, two `max` operations per block.
+- **RAM1:** none. The UI code is `UI_COLD` and runs from flash, and the frame buffer is in RAM2.
+- **The real risk is noise, not CPU.** The SSD1306's charge pump draws a current that changes with the number of lit pixels. On the 3.3 V rail, that could be heard as a faint whine on the line out or headphones, and moving meters change it all the time. See [Testing](#testing), *Noise*.
+
 ### Full-screen meter (Menu → Meter)
 
 This screen is for setting the input level (the procedure in the README's *Level and safety* section) without a computer.
@@ -478,6 +486,12 @@ Each step builds and runs on its own, so steps can be tested on the hardware one
 
 - Play hard and compare the OLED meter with the serial `m` meter. They should agree within about 1 dB.
 - Drive the input into clipping. `CLIP` should latch on the screen.
+
+**Noise**
+
+- Listen on headphones with no guitar, high gain, and the meters moving, then with the display blanked. There should be no whine that follows the display.
+- If there is, add a 10 µF + 100 nF capacitor at the module's VCC pin, or feed the module from its own 3.3 V regulator.
+- A firmware fallback: update the meters at 10 Hz, or show them only while a level is near clipping.
 
 **Persistence**
 
