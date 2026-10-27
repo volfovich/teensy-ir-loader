@@ -21,7 +21,7 @@ struct DrumSample {
 
 struct DrumKit {
   char name[10];   // command name ("rock")
-  char title[14];  // display name ("rock (AVL)")
+  char title[14];  // display name, on the OLED and in messages
   // Per lane, the range in samples[] (sorted by velocity); count 0 =
   // synthesized.
   uint8_t first[kDrumVoices], count[kDrumVoices];

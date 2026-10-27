@@ -35,7 +35,7 @@ struct FakeHost : ui::MenuHost {
     return names[i < 0 || i > 5 ? 0 : i];
   }
   static const char* kitName(int i) {
-    static const char* names[] = {"synth", "rock (AVL)"};
+    static const char* names[] = {"synth", "rock"};
     return names[i < 0 || i > 1 ? 0 : i];
   }
   int get(uint8_t id) override {
@@ -51,7 +51,7 @@ struct FakeHost : ui::MenuHost {
     (void)lo;
     if (id == ui::kDelayTime) *hi = timeMax;
     if (id == ui::kDrumStyle) *hi = 7;
-    if (id == ui::kDrumKit) *hi = 2;
+    if (id == ui::kDrumKit) *hi = 1;
     if (id == ui::kDrumSong) *hi = 5;
     if (id == ui::kDrumLoopFrom || id == ui::kDrumLoopTo) *hi = 32;
   }

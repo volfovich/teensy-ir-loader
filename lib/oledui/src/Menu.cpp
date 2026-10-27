@@ -136,7 +136,7 @@ static const MenuItem UI_PROGMEM kDrumItems[] = {
     {kLSong, K::kValue, kDrumSong, 0, 0, 5, 1, U::kNone, kNoItem, nullptr},
     {kLLoopFrom, K::kValue, kDrumLoopFrom, 0, 0, 32, 1, U::kNone, kIsDrumSong, nullptr},
     {kLLoopTo, K::kValue, kDrumLoopTo, 0, 1, 32, 1, U::kNone, kIsDrumSong, nullptr},
-    {kLKit, K::kValue, kDrumKit, 0, 0, 2, 1, U::kOneBased, kNoItem, nullptr},
+    {kLKit, K::kValue, kDrumKit, 0, 0, 1, 1, U::kOneBased, kNoItem, nullptr},
     {kLCrash, K::kChoice, kDrumCrash, 0, 0, 4, 1, U::kNone, kNoItem, kCrashNames},
     {kLTempo, K::kValue, kDrumTempo, 0, 40, 240, 1, U::kBpm, kNoItem, nullptr},
     {kLVolume, K::kValue, kDrumVolume, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},

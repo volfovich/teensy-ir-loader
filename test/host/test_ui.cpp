@@ -205,7 +205,7 @@ static void testDrumsPage() {
   check(m.current()->id == ui::kDrumKit, "Kit after Style and Song", m.current()->id);
   m.push();
   m.turn(5, 1000);
-  check(h.v[ui::kDrumKit] == 2, "  ... kit range from MenuHost::limits (3 kits)", h.v[ui::kDrumKit]);
+  check(h.v[ui::kDrumKit] == 1, "  ... kit range from MenuHost::limits (2 kits)", h.v[ui::kDrumKit]);
   m.turn(-2, 2000);
   m.push();
   check(h.v[ui::kDrumKit] == 0, "  ... rock -> synth", h.v[ui::kDrumKit]);

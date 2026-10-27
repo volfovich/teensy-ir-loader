@@ -20,7 +20,7 @@
 
 name   rock
 order  1
-title  rock (AVL)
+title  rock
 source https://raw.githubusercontent.com/studiorack/avl-drumkits/main/Samples/
 
 # lane  vel  file              source                          max   fade  peak
