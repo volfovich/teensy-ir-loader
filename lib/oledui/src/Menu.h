@@ -46,7 +46,14 @@ enum ItemId : uint8_t {
   kIsDrumSong,     // 1 when a drum song is selected
   // Screens opened from the menu (their row shows MenuHost::valueText).
   kScreenIR, kScreenMeter, kScreenStatus,
+  // Actions of the panel's screens, sent with MenuHost::set.
+  kIrLoad,      // load IR number `value` (0-based)
+  kIrRescan,    // rescan the SD card
+  kMeterReset,  // reset the clip counter and the peak holds
 };
+
+// The pages of menuPages().
+enum MenuPageId : uint8_t { kPageTop, kPageDelay, kPageReverb, kPageLevels, kPageDrums, kPageTrainer };
 
 enum class Kind : uint8_t {
   kSubmenu,  // push enters page `sub`; shows `id` (if any) as ON/OFF
@@ -114,7 +121,9 @@ class Menu {
 
   Menu(const MenuPage* pages, MenuHost& host) : pages_(pages), host_(host) {}
 
-  void open();  // to the top level, cursor on the first item
+  // At a page (the top level by default), cursor on its first item. BACK
+  // from that page leaves the menu.
+  void open(int page = kPageTop);
   Result turn(int detents, uint32_t nowMs);
   Result push();
   Result back();

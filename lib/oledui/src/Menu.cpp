@@ -83,10 +83,10 @@ using U = Unit;
 
 static const MenuItem UI_PROGMEM kTop[] = {
     {kLIr, K::kScreen, kScreenIR, 0, 0, 0, 0, U::kNone, kNoItem, nullptr},
-    {kLDelay, K::kSubmenu, kDelayOn, 1, 0, 0, 0, U::kNone, kNoItem, nullptr},
-    {kLReverb, K::kSubmenu, kReverbOn, 2, 0, 0, 0, U::kNone, kNoItem, nullptr},
-    {kLDrums, K::kSubmenu, kDrumsPlay, 4, 0, 0, 0, U::kNone, kNoItem, nullptr},
-    {kLLevels, K::kSubmenu, kNoItem, 3, 0, 0, 0, U::kNone, kNoItem, nullptr},
+    {kLDelay, K::kSubmenu, kDelayOn, kPageDelay, 0, 0, 0, U::kNone, kNoItem, nullptr},
+    {kLReverb, K::kSubmenu, kReverbOn, kPageReverb, 0, 0, 0, U::kNone, kNoItem, nullptr},
+    {kLDrums, K::kSubmenu, kDrumsPlay, kPageDrums, 0, 0, 0, U::kNone, kNoItem, nullptr},
+    {kLLevels, K::kSubmenu, kNoItem, kPageLevels, 0, 0, 0, U::kNone, kNoItem, nullptr},
     {kLBypass, K::kToggle, kBypass, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
     {kLMeter, K::kScreen, kScreenMeter, 0, 0, 0, 0, U::kNone, kNoItem, nullptr},
     {kLStatus, K::kScreen, kScreenStatus, 0, 0, 0, 0, U::kNone, kNoItem, nullptr},
@@ -142,7 +142,7 @@ static const MenuItem UI_PROGMEM kDrumItems[] = {
     {kLVolume, K::kValue, kDrumVolume, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
     {kLComp, K::kValue, kDrumComp, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
     {kLCountIn, K::kChoice, kDrumCountIn, 0, 0, 4, 1, U::kNone, kNoItem, kCountNames},
-    {kLTrainer, K::kSubmenu, kTrainerOn, 5, 0, 0, 0, U::kNone, kNoItem, nullptr},
+    {kLTrainer, K::kSubmenu, kTrainerOn, kPageTrainer, 0, 0, 0, U::kNone, kNoItem, nullptr},
 };
 
 // Speed trainer: all settings on one screen, so they can be set up before
@@ -155,6 +155,7 @@ static const MenuItem UI_PROGMEM kTrainerItems[] = {
 };
 
 #define UI_PAGE(title, items) {title, items, sizeof(items) / sizeof(items[0])}
+// In MenuPageId order.
 static const MenuPage UI_PROGMEM kPages[] = {
     UI_PAGE(kMenu, kTop),
     UI_PAGE(kDelay, kDelayItems),
@@ -250,9 +251,9 @@ UI_COLD void Menu::range(const MenuItem& it, int* lo, int* hi) {
   host_.limits(it.id, lo, hi);
 }
 
-UI_COLD void Menu::open() {
+UI_COLD void Menu::open(int page) {
   depth_ = 0;
-  stack_[0] = Level{0, 0, 0};
+  stack_[0] = Level{(uint8_t)page, 0, 0};
   editing_ = false;
   screen_ = kNoItem;
 }

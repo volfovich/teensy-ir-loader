@@ -2,7 +2,7 @@
 
 This plan adds a 0.96" SSD1306 OLED module with a rotary encoder (with push switch) and two buttons. It replaces the five optional buttons and makes every serial-terminal function available from the front panel. The serial UI keeps working alongside it.
 
-Nothing here is implemented yet. This file is the design to agree on before writing code.
+The UI itself is written and tested on the PC: `lib/oledui` draws every screen and runs the menu and the panel's controls (`test/host/test_ui.cpp`, and `render_ui` renders the screens to PNG). The display driver, the encoder and keys, and the wiring into the firmware are not done yet ([Implementation steps](#implementation-steps)).
 
 ## Summary
 
@@ -67,13 +67,15 @@ Notes:
 
 ### Home screen
 
+The home screen shows the chain as blocks, IR › DLY › REV + DRM, with a cursor under one of them.
+
 | Input | Action |
 |---|---|
-| Turn encoder | Browse IRs. The name shows at once, and the IR **loads 300 ms after you stop turning**, so a fast spin doesn't load every file on the way. |
-| Push encoder | Open the menu |
-| Hold encoder (≥ 0.6 s) | Toggle bypass |
-| CONFIRM | Delay on/off |
-| BACK | Reverb on/off |
+| Turn encoder | Move the cursor between the blocks |
+| Push encoder | Open the block: the [IR list](#ir-list) for IR, the Delay, Reverb or Drums page of the menu for the others. BACK from there comes back home, with the cursor where it was. |
+| Hold encoder (≥ 0.6 s) | The block under the cursor on/off: IR = bypass, DRM = drums start/stop |
+| CONFIRM | Drums start/stop, wherever the cursor is |
+| BACK | Open the menu (Levels, Meter, Status, Bypass …) |
 
 ### Menus
 
@@ -83,7 +85,15 @@ Notes:
 | Push / CONFIRM | Enter the submenu, start editing, or run the action | Keep the value and stop editing |
 | BACK | Up one level (from the top level, back home) | Cancel: restore the value from before editing |
 
-After 30 s without input, the display returns to the home screen.
+### IR list, Meter, Status
+
+| Input | IR list | Meter | Status |
+|---|---|---|---|
+| Turn | Move the cursor | Line-in sensitivity | — |
+| Push / CONFIRM | Load the IR under the cursor (or rescan); the list stays open | CONFIRM: reset the clip counter and peak holds | — |
+| BACK | Back to where it was opened from (home or the menu) | Back to the menu | Back to the menu |
+
+After 30 s without input, the display returns to the home screen. The meter screen stays, because it is used while playing.
 
 **Acceleration:** when detents come less than 40 ms apart, each step counts ×5. This matters for the delay time (20–750 ms in 5 ms steps) and the output gain.
 
@@ -97,20 +107,28 @@ The small font is 6x8 px, giving 21 characters x 8 rows. The 2x font is 12x16 px
 
 ```
 ┌─────────────────────┐
-│ 3/12     BYP DLY REV│  row 0: IR number / count, badges (inverted when on)
-│V30 SM57             │  rows 1-2: IR name in the 2x font (first 10 characters)
-│                     │
-│Mesa 4x12 close      │  row 3: rest of the name, small font
-│DLY 380ms   REV 25%  │  row 4: main effect values
-│                     │  row 5
+│ IR → DLY → REV + DRM│  row 0: the blocks; inverted = on, dotted underline = off
+│ ▀▀                  │  row 1: the cursor, a bar under the selected block
+│3/12 V30 SM57 Mesa 4x│  row 2: the selected block in a line
+│100  rock            │  rows 3-4: the tempo in the 2x font; the style or song,
+│     BPM   bar 3     │    and where it is
+│■□□□       to 140 BPM│  row 5: beat dots; the song's progress, or the trainer
 │IN  ########|...:..:.│  row 6: input meter
 │OUT ######.....|.CLIP│  row 7: output meter
 └─────────────────────┘
 ```
 
-- The file name is shown without the folder or the `.wav` extension.
-- With no SD card or no IRs, rows 1–3 show `No SD card` or `No IRs in / or /IR`.
-- While you browse, the IR number blinks until the selected IR has loaded.
+- **The blocks** follow the signal: the IR, then the delay, then the reverb. The `+` before DRM shows that the drums are mixed in after the effects, never through them. IR is "on" when not bypassed.
+- **Row 2** follows the cursor:
+  - IR: `3/12 V30 SM57 Mesa 4x`, or `BYPASS V30 SM57 …` when bypassed. The file name is shown without the folder or the `.wav` extension. With no SD card or no IRs: `No SD card` or `No IRs in / or /IR`.
+  - DLY: `380ms 80s mix 30%` (`PP` for ping-pong), with `off` in front when it is off.
+  - REV: `80s hall mix 25%`, `80s gated …` or `plate …`, with `off` in front when it is off.
+  - DRM: `kit rock  vol 60%`.
+- **Rows 3–4:** the tempo now (with the speed trainer, the tempo it has reached), the style's name or the song's title (14 characters), and `stopped`, `count-in`, `bar 3` (a style) or `bar 12/32` (a song).
+- **Row 5:**
+  - one box per beat of the bar (up to 7), the beat sounding filled; they also count the count-in and are all hollow when stopped.
+  - for a song: a progress bar over its bars, with ticks at the loop's first and last bar.
+  - for a style with the speed trainer on: its target, `to 140 BPM`.
 
 ### Menu list
 
@@ -142,7 +160,9 @@ The small font is 6x8 px, giving 21 characters x 8 rows. The 2x font is 12x16 px
 └─────────────────────┘
 ```
 
-### IR browser (Menu → IR)
+### IR list
+
+Opened by pushing the IR block, or from Menu → IR.
 
 ```
 ┌─────────────────────┐
@@ -157,7 +177,7 @@ The small font is 6x8 px, giving 21 characters x 8 rows. The 2x font is 12x16 px
 └─────────────────────┘
 ```
 
-Push loads the IR under the cursor. Long names scroll sideways while selected.
+It opens on the loaded IR. Push loads the IR under the cursor and the list stays open, so IRs can be compared one after the other. Long names scroll sideways while selected.
 
 ### Status (Menu → Status)
 
@@ -276,7 +296,7 @@ Every serial command has a place:
 | **Meter** | full-screen meter | | — | `m` |
 | **Status** | status page | | — | `s` |
 
-`n` / `p` are covered by turning the encoder on the home screen.
+`n` / `p` are covered by the IR list (push on the IR block).
 
 ## Software architecture
 
@@ -285,7 +305,10 @@ Every serial command has a place:
 ```
 src/Controls.{h,cpp}    replaces Buttons.{h,cpp}: encoder ISR, 3 debounced keys, events
 src/Oled.{h,cpp}        minimal SSD1306 driver: init, 1 KB frame buffer, text, bars, dirty pages
-src/DisplayUI.{h,cpp}   screens, the menu table, the meters
+src/DisplayUI.{h,cpp}   fills the UiModel and implements MenuHost (g_settings + the setters); feeds
+                        the control events to ui::Panel and flushes the pages it draws
+lib/oledui/             the UI, Arduino-free (done): Canvas, font, Menu (the table and its engine),
+                        Screens (drawing from a UiModel), Meter, Key, Panel (screens and controls)
 include/config.h        pin/address defines (replace BUTTON_*)
 src/AudioConvolverIR.h  + display peak pair
 src/main.cpp            controlsBegin()/displayBegin() in setup(); service calls in loop()
@@ -330,6 +353,8 @@ Why our own driver: see [RAM1 strategy](#ram1-strategy). It is about 150 lines.
 
 ### DisplayUI
 
+- **Panel:** `ui::Panel` (`lib/oledui/src/Panel.h`) owns which screen is showing and what the controls do on it. `DisplayUI` only passes it the events and calls `draw()` when it returns true. It reads the IR count and the loaded IR from the `UiModel`, and sends everything else through `MenuHost::set`, including its actions (`kIrLoad`, `kIrRescan`, `kMeterReset`).
+- **Beat dots:** the model's beat comes from `DrumMachine::beatPos()`, which `AudioConvolverIR` passes through.
 - **Table-driven menu.** Each item is one row:
 
   ```cpp
@@ -429,8 +454,8 @@ So the display must not be added the "normal" way:
 1. **Driver:** `Oled.{h,cpp}`, init plus "hello" text, sharing `Wire` with the codec. Check that the codec still works by changing `in`/`out` over serial while the display updates.
 2. **Controls:** `Controls.{h,cpp}` with the encoder ISR and keys. Print events on serial to check the direction, the counts per detent and the hold timing.
 3. **Display peaks:** add the display peak pair to `AudioConvolverIR`.
-4. **Home screen:** IR name and number, badges, meters, IR browsing with load-on-stop.
-5. **Menus:** menu table, list, value editor, IR browser, Status, full-screen Meter.
+4. **Home screen:** the blocks, the drums, the meters, and the block controls (`ui::Panel`, done on the PC).
+5. **Menus:** menu table, list, value editor, IR list, Status, full-screen Meter (done on the PC).
 6. **Remove `Buttons.{h,cpp}`** and the `BUTTON_*` defines. Update the README (hardware table, controls, project layout, *Ideas for next steps*).
 
 Each step builds and runs on its own, so steps can be tested on the hardware one at a time.
@@ -462,7 +487,5 @@ Each step builds and runs on its own, so steps can be tested on the hardware one
 
 These are defaults. Each one is easy to change.
 
-1. **Button mapping on the home screen:** CONFIRM = delay and BACK = reverb, with bypass on a long press of the encoder. Swap them if bypass should be one short press.
-2. **IR browsing:** loads 300 ms after you stop turning, or loads only on push.
-3. **Bus:** shared `Wire` (18/19, 400 kHz) or a separate `Wire1` (16/17, 1 MHz).
-4. **Option B:** done before the display work.
+1. **Bus:** shared `Wire` (18/19, 400 kHz) or a separate `Wire1` (16/17, 1 MHz).
+2. **Option B:** done before the display work.

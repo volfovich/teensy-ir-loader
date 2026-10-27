@@ -9,6 +9,7 @@
 #include "Key.h"
 #include "Menu.h"
 #include "Meter.h"
+#include "Panel.h"
 #include "Quadrature.h"
 #include "Screens.h"
 #include "ui_fake.h"
@@ -288,11 +289,134 @@ static void testCanvas() {
   ui::UiModel m = fakeModel();
   c.clear();
   while (c.takeDirtyPage() >= 0) {}
-  ui::drawHome(c, m, false);
+  ui::drawHome(c, m, ui::kBlockIR);
   check(c.dirtyMask() == 0x3F, "home: pages 0-5 dirty", c.dirtyMask());
   while (c.takeDirtyPage() >= 0) {}
   ui::drawHomeMeters(c, m);
   check(c.dirtyMask() == 0xC0, "home meters: pages 6-7 dirty", c.dirtyMask());
+}
+
+// The home screen's blocks: the cursor bar under the selected one, and the
+// beat dots (DISPLAY.md, "Home").
+static void testHome() {
+  std::printf("Home screen\n");
+  uint8_t buf[1024];
+  ui::Canvas c(buf);
+  ui::UiModel m = fakeModel();
+  c.clear();
+  ui::drawHome(c, m, ui::kBlockDelay);
+  check(c.get(40, 9) && c.get(40, 10) && !c.get(12, 9), "cursor bar under DLY, not under IR", 0);
+  c.clear();
+  ui::drawHome(c, m, ui::kBlockIR);
+  check(c.get(12, 9) && !c.get(40, 9), "  ... and under IR", 0);
+  check(c.get(10, 43) && !c.get(3, 43) && c.get(1, 43), "beat 2 of 4: its box filled, the others hollow", m.drumBeat);
+  m.drumsPlaying = false;
+  m.drumBeat = -1;
+  c.clear();
+  ui::drawHome(c, m, ui::kBlockIR);
+  check(!c.get(10, 43) && c.get(8, 43), "stopped: every box hollow", 0);
+}
+
+static void testPanel() {
+  std::printf("Panel\n");
+  FakeHost h;
+  ui::UiModel m = fakeModel();
+  ui::Panel p(ui::menuPages(), h, m);
+  using P = ui::Panel;
+  uint32_t t = 1000;
+
+  // Home: turn moves between the blocks, stopping at the ends.
+  check(!p.turn(-1, t) && p.block() == ui::kBlockIR, "home: the cursor starts on IR, stops at the left", p.block());
+  p.turn(1, t);
+  check(p.block() == ui::kBlockDelay, "  ... turn: DLY", p.block());
+  p.turn(10, t);
+  check(p.block() == ui::kBlockDrums, "  ... and stops at DRM", p.block());
+
+  // Push opens the block's page; BACK from it returns home, cursor kept.
+  p.push(t);
+  check(p.screen() == P::kMenu && p.menu().pageIndex() == ui::kPageDrums, "push on DRM: the Drums page", p.menu().pageIndex());
+  p.back(t);
+  check(p.screen() == P::kHome && p.block() == ui::kBlockDrums, "  ... back: home, cursor still on DRM", p.screen());
+  p.turn(-1, t);
+  p.push(t);
+  check(p.menu().pageIndex() == ui::kPageReverb, "push on REV: the Reverb page", p.menu().pageIndex());
+  p.back(t);
+  p.turn(-1, t);
+  p.push(t);
+  check(p.menu().pageIndex() == ui::kPageDelay, "push on DLY: the Delay page", p.menu().pageIndex());
+  p.turn(3, t);
+  p.push(t);
+  p.turn(2, t + 500);
+  p.back(t);
+  check(p.screen() == P::kMenu && h.v[ui::kDelayTime] == 380, "  ... editing: back cancels, still on the page", h.v[ui::kDelayTime]);
+  p.back(t);
+  check(p.screen() == P::kHome, "  ... back again: home", p.screen());
+
+  // IR: the list on the loaded IR; push loads and stays; Rescan; back home.
+  p.turn(-1, t);
+  p.push(t);
+  check(p.screen() == P::kIrList && p.irCursor() == 2, "push on IR: the IR list, on the loaded IR", p.irCursor());
+  p.turn(1, t);
+  p.push(t);
+  check(h.loaded == 3 && p.screen() == P::kIrList, "  ... push loads IR 4, the list stays", h.loaded);
+  p.turn(100, t);
+  p.confirm(t);
+  check(p.irCursor() == m.irCount && h.rescans == 1, "  ... the last row (CONFIRM): rescan", h.rescans);
+  p.back(t);
+  check(p.screen() == P::kHome && p.block() == ui::kBlockIR, "  ... back: home", p.screen());
+
+  // Hold: the selected block on/off; CONFIRM: the drums.
+  p.hold(t);
+  check(h.v[ui::kBypass] == 1, "hold on IR: bypass", h.v[ui::kBypass]);
+  p.hold(t);
+  check(h.v[ui::kBypass] == 0, "  ... hold again: back on", h.v[ui::kBypass]);
+  bool ok = true;
+  const uint8_t ids[] = {ui::kDelayOn, ui::kReverbOn, ui::kDrumsPlay};
+  for (int i = 0; i < 3; i++) {
+    p.turn(1, t);
+    const int before = h.v[ids[i]];
+    p.hold(t);
+    ok = ok && h.v[ids[i]] == !before && p.screen() == P::kHome;
+  }
+  check(ok, "hold on DLY, REV, DRM: each one's on/off", ok);
+  const int drums = h.v[ui::kDrumsPlay];
+  p.turn(-10, t);
+  p.confirm(t);
+  check(h.v[ui::kDrumsPlay] == !drums && p.block() == ui::kBlockIR, "CONFIRM: drums start/stop from any block", h.v[ui::kDrumsPlay]);
+
+  // BACK: the menu; its screens return to it.
+  p.back(t);
+  check(p.screen() == P::kMenu && p.menu().pageIndex() == ui::kPageTop, "BACK on home: the top menu", p.menu().pageIndex());
+  p.confirm(t);
+  check(p.screen() == P::kIrList, "  ... CONFIRM works like push (IR)", p.screen());
+  p.back(t);
+  check(p.screen() == P::kMenu, "  ... back from the IR list: the menu", p.screen());
+  p.turn(6, t);
+  p.push(t);
+  check(p.screen() == P::kMeter, "Meter", p.screen());
+  p.turn(2, t);
+  p.confirm(t);
+  check(h.v[ui::kLineIn] == 2 && h.resets == 1, "  ... turn: line-in sens 0 -> 2; CONFIRM: reset", h.v[ui::kLineIn]);
+  check(!p.tick(t + 60000) && p.screen() == P::kMeter, "  ... no timeout on the meter", p.screen());
+  p.back(t);
+  p.turn(1, t);
+  p.push(t);
+  check(p.screen() == P::kStatus, "Status", p.screen());
+  p.back(t);
+  check(p.screen() == P::kMenu, "  ... back: the menu", p.screen());
+  p.back(t);
+  check(p.screen() == P::kHome, "back from the top menu: home", p.screen());
+
+  // 30 s without input: home.
+  p.back(t);
+  check(!p.tick(t + P::kTimeoutMs - 1) && p.screen() == P::kMenu, "menu: still open after 29.999 s", p.screen());
+  check(p.tick(t + P::kTimeoutMs) && p.screen() == P::kHome, "  ... home after 30 s", p.screen());
+
+  // The IR list's marquee scrolls long names only.
+  p.push(t);  // IR list, on "V30 SM57 Mesa 4x12 close"
+  check(p.tick(t + P::kMarqueeMs), "marquee: a long name scrolls", 0);
+  p.turn(-2, t);  // "Greenback"
+  check(!p.tick(t + 2 * P::kMarqueeMs), "  ... a short one doesn't", 0);
 }
 
 int main() {
@@ -305,6 +429,8 @@ int main() {
   testFormat();
   testMeter();
   testCanvas();
+  testHome();
+  testPanel();
   std::printf(failures ? "\n%d FAILURE(S)\n" : "\nALL TESTS PASSED\n", failures);
   return failures ? 1 : 0;
 }

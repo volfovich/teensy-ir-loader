@@ -79,9 +79,9 @@ Drums:     playing blues shuffle, 105 BPM, bar 9, kit rock, crash every 4 bars, 
 - Style, Song and Kit are chosen by turning the encoder and are shown by name.
 - Each push on Crash steps it: off, 2, 4, 8, 16 bars.
 - Each push on Count-in steps it: off, 1, 2, 3, 4 bars.
-- While the drums play, the home screen shows them on row 5, for example `DRM rock 100   bar 3`.
+- The home screen always shows the drums: the tempo big, the style or song, the bar, a box per beat, and a song's progress with its loop or the trainer's target. **CONFIRM** starts and stops them from the home screen, and pushing the **DRM** block opens the Drums page.
 
-See [DISPLAY.md](DISPLAY.md#menu-tree) and the renders `screenshots/12_menu_drums.png`, `13_edit_drum_style.png`, `14_menu_trainer.png`, `15_edit_trainer_target.png`, `16_edit_drum_kit.png` and `19_menu_drums_song.png`.
+See [DISPLAY.md](DISPLAY.md#home) and the renders `screenshots/02d_home_drums.png`, `03_home_song.png`, `03b_home_trainer.png`, `12_menu_drums.png`, `13_edit_drum_style.png`, `14_menu_trainer.png`, `15_edit_trainer_target.png`, `16_edit_drum_kit.png` and `19_menu_drums_song.png`.
 
 ## Count-in and speed trainer
 

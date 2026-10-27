@@ -787,6 +787,62 @@ static void testSongs() {
   check(peak <= 0.945, "  ... all below the drum bus's ceiling (rock kit)", peak);
 }
 
+// beatPos: the beat sounding now and the bar's beats, for the beat dots.
+static void testBeatPos() {
+  std::printf("Beat position\n");
+  const double beat = 0.5;  // seconds at 120 BPM
+  auto at = [](Rig& r, double seconds, int* b, int* n) {
+    r.runTo((uint64_t)(seconds * kFs));
+    r.d->beatPos(b, n);
+  };
+  int b = 0, n = 0;
+  {
+    Rig r("rock", 120, false);
+    r.d->beatPos(&b, &n);
+    check(b == -1 && n == 4, "stopped: beat -1, 4 beats", b);
+    r.d->start();
+    bool ok = true;
+    const double t[] = {0.2, 1.5, 3.5, 4.5};
+    const int want[] = {0, 1, 3, 0};
+    for (int i = 0; i < 4; i++) {
+      at(r, t[i] * beat, &b, &n);
+      ok = ok && b == want[i] && n == 4;
+    }
+    check(ok, "rock: beats 0, 1, 3, then 0 of the next bar", b);
+  }
+  {
+    Rig r("ballad", 120, false);
+    r.d->start();
+    at(r, 1.2 * 1.5 * beat, &b, &n);  // a dotted-quarter beat is 1.5 quarters
+    check(b == 1 && n == 2, "6/8 ballad: 2 beats a bar, the second", b);
+  }
+  {
+    Rig r("rock", 120, true);
+    r.d->start();
+    at(r, 2.5 * beat, &b, &n);
+    check(b == 2 && n == 4 && r.d->countingIn(), "count-in: beat 2 of the count-in bar", b);
+  }
+  {
+    TestSong ts;
+    Rig r("rock", 120, false);
+    r.d->setSong(&ts.song);
+    r.d->beatPos(&b, &n);
+    check(b == -1 && n == 4, "song stopped: beat -1, the first bar's 4 beats", b);
+    r.d->start();
+    at(r, (8 + 1.25) * beat, &b, &n);  // bar 3 (3/4) starts after 8 beats
+    check(b == 1 && n == 3, "song: beat 1 of the 3/4 bar", b);
+  }
+  {
+    TestSong ts;
+    Rig r("rock", 120, false);
+    r.d->setSong(&ts.song);
+    r.d->setCountIn(1);
+    r.d->start();
+    at(r, 3.5 * beat, &b, &n);
+    check(b == 3 && n == 4 && r.d->countingIn(), "song count-in: beat 3 of 4", b);
+  }
+}
+
 int main() {
   testTiming();
   testCountIn();
@@ -804,6 +860,7 @@ int main() {
   testRealKits();
   testBusLoudness();
   testSongs();
+  testBeatPos();
   std::printf(failures ? "\n%d FAILURE(S)\n" : "\nALL TESTS PASSED\n", failures);
   return failures ? 1 : 0;
 }

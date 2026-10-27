@@ -37,7 +37,8 @@ UI_COLD void drawSplash(Canvas& c, const UiModel& m) {
   c.textCenter(6, buf);
 }
 
-// A home-screen badge: inverted box when on, dotted underline when off.
+// A home-screen block on page 0: inverted box when on, dotted underline
+// when off.
 static UI_COLD void badge(Canvas& c, int x, const char* s, bool on) {
   c.text(x, 0, s);
   const int w = Canvas::width(s);
@@ -45,65 +46,105 @@ static UI_COLD void badge(Canvas& c, int x, const char* s, bool on) {
   else c.dots(x, x + w - 2, 7);
 }
 
-UI_COLD void drawHome(Canvas& c, const UiModel& m, bool blink) {
-  char buf[40], name[64];
-  c.clearPages(0, 5);
+// An arrow on page 0 from x0 to x1 (signal flow between two blocks).
+static UI_COLD void arrow(Canvas& c, int x0, int x1) {
+  c.hline(x0, x1, 3);
+  c.vline(x1 - 1, 2, 4);
+  c.vline(x1 - 2, 1, 5);
+}
 
-  // Row 0: number / count and the badges.
-  if (m.irShown >= 0) snprintf(buf, sizeof(buf), UI_STR("%d/%d"), m.irShown + 1, m.irCount);
-  else snprintf(buf, sizeof(buf), UI_STR("-/%d"), m.irCount);
-  const bool browsing = m.irShown != m.irCurrent;
-  const int end = c.text(0, 0, buf);
-  if (browsing && blink) c.invertText(0, 0, end - 1);
-  badge(c, 62, UI_STR("BYP"), m.bypass);
-  badge(c, 86, UI_STR("DLY"), m.delayOn);
-  badge(c, 110, UI_STR("REV"), m.reverbOn);
-
-  // Rows 1-3: the IR name, the first word(s) big, the rest small.
-  if (!m.sdOk || m.irCount == 0 || m.irShown < 0 || !m.irPath) {
-    c.text(0, 1, !m.sdOk ? UI_STR("No SD card") : (m.irCount == 0 ? UI_STR("No IRs") : UI_STR("No IR")), true);
-    if (m.sdOk && m.irCount == 0) c.text(0, 3, UI_STR("in / or /IR"));
-  } else {
-    irDisplayName(m.irPath(m.irShown), name, sizeof(name));
-    const int bigChars = Canvas::kW / Canvas::kBigCharW;  // 10
-    int cut = (int)strlen(name);
-    if (cut > bigChars) {
-      cut = bigChars;
-      for (int i = bigChars; i > 0; i--) {
-        if (name[i] == ' ') { cut = i; break; }
+// Page 2: the selected block in a line.
+static UI_COLD void blockDetail(Canvas& c, const UiModel& m, int block) {
+  char buf[48], name[64];
+  const char* off = UI_STR("off ");
+  const char* on = UI_STR("");
+  switch (block) {
+    case kBlockIR:
+      if (!m.sdOk) snprintf(buf, sizeof(buf), UI_STR("%s"), UI_STR("No SD card"));
+      else if (m.irCount == 0) snprintf(buf, sizeof(buf), UI_STR("%s"), UI_STR("No IRs in / or /IR"));
+      else if (m.irCurrent < 0 || !m.irPath) snprintf(buf, sizeof(buf), UI_STR("-/%d no IR"), m.irCount);
+      else {
+        irDisplayName(m.irPath(m.irCurrent), name, sizeof(name));
+        if (m.bypass) snprintf(buf, sizeof(buf), UI_STR("BYPASS %s"), name);
+        else snprintf(buf, sizeof(buf), UI_STR("%d/%d %s"), m.irCurrent + 1, m.irCount, name);
       }
+      break;
+    case kBlockDelay:
+      snprintf(buf, sizeof(buf), UI_STR("%s%dms %s mix %d%%"), m.delayOn ? on : off, m.delayTimeMs,
+               m.studioDelay ? UI_STR("80s") : UI_STR("PP"), m.delayMix);
+      break;
+    case kBlockReverb:
+      snprintf(buf, sizeof(buf), UI_STR("%s%s mix %d%%"), m.reverbOn ? on : off,
+               !m.reverb80 ? UI_STR("plate") : (m.reverbGated ? UI_STR("80s gated") : UI_STR("80s hall")), m.reverbMix);
+      break;
+    default:
+      snprintf(buf, sizeof(buf), UI_STR("kit %s  vol %d%%"), m.drumKit, m.drumVolume);
+      break;
+  }
+  c.text(0, 2, buf);
+}
+
+// Page 5: a box per beat (the one sounding filled), and for a song its
+// progress with the loop's ends.
+static UI_COLD void beatRow(Canvas& c, const UiModel& m) {
+  const int y = 5 * 8 + 1, size = 5;
+  const int beats = m.drumBeats > 7 ? 7 : m.drumBeats;
+  for (int i = 0; i < beats; i++) {
+    const int x = 1 + i * 7;
+    if (m.drumsPlaying && i == m.drumBeat) c.fill(x, y, size, size, true);
+    else c.frame(x, y, size, size);
+  }
+  if (m.drumSong && m.drumSongBars > 0) {
+    const int x0 = 60, w = Canvas::kW - x0, bars = m.drumSongBars;
+    c.frame(x0, y, w, size);
+    if (m.drumsPlaying) c.fill(x0 + 1, y + 1, (w - 2) * m.drumSongBar / bars, size - 2, true);
+    if (m.drumLoopFrom > 0) {
+      c.vline(x0 + (m.drumLoopFrom - 1) * w / bars, 5 * 8, 5 * 8 + 7);
+      c.vline(x0 + m.drumLoopTo * w / bars - 1, 5 * 8, 5 * 8 + 7);
     }
-    char first[16];
-    memcpy(first, name, cut);
-    first[cut] = 0;
-    c.text(0, 1, first, true);
-    const char* rest = name + cut;
-    while (*rest == ' ') rest++;
-    c.text(0, 3, rest);
-  }
-
-  // Row 4: effects, or the browsing hint.
-  if (browsing) {
-    c.text(0, 4, UI_STR("loads when you stop"));
-  } else {
-    if (m.delayOn)
-      snprintf(buf, sizeof(buf), UI_STR("DLY %dms %s"), m.delayTimeMs, m.studioDelay ? UI_STR("80s") : UI_STR("PP"));
-    else
-      snprintf(buf, sizeof(buf), UI_STR("%s"), UI_STR("DLY off"));
-    c.text(0, 4, buf);
-    if (m.reverbOn) snprintf(buf, sizeof(buf), UI_STR("REV %d%%"), m.reverbMix);
-    else snprintf(buf, sizeof(buf), UI_STR("%s"), UI_STR("REV off"));
-    c.textRight(Canvas::kW, 4, buf);
-  }
-
-  // Row 5: the drums while they play.
-  if (m.drumsPlaying) {
-    snprintf(buf, sizeof(buf), UI_STR("DRM %.10s %d"), m.drumStyle, m.drumTempo);
-    c.text(0, 5, buf);
-    if (m.drumsCountingIn) snprintf(buf, sizeof(buf), UI_STR("%s"), UI_STR("count"));
-    else snprintf(buf, sizeof(buf), UI_STR("bar %d"), m.drumBar);
+  } else if (m.trainerOn) {
+    char buf[24];
+    snprintf(buf, sizeof(buf), UI_STR("to %d BPM"), m.trainerTarget);
     c.textRight(Canvas::kW, 5, buf);
   }
+}
+
+UI_COLD void drawHome(Canvas& c, const UiModel& m, int block) {
+  char buf[40];
+  c.clearPages(0, 5);
+
+  // Page 0: the blocks, IR > DLY > REV + DRM; page 1: the cursor under one.
+  struct Block { const char* label; int x; bool on; };
+  const Block blocks[kHomeBlocks] = {
+      {UI_STR("IR"), 9, !m.bypass},
+      {UI_STR("DLY"), 36, m.delayOn},
+      {UI_STR("REV"), 69, m.reverbOn},
+      {UI_STR("DRM"), 102, m.drumsPlaying},
+  };
+  for (int i = 0; i < kHomeBlocks; i++) badge(c, blocks[i].x, blocks[i].label, blocks[i].on);
+  arrow(c, 23, 32);
+  arrow(c, 56, 65);
+  c.text(91, 0, UI_STR("+"));
+  if (block >= 0 && block < kHomeBlocks) {
+    const Block& b = blocks[block];
+    c.fill(b.x - 1, 9, Canvas::width(b.label) + 1, 2, true);
+  }
+
+  blockDetail(c, m, block);
+
+  // Pages 3-4: the tempo big; the style or song, and where it is.
+  snprintf(buf, sizeof(buf), UI_STR("%d"), m.drumTempo);
+  c.text(0, 3, buf, true);
+  snprintf(buf, sizeof(buf), UI_STR("%.14s"), m.drumSong ? m.drumSong : m.drumStyle);
+  c.text(40, 3, buf);
+  c.text(40, 4, UI_STR("BPM"));
+  if (!m.drumsPlaying) snprintf(buf, sizeof(buf), UI_STR("%s"), UI_STR("stopped"));
+  else if (m.drumsCountingIn) snprintf(buf, sizeof(buf), UI_STR("%s"), UI_STR("count-in"));
+  else if (m.drumSong) snprintf(buf, sizeof(buf), UI_STR("bar %d/%d"), m.drumSongBar, m.drumSongBars);
+  else snprintf(buf, sizeof(buf), UI_STR("bar %d"), m.drumBar);
+  c.text(70, 4, buf);
+
+  beatRow(c, m);
 }
 
 UI_COLD void drawHomeMeters(Canvas& c, const UiModel& m) {
@@ -126,7 +167,7 @@ UI_COLD void drawIrBrowser(Canvas& c, const UiModel& m, int cursor, int top, int
     } else {
       irDisplayName(m.irPath ? m.irPath(n) : UI_STR(""), name, sizeof(name));
       // "NN " then as much of the name as fits before the loaded mark.
-      const int room = (Canvas::kW - 12 - Canvas::kCharW) / Canvas::kCharW - 3;  // 15
+      const int room = kIrBrowserNameChars;
       const int len = (int)strlen(name);
       int off = n == cursor ? marquee : 0;
       if (off > len - room) off = len - room > 0 ? len - room : 0;

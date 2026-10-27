@@ -301,6 +301,28 @@ void DrumMachine::songSeek(int bar) {
   barEnd_ = b.tick + songBarTicks(b);
 }
 
+// Read from the background while the interrupt runs: each field is read
+// once, and the song bar is clamped, so a torn read only shows a wrong beat.
+IRDSP_COLD void DrumMachine::beatPos(int* beat, int* beats) const {
+  const bool playing = playing_;
+  const DrumSong* s = playing ? song_ : songReq_;
+  if (s && s->barCount) {
+    int bar = playing ? songBar_ : 0;
+    if (bar < 0 || bar >= (int)s->barCount) bar = 0;
+    const SongBar& b = s->bars[bar];
+    const uint32_t perBeat = (uint32_t)kSongPpq * 4u / b.beatUnit;
+    // tick_ and ciTick_ are one past the tick that sounded last.
+    const uint32_t t = countIn_ ? ciTick_ : tick_ - b.tick;
+    *beats = b.beats;
+    *beat = !playing ? -1 : (t > 0 && t <= songBarTicks(b) ? (int)((t - 1) / perBeat) : 0);
+    return;
+  }
+  const Pattern& p = pat_[cur_];
+  const int step = step_;
+  *beats = p.beats;
+  *beat = !playing ? -1 : (step > 0 && step <= p.steps ? (step - 1) / p.stepsPerBeat : 0);
+}
+
 void DrumMachine::endBar() {
   if (countIn_) {
     if (--countLeft_ <= 0) {

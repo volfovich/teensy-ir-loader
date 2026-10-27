@@ -121,6 +121,9 @@ class DrumMachine {
   const DrumSong* song() const { return song_; }  // the song playing (nullptr: style)
   int songBar() const { return songBar_; }   // 0-based bar of the song
   float tempoNow() const { return bpmNow_; }
+  // The beat sounding now in the current bar (0-based, count-in bars too;
+  // -1 when stopped) and the bar's beats, for beat displays.
+  void beatPos(int* beat, int* beats) const;
   int style() const { return styleReq_; }
   int samplesPlaying() const;  // sample voices sounding (for tests)
 

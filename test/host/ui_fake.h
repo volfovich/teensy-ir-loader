@@ -9,8 +9,10 @@
 
 struct FakeHost : ui::MenuHost {
   int v[64] = {};
+  static_assert(ui::kMeterReset < 64, "v[] holds every ItemId");
   int timeMax = 750;
   int sets = 0;
+  int loaded = -1, rescans = 0, resets = 0;  // the panel's actions
   FakeHost() {
     v[ui::kDelayOn] = 1; v[ui::kDelayType] = 1; v[ui::kDelayMix] = 30; v[ui::kDelayTime] = 380;
     v[ui::kDelayRepeats] = 35; v[ui::kDelayTone] = 60; v[ui::kDelayMod] = 15;
@@ -46,7 +48,13 @@ struct FakeHost : ui::MenuHost {
     if (id == ui::kIsDrumSong) return v[ui::kDrumSong] != 0;
     return v[id];
   }
-  void set(uint8_t id, int value) override { v[id] = value; sets++; }
+  void set(uint8_t id, int value) override {
+    sets++;
+    if (id == ui::kIrLoad) loaded = value;
+    else if (id == ui::kIrRescan) rescans++;
+    else if (id == ui::kMeterReset) resets++;
+    else v[id] = value;
+  }
   void limits(uint8_t id, int* lo, int* hi) override {
     (void)lo;
     if (id == ui::kDelayTime) *hi = timeMax;
@@ -82,17 +90,23 @@ inline ui::UiModel fakeModel() {
   m.nowMs = 10000;
   m.sdOk = true;
   m.irCount = 12;
-  m.irCurrent = m.irShown = 2;
+  m.irCurrent = 2;
   m.irPath = fakeIrPath;
   m.delayOn = true;
   m.reverbOn = true;
   m.studioDelay = true;
   m.delayTimeMs = 380;
+  m.delayMix = 30;
+  m.reverb80 = true;
   m.reverbMix = 25;
   m.drumsPlaying = true;
   m.drumStyle = "rock";
+  m.drumKit = "rock";
   m.drumTempo = 100;
+  m.drumVolume = 60;
   m.drumBar = 3;
+  m.drumBeat = 1;
+  m.drumBeats = 4;
   m.cpu = 33.2f; m.cpuMax = 35.1f; m.cpuDelay = 4.4f; m.cpuReverb = 6.2f;
   m.blocksUsed = 4; m.blocksMax = 20; m.latencyMs = 1.45f; m.partitions = 250; m.blockSize = 32;
   m.gainDb = -6.0f; m.hpPercent = 50; m.lineIn = 0; m.lineOut = 29; m.irMaxLength = 8192;
