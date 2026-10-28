@@ -114,6 +114,18 @@ IRDSP_COLD void DrumMachine::init() {
 }
 
 // ---- Control (background) ------------------------------------------------------
+//
+// IRDSP_COLD (flash) also goes on the interrupt's occasional work, a hit, a
+// bar line, a bass note, where a cache miss costs a microsecond or so; the
+// per-sample loops (renderVoices, bus, PluckBass::process) stay in RAM1.
+
+IRDSP_COLD void DrumMachine::setBassBuffer(float* buf) {
+  if (!buf) return;
+  bass_.init(fs_, buf);
+  bassLa_ = buf + 2 * PluckBass::kLineLen;
+  bassBlk_ = bassLa_ + kLatency;
+  for (int i = 0; i < kLatency + kMaxBlock; i++) bassLa_[i] = 0.0f;
+}
 
 IRDSP_COLD void DrumMachine::setStyle(int idx) {
   if (idx < 0 || idx >= drumStyleCount()) return;
@@ -145,12 +157,16 @@ IRDSP_COLD void DrumMachine::setTempo(float bpm) {
   tempoReq_ = true;
 }
 
-IRDSP_COLD void DrumMachine::setVolume(float n) {
+// 0 dB at 1, -30 dB near 0 on a curve that spends more travel at the top.
+static IRDSP_COLD float volumeGain(float n) {
   n = clamp01(n);
-  // 0 dB at 1, -30 dB near 0 on a curve that spends more travel at the top.
   const float d = 1.0f - n;
-  volTarget_ = n <= 0.0f ? 0.0f : powf(10.0f, -30.0f * d * sqrtf(d) / 20.0f);
+  return n <= 0.0f ? 0.0f : powf(10.0f, -30.0f * d * sqrtf(d) / 20.0f);
 }
+
+IRDSP_COLD void DrumMachine::setVolume(float n) { volTarget_ = volumeGain(n); }
+
+IRDSP_COLD void DrumMachine::setBassVolume(float n) { bassVolTarget_ = volumeGain(n); }
 
 IRDSP_COLD void DrumMachine::setTrainer(bool on, int stepBpm, int everyBars, int targetBpm) {
   trStep_ = stepBpm < 1 ? 1 : stepBpm;
@@ -179,7 +195,7 @@ void DrumMachine::swapPattern() {
   swapReq_ = false;
 }
 
-void DrumMachine::trigger(int voice, int code, uint64_t sample) {
+IRDSP_COLD void DrumMachine::trigger(int voice, int code, uint64_t sample) {
   if (hook_) hook_(hookCtx_, voice, code, sample);
   // Humanize: triangular noise, so small changes are common, big ones rare.
   const float t = 0.5f * (noise() + noise());
@@ -290,7 +306,19 @@ void DrumMachine::fireTick(uint64_t sample) {
     const SongEvent e = s.events[evIdx_++];
     if (e.tick() == tick_ && e.lane() < kDrumVoices && e.vel()) trigger(e.lane(), e.vel(), sample);
   }
+  while (bassIdx_ < s.bassCount && s.bass[bassIdx_].tick() <= tick_) {
+    const BassEvent e = s.bass[bassIdx_++];
+    if (e.tick() == tick_) playBass(e, sample);
+  }
   tick_++;
+}
+
+// A bass event: a note (dead or not) or a mute (note 0).
+IRDSP_COLD void DrumMachine::playBass(const BassEvent& e, uint64_t sample) {
+  if (!bassOn_ || !bassLa_) return;
+  if (hook_) hook_(hookCtx_, kBassHookVoice, e.note() + (e.dead() ? 128 : 0), sample);
+  if (e.note() == 0) bass_.mute();
+  else bass_.noteOn(e.note(), e.vel(), e.dead());
 }
 
 void DrumMachine::songSeek(int bar) {
@@ -298,6 +326,7 @@ void DrumMachine::songSeek(int bar) {
   songBar_ = bar;
   tick_ = b.tick;
   evIdx_ = b.firstEvent;
+  bassIdx_ = b.firstBass;
   barEnd_ = b.tick + songBarTicks(b);
 }
 
@@ -323,7 +352,7 @@ IRDSP_COLD void DrumMachine::beatPos(int* beat, int* beats) const {
   *beat = !playing ? -1 : (step > 0 && step <= p.steps ? (step - 1) / p.stepsPerBeat : 0);
 }
 
-void DrumMachine::endBar() {
+IRDSP_COLD void DrumMachine::endBar() {
   if (countIn_) {
     if (--countLeft_ <= 0) {
       countIn_ = false;
@@ -436,18 +465,34 @@ void DrumMachine::renderVoices(float* outL, float* outR, int n) {
     outR[i] = r;
   }
   renderSamples(outL, outR, n);
-  // Bus: gain, compressor, peak limiter. The compressor's detector hears
-  // the bus kLatency samples before it is played (a lookahead delay), so its
-  // gain is already coming down when a hit arrives. The gain is recomputed
-  // every few samples and ramped in between.
+}
+
+// Bus: compressor, volume, the bass, peak limiter. The compressor's detector
+// hears the drums kLatency samples before they play (a lookahead delay), so
+// its gain is already coming down when a hit arrives; the bass, delayed the
+// same, joins after it (the kick doesn't pump it) and the limiter, also
+// looking ahead, keeps the sum at the ceiling. Volumes ramp across the
+// block. The compressor's gain is recomputed every few samples and ramped
+// in between.
+void DrumMachine::bus(float* outL, float* outR, int n) {
+  const float v0 = volCur_, vStep = (volTarget_ - v0) / (float)n;
+  const float b0 = bassVolCur_, bStep = (bassVolTarget_ - b0) / (float)n;
+  volCur_ = volTarget_;
+  bassVolCur_ = bassVolTarget_;
+  const float* bassIn = bassBlk_;
+  float* bassLa = bassLa_;
   if (!busDynamics_) {  // tests: the plain bus, still delayed
     for (int i = 0; i < n; i++) {
       const float inL = kBusGain * outL[i], inR = kBusGain * outR[i];
-      laQuiet_ = inL == 0.0f && inR == 0.0f ? (laQuiet_ < kLatency ? laQuiet_ + 1 : kLatency) : 0;
-      outL[i] = laL_[laPos_];
-      outR[i] = laR_[laPos_];
+      const float bIn = bassIn ? bassIn[i] : 0.0f;
+      laQuiet_ = inL == 0.0f && inR == 0.0f && bIn == 0.0f ? (laQuiet_ < kLatency ? laQuiet_ + 1 : kLatency) : 0;
+      const float vol = v0 + vStep * (float)(i + 1), bv = b0 + bStep * (float)(i + 1);
+      const float bd = bassLa ? bv * bassLa[laPos_] : 0.0f;
+      outL[i] = vol * laL_[laPos_] + bd;
+      outR[i] = vol * laR_[laPos_] + bd;
       laL_[laPos_] = inL;
       laR_[laPos_] = inR;
+      if (bassLa) bassLa[laPos_] = bIn;
       if (++laPos_ == kLatency) laPos_ = 0;
     }
     return;
@@ -459,19 +504,21 @@ void DrumMachine::renderVoices(float* outL, float* outR, int n) {
   for (int i = 0; i < n; i++) {
     const float inL = kBusGain * outL[i], inR = kBusGain * outR[i];
     const float x = fmaxf(fabsf(inL), fabsf(inR));
+    const float bIn = bassIn ? bassIn[i] : 0.0f;
     const float k = k0 + kStep * (float)(i + 1);
-    laQuiet_ = x == 0.0f ? (laQuiet_ < kLatency ? laQuiet_ + 1 : kLatency) : 0;
+    const float vol = v0 + vStep * (float)(i + 1), bv = b0 + bStep * (float)(i + 1);
+    laQuiet_ = x == 0.0f && bIn == 0.0f ? (laQuiet_ < kLatency ? laQuiet_ + 1 : kLatency) : 0;
     compEnv_ += (x > compEnv_ ? compAtt_ : compRel_) * (x - compEnv_);
     if (--compCount_ <= 0) {
       compCount_ = kCompEvery;
       compStep_ = (compGain(compEnv_) - compGainNow_) * (1.0f / kCompEvery);
     }
     compGainNow_ += compStep_;
-    const float g = 1.0f - k + k * compGainNow_;
+    const float g = (1.0f - k + k * compGainNow_) * vol;
     // Limiter, also looking ahead: a sample that will be too loud when it
-    // plays (at the bus gain now) ramps the gain down to what it needs by
-    // the time it arrives, then holds.
-    const float pred = x * g;
+    // plays (at the gains now) ramps the gain down to what it needs by the
+    // time it arrives, then holds.
+    const float pred = x * g + fabsf(bIn) * bv;
     if (pred > kLimitCeiling) {
       const float need = kLimitCeiling / pred;
       if (need < limTarget_) {
@@ -487,9 +534,11 @@ void DrumMachine::renderVoices(float* outL, float* outR, int n) {
       limTarget_ = 1.0f;
       limGain_ += (1.0f - limGain_) * limRel_;
     }
-    const float l = g * laL_[laPos_], r = g * laR_[laPos_];
+    const float bd = bassLa ? bv * bassLa[laPos_] : 0.0f;
+    const float l = g * laL_[laPos_] + bd, r = g * laR_[laPos_] + bd;
     laL_[laPos_] = inL;
     laR_[laPos_] = inR;
+    if (bassLa) bassLa[laPos_] = bIn;
     if (++laPos_ == kLatency) laPos_ = 0;
     // Safety net: never above the ceiling, even if the prediction was low.
     const float peak = fmaxf(fabsf(l), fabsf(r)) * limGain_;
@@ -500,7 +549,7 @@ void DrumMachine::renderVoices(float* outL, float* outR, int n) {
   compMix_ = k1;
 }
 
-void DrumMachine::resetComp() {
+IRDSP_COLD void DrumMachine::resetComp() {
   compEnv_ = 0.0f;
   compGainNow_ = compGain(0.0f);
   compStep_ = 0.0f;
@@ -515,7 +564,7 @@ void DrumMachine::resetComp() {
 
 // ---- Sample voices ---------------------------------------------------------------
 
-void DrumMachine::fadeVoice(int i, float ms) {
+IRDSP_COLD void DrumMachine::fadeVoice(int i, float ms) {
   SampleVoice& v = sv_[i];
   const float step = v.gain / (ms * 0.001f * fs_);
   if (v.fade == 0.0f || step > v.fade) v.fade = step;
@@ -523,7 +572,7 @@ void DrumMachine::fadeVoice(int i, float ms) {
 
 // Fades out the lane's sounding voices, except the newest `keep` that aren't
 // already fading.
-void DrumMachine::fadeLane(int voice, float ms, int keep) {
+IRDSP_COLD void DrumMachine::fadeLane(int voice, float ms, int keep) {
   for (;;) {
     int count = 0, oldest = -1;
     for (int i = 0; i < kSampleVoices; i++) {
@@ -537,7 +586,7 @@ void DrumMachine::fadeLane(int voice, float ms, int keep) {
   }
 }
 
-void DrumMachine::startSample(int voice, float vel) {
+IRDSP_COLD void DrumMachine::startSample(int voice, float vel) {
   const DrumKit& k = *kit_;
   // The layer recorded nearest this velocity (the softer one on a tie).
   const float v9 = vel * 9.0f;
@@ -610,8 +659,20 @@ void DrumMachine::renderSamples(float* outL, float* outR, int n) {
 }
 
 bool DrumMachine::process(float* outL, float* outR, int n) {
+  bool any = false;
+  while (n > kMaxBlock) {
+    any |= render(outL, outR, kMaxBlock);
+    outL += kMaxBlock;
+    outR += kMaxBlock;
+    n -= kMaxBlock;
+  }
+  return render(outL, outR, n) || any;
+}
+
+bool DrumMachine::render(float* outL, float* outR, int n) {
   if (startReq_) {
     startReq_ = false;
+    if (bassLa_) bass_.mute();
     if (swapReq_) swapPattern();
     step_ = 0;
     bar_ = 0;
@@ -636,7 +697,10 @@ bool DrumMachine::process(float* outL, float* outR, int n) {
     stopReq_ = false;
     playing_ = false;
     countIn_ = false;
+    if (bassLa_) bass_.mute();
   }
+  if (bassLa_ && bassToneReq_ != bassTone_) bass_.setTone(bassTone_ = bassToneReq_);
+  if (!bassOn_ && bassLa_) bass_.mute();
   if (!playing_ && swapReq_) swapPattern();
   if (kitReq_ != kit_) {
     for (int i = 0; i < kSampleVoices; i++)
@@ -648,15 +712,18 @@ bool DrumMachine::process(float* outL, float* outR, int n) {
     bpmNow_ = baseBpm_;
     trBars_ = 0;
   }
-  if (!playing_ && !voicesActive() && laQuiet_ >= kLatency) {
+  if (!playing_ && !voicesActive() && !(bassLa_ && bass_.active()) && laQuiet_ >= kLatency) {
     active_ = false;
     volCur_ = volTarget_;
+    bassVolCur_ = bassVolTarget_;
     resetComp();
     time_ += n;
     return false;
   }
   active_ = true;
 
+  if (bassLa_)
+    for (int j = 0; j < n; j++) bassBlk_[j] = 0.0f;
   int i = 0;
   while (i < n) {
     if (playing_ && toNext_ <= 0.0) {
@@ -674,20 +741,13 @@ bool DrumMachine::process(float* outL, float* outR, int n) {
       if (k < run) run = k;
     }
     renderVoices(outL + i, outR + i, run);
+    if (bassLa_) bass_.process(bassBlk_ + i, run);
     toNext_ -= run;
     i += run;
   }
 
   time_ += n;
-
-  // Volume, ramped across the block.
-  const float v0 = volCur_, v1 = volTarget_;
-  for (int j = 0; j < n; j++) {
-    const float g = v0 + (v1 - v0) * (float)(j + 1) / (float)n;
-    outL[j] *= g;
-    outR[j] *= g;
-  }
-  volCur_ = v1;
+  bus(outL, outR, n);
   return true;
 }
 

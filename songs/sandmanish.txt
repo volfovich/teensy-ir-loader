@@ -9,11 +9,13 @@ grid   4
 bar I                        # intro: soft hats and floor-tom swells
   hatc   6...5...6...5...
   toml   ............6.8.
+  bass   E1:5 - - - - - - - - - - - - - - -
 
 bar V                        # verse: heavy 8th groove
   kick   9.....8.9.......
   snare  ....9.......9...
   hatc   9.7.8.7.9.7.8.7.
+  bass   E1:9 - E1 - . . E1:8 - E1:9 - . . E1 - E1 -
 
 bar F                        # 16th fill around the toms on beats 3-4
   kick   9.....8.........
@@ -21,15 +23,24 @@ bar F                        # 16th fill around the toms on beats 3-4
   tomh   ............88..
   toml   ..............99
   hatc   9.7.8.7.........
+  bass   E1:9 - E1 - E1 - E1 - E1:9 . . . . . . .
 
 bar C                        # chorus: crashes on 1 and 3, double kick push
   crash  9.......8.......
   kick   9.7...8.9.7...8.
   snare  ....9.......9...
   hatc   ..7.8.7...7.8.7.
+  bass   E1:9 - E1 - - - E1 - C2:9 - C2 - - - D2 -
 
 bar E
   crash  9...............
   kick   9...............
+  bass   E1:9 - - - - - - - - - - - - - - -
 
-song   I*4  V*3 F  V*3 F  C*3 F  V*3 F  C*3 F  C*3 F  C*3 E
+bar V2 like V
+  bass   A1:9 - A1 - . . A1:8 - G1:9 - . . G1 - G1 -
+
+bar C2 like C
+  bass   A1:9 - A1 - - - A1 - G1:9 - G1 - - - F#1 -
+
+song   I*4  V V V2 F  V V V2 F  C C2 C F  V V V2 F  C C2 C F  C C2 C F  C C2 C E

@@ -35,9 +35,9 @@ render_bass: render_bass.cpp $(BASS_DEPS)
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ render_bass.cpp $(BASS_SRC)
 
 DRUM_SRC = ../../lib/irdsp/src/DrumMachine.cpp ../../lib/irdsp/src/DrumPatterns.cpp ../../lib/irdsp/src/DrumKitData.cpp \
-           ../../lib/irdsp/src/DrumSongData.cpp
+           ../../lib/irdsp/src/DrumSongData.cpp ../../lib/irdsp/src/PluckBass.cpp
 DRUM_DEPS = $(DRUM_SRC) ../../lib/irdsp/src/DrumMachine.h ../../lib/irdsp/src/DrumKit.h ../../lib/irdsp/src/DrumSong.h \
-            ../../lib/irdsp/src/irdsp_blocks.h
+            ../../lib/irdsp/src/PluckBass.h ../../lib/irdsp/src/irdsp_blocks.h
 
 # The sampled kits, generated from kits/*/ (also by the PlatformIO build).
 ../../lib/irdsp/src/DrumKitData.cpp: ../../tools/make_kits.py $(wildcard ../../kits/*/*)

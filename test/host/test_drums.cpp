@@ -37,6 +37,12 @@ struct Rig {
     d->setVolume(1.0f);
     d->setHitHook([](void* ctx, int v, int l, uint64_t t) { ((Rig*)ctx)->hits.push_back({v, l, t}); }, this);
   }
+  std::vector<float> bassBuf;
+  void withBass() {
+    bassBuf.assign(irdsp::DrumMachine::kBassBufLen, 0.0f);
+    d->setBassBuffer(bassBuf.data());
+    d->setBassVolume(1.0f);
+  }
   int maxVoices = 0;  // most sample voices sounding after a block
   int skip = irdsp::DrumMachine::kLatency;  // the bus delay, dropped so out[t] is hit time t
   void run(double seconds) {
@@ -688,7 +694,7 @@ struct TestSong {
     const int beats[4] = {4, 4, 3, 4};
     uint32_t t = 0;
     for (int b = 0; b < 4; b++) {
-      bars.push_back({t, (uint32_t)ev.size(), (uint8_t)beats[b], 4});
+      bars.push_back({t, (uint32_t)ev.size(), (uint8_t)beats[b], 4, 0});
       ev.push_back(irdsp::songEvent(t, irdsp::kKick, 9));
       if (b == 0) ev.push_back(irdsp::songEvent(t + 3, irdsp::kSnare, 9)), ev.push_back(irdsp::songEvent(t + 8, irdsp::kSnare, 9));
       t += beats[b] * irdsp::kSongPpq;
@@ -776,15 +782,127 @@ static void testSongs() {
       const uint32_t f = s.bars[b].firstEvent;
       ok = ok && (f == s.eventCount || s.events[f].tick() >= s.bars[b].tick) && (f == 0 || s.events[f - 1].tick() < s.bars[b].tick);
     }
+    for (uint32_t e = 0; e < s.bassCount; e++) {
+      const irdsp::BassEvent& b = s.bass[e];
+      ok = ok && (b.note() == 0 || (b.note() >= irdsp::PluckBass::kMinNote && b.note() <= irdsp::PluckBass::kMaxNote &&
+                                    b.vel() >= 1 && b.vel() <= 9));
+      if (e) ok = ok && b.tick() >= s.bass[e - 1].tick();
+    }
+    for (int b = 0; b < s.barCount; b++) {
+      const uint32_t f = s.bars[b].firstBass;
+      ok = ok && (f == s.bassCount || s.bass[f].tick() >= s.bars[b].tick) && (f == 0 || s.bass[f - 1].tick() < s.bars[b].tick);
+    }
+    ok = ok && s.bassCount > 0;
     Rig r("rock", s.bpm, false, &irdsp::drumKit(1));
+    r.withBass();  // drums and bass both at full volume
     r.d->setBusDynamics(true);
     r.d->setSong(&s);
     r.d->start();
     r.run(12.0);
     peak = std::max(peak, r.peak());
   }
-  check(ok, "built-in songs: 32 bars, events and bar table valid", irdsp::drumSongCount());
-  check(peak <= 0.945, "  ... all below the drum bus's ceiling (rock kit)", peak);
+  check(ok, "built-in songs: 32 bars, events, bass and bar table valid", irdsp::drumSongCount());
+  check(peak <= 0.945, "  ... drums + bass at full volume below the ceiling (rock kit)", peak);
+}
+
+// A song's bass line: on the tick clock, through loops, silent in the
+// count-in, muted by stop, off by setBassOn(false).
+struct BassSong : TestSong {
+  std::vector<irdsp::BassEvent> bass;
+  BassSong() {
+    // Bar 1: E1 on 1, mute on 2, A1 dead on the "&" of 2; bar 2: E2 on 1;
+    // bar 3 (3/4): nothing; bar 4: G1 on 1.
+    bass = {irdsp::bassEvent(0, 28, 7), irdsp::bassEvent(24, 0, 0), irdsp::bassEvent(36, 33, 5, true),
+            irdsp::bassEvent(96, 40, 7), irdsp::bassEvent(264, 31, 7)};
+    const uint32_t first[4] = {0, 3, 4, 4};
+    for (int b = 0; b < 4; b++) bars[b].firstBass = first[b];
+    song.bass = bass.data();
+    song.bassCount = (uint32_t)bass.size();
+  }
+};
+
+static void testBass() {
+  std::printf("Bass\n");
+  const double tick = 44100.0 * 60.0 / (120.0 * irdsp::kSongPpq);
+  auto bassHits = [](const Rig& r) {
+    std::vector<Hit> b;
+    for (auto& h : r.hits)
+      if (h.voice == irdsp::DrumMachine::kBassHookVoice) b.push_back(h);
+    return b;
+  };
+  {
+    BassSong bs;
+    Rig r("rock", 120, false);
+    r.withBass();
+    r.d->setSong(&bs.song);
+    r.d->start();
+    r.run(15 * irdsp::kSongPpq * tick / 44100.0 + 0.2);  // once around and the first event again
+    const auto b = bassHits(r);
+    const double t[] = {0, 24, 36, 96, 264, 360};
+    const int note[] = {28, 0, 33 + 128, 40, 31, 28};
+    bool ok = b.size() >= 6;
+    for (int i = 0; ok && i < 6; i++) ok = std::fabs((double)b[i].t - t[i] * tick) <= 1.0 && b[i].vel == note[i];
+    check(ok, "bass events on their ticks (note, mute, dead note), wraps", b.size());
+    double pk = 0;
+    for (size_t i = 0; i < (size_t)(20 * tick); i++) pk = std::max(pk, (double)std::fabs(r.out[i]));
+    check(pk > 0.05, "  ... and sounds", pk);
+  }
+  {
+    BassSong bs;  // loop bars 2-3: the bass seeks with the drums
+    Rig r("rock", 120, false);
+    r.withBass();
+    r.d->setSong(&bs.song);
+    r.d->setLoop(2, 3);
+    r.d->start();
+    r.run(2 * 7 * irdsp::kSongPpq * tick / 44100.0 + 0.1);
+    const auto b = bassHits(r);
+    check(b.size() >= 2 && b[0].vel == 40 && b[0].t == 0 && b[1].vel == 40 && std::fabs((double)b[1].t - 168 * tick) <= 1.0,
+          "loop bars 2-3: the bar-2 note each time around", b.size());
+  }
+  {
+    BassSong bs;  // a 1-bar count-in: no bass until the song starts
+    Rig r("rock", 120, true);
+    r.withBass();
+    r.d->setSong(&bs.song);
+    r.d->start();
+    r.run(2.5);
+    const auto b = bassHits(r);
+    check(!b.empty() && std::fabs((double)b[0].t - 96 * tick) <= 1.0, "count-in: no bass until the song starts", b.size());
+  }
+  {
+    // Stop: the ringing note is muted. The same run with the bass off has
+    // the drums' own tails; the difference is what is left of the bass
+    // 200 ms after stopping.
+    std::vector<float> out[2];
+    for (int on = 0; on < 2; on++) {
+      BassSong bs;
+      Rig r("rock", 120, false);
+      r.withBass();
+      r.d->setBassOn(on == 1);
+      r.d->setSong(&bs.song);
+      r.d->start();
+      r.runTo((uint64_t)(100 * tick));  // E2 ringing (bar 2)
+      r.d->stop();
+      r.run(0.4);
+      out[on] = r.out;
+    }
+    const size_t a = (size_t)(100 * tick) + 8820, e = std::min(out[1].size(), a + 4410);
+    double pk = 0, ring = 0;
+    for (size_t i = a; i < e; i++) pk = std::max(pk, (double)std::fabs(out[1][i] - out[0][i]));
+    for (size_t i = (size_t)(96 * tick) + 2000; i < (size_t)(100 * tick); i++)
+      ring = std::max(ring, (double)std::fabs(out[1][i] - out[0][i]));
+    check(ring > 0.05 && pk < 1e-3 * ring, "stop mutes the bass (-60 dB 200 ms later)", pk / ring);
+  }
+  {
+    BassSong bs;
+    Rig r("rock", 120, false);
+    r.withBass();
+    r.d->setBassOn(false);
+    r.d->setSong(&bs.song);
+    r.d->start();
+    r.run(1.0);
+    check(bassHits(r).empty(), "setBassOn(false): no bass", bassHits(r).size());
+  }
 }
 
 // beatPos: the beat sounding now and the bar's beats, for the beat dots.
@@ -860,6 +978,7 @@ int main() {
   testRealKits();
   testBusLoudness();
   testSongs();
+  testBass();
   testBeatPos();
   std::printf(failures ? "\n%d FAILURE(S)\n" : "\nALL TESTS PASSED\n", failures);
   return failures ? 1 : 0;

@@ -82,10 +82,14 @@ int main(int argc, char** argv) {
   }
   ok += comps == 3 ? 0 : -1;
 
-  // Every built-in song, once through with a 2-bar count-in (rock kit).
+  // Every built-in song with its bass line (at the default 70 %), once
+  // through with a 2-bar count-in (rock kit).
+  std::vector<float> bassBuf(irdsp::DrumMachine::kBassBufLen);
   for (int i = 0; i < irdsp::drumSongCount(); i++) {
     const irdsp::DrumSong& sg = irdsp::drumSong(i);
     std::unique_ptr<irdsp::DrumMachine> d(new irdsp::DrumMachine((float)fs));
+    d->setBassBuffer(bassBuf.data());
+    d->setBassVolume(0.7f);
     d->setKit(&irdsp::drumKit(irdsp::drumKitCount() > 1 ? 1 : 0));
     d->setSong(&sg);
     d->setTempo(sg.bpm);

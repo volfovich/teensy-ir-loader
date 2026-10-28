@@ -254,7 +254,7 @@ IRDSP_COLD MidiResult loadMidiDrums(MidiSource& src, SongEvent* events, uint32_t
     while (mi < c.meterCount && c.meters[mi].tick <= t) beats = c.meters[mi].beats, unit = c.meters[mi].unit, mi++;
     if (nb >= barCap) return res.error = "too many bars", res;
     while (e < n && events[e].tick() < t) e++;
-    bars[nb] = {t, e, beats, unit};
+    bars[nb] = {t, e, beats, unit, 0};
     t += songBarTicks(bars[nb]);
     nb++;
   }

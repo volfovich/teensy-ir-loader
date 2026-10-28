@@ -13,6 +13,7 @@ bar G                        # the band comes in
   kick   9.......8.7.....
   snare  ....9.......9...
   hatc   8.6.7.6.8.6.7.6.
+  bass   G1:8 - G1 - G1 - G1 - G1:8 - G1 - G1 - G1 -
 
 bar F                        # snare and toms into the next section
   kick   9.......8.......
@@ -20,15 +21,27 @@ bar F                        # snare and toms into the next section
   tomh   ..............8.
   toml   ...............9
   hatc   8.6.7.6.8.6.....
+  bass   G1:8 - G1 - G1 - G1 - G1:8 - G1 - . . . .
 
 bar C                        # chorus: kick on every beat, crash on 1
   crash  9...............
   kick   9...8...9...8...
   snare  ....9.......9...
   hatc   ..7.8.7.9.7.8.7.
+  bass   C2:8 - - - C2 - - - Bb1:8 - - - Bb1 - - -
 
 bar E
   crash  9...............
   kick   9...............
+  bass   G1:9 - - - - - - - - - - - - - - -
 
-song   H*4  G*3 F  G*3 F  G*3 F  C*3 F  C*3 F  G*3 F  C*3 E
+bar Gb like G
+  bass   Bb1:8 - Bb1 - Bb1 - Bb1 - Bb1:8 - Bb1 - Bb1 - Bb1 -
+
+bar Gc like G
+  bass   C2:8 - C2 - C2 - C2 - C2:8 - C2 - C2 - C2 -
+
+bar Cg like C
+  bass   G1:8 - - - G1 - - - G1:8 - - - F1 - - -
+
+song   H*4  G Gb Gc F  G Gb Gc F  G Gb Gc F  C Cg C F  C Cg C F  G Gb Gc F  C Cg C E

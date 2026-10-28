@@ -10,21 +10,25 @@ bar V                        # verse: 16th hats, beat and "&" stronger
   kick   9.....7.9.......
   snare  ....9.......9...
   hatc   8464746484647464
+  bass   E1:8 - E1 - E1 - E1 - E1:8 - E1 - E1 - E1 -
 
 bar F                        # snare 16ths on beat 4
   kick   9.....7.9.......
   snare  ....9.......6789
   hatc   846474648464....
+  bass   E1:8 - E1 - E1 - E1 - D2:8 - D2 - D2 - D2 -
 
 bar B                        # build: 8th hats, kick on the beats
   kick   9...8...9...8...
   snare  ....9.......9...
   hatc   8.6.7.6.8.6.7.6.
+  bass   C2:8 - - - C2 - - - D2:8 - - - D2 - - -
 
 bar U                        # build-up: snare 8ths, then 16ths into the chorus
   kick   9...............
   snare  5.6.7.8.6789999.
   tomh   ...............9
+  bass   B1:8 - B1 - B1 - B1 - B1 B1 B1 B1 B1 B1 B1 .
 
 bar C                        # chorus: crash on 1, open hat before the next bar
   crash  9...............
@@ -32,9 +36,23 @@ bar C                        # chorus: crash on 1, open hat before the next bar
   snare  ....9.......9...
   hatc   ..7.8.7.9.7.8...
   hato   ..............7.
+  bass   G1:8 - G1 - G1 - G1 - D2:8 - D2 - D2 - D2 -
 
 bar E
   crash  9...............
   kick   9...............
+  bass   E1:9 - - - - - - - - - - - - - - -
 
-song   V*3 F  V*3 F  B*3 U  C*3 F  C*3 F  V*3 F  B*3 U  C*3 E
+bar Vc like V
+  bass   C2:8 - C2 - C2 - C2 - C2:8 - C2 - C2 - C2 -
+
+bar Vd like V
+  bass   D2:8 - D2 - D2 - D2 - D2:8 - D2 - D2 - D2 -
+
+bar B2 like B
+  bass   A1:8 - - - A1 - - - B1:8 - - - B1 - - -
+
+bar C2 like C
+  bass   E1:8 - E1 - E1 - E1 - C2:8 - C2 - C2 - C2 -
+
+song   V Vc Vd F  V Vc Vd F  B B2 B U  C C2 C F  C C2 C F  V Vc Vd F  B B2 B U  C C2 C E

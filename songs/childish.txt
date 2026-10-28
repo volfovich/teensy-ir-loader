@@ -10,11 +10,13 @@ bar G
   kick   9.....7.9.......
   snare  ....9.......9...
   hatc   9.6.5.6.8.6.5.6.
+  bass   D2:8 - D2 - D2 - D2 - D2:8 - D2 - D2 - D2 -
 
 bar H                        # the groove with an extra kick on the "&" of 3
   kick   9.....7.9.7.....
   snare  ....9.......9...
   hatc   9.6.5.6.8.6.5.6.
+  bass   G1:8 - G1 - G1 - G1 - G1:8 - G1:8 - G1 - G1 -
 
 bar T                        # tom fill down the kit on beats 3-4
   kick   9.....7.........
@@ -22,15 +24,27 @@ bar T                        # tom fill down the kit on beats 3-4
   tomh   ..........88....
   toml   ............9999
   hatc   9.6.5.6.........
+  bass   D2:8 - D2 - D2 - D2 - D2:8 . A1:8 - B1 - C#2 -
 
 bar R                        # chorus on the ride, crash on 1
   crash  9...............
   ride   ..6.7.6.8.6.7.6.
   kick   9.....7.9.....7.
   snare  ....9.......9...
+  bass   A1:8 - A1 - A1 - A1 - A1:8 - A1 - A1 - A1 -
 
 bar E
   crash  9...............
   kick   9...............
+  bass   D2:9 - - - - - - - - - - - - - - -
 
-song   G*2 H T  G*2 H T  R*3 T  G*2 H T  G*2 H T  R*3 T  R*3 T  G H G E
+bar Gc like G
+  bass   C2:8 - C2 - C2 - C2 - C2:8 - C2 - C2 - C2 -
+
+bar Rc like R
+  bass   C2:8 - C2 - C2 - C2 - C2:8 - C2 - C2 - C2 -
+
+bar Rg like R
+  bass   G1:8 - G1 - G1 - G1 - G1:8 - G1 - G1 - G1 -
+
+song   G Gc H T  G Gc H T  R Rc Rg T  G Gc H T  G Gc H T  R Rc Rg T  R Rc Rg T  G H G E

@@ -2,8 +2,9 @@
 //
 //   styles (DrumPatterns.cpp) -> sample-accurate step sequencer -> voices
 //   (count-in, speed trainer, crash accents)    humanized velocity   |
-//          panned stereo drum bus -> parallel compressor + limiter (1.5 ms lookahead)
-//                                                                  x volume
+//          panned stereo drum bus -> parallel compressor -> x volume
+//                                                       + bass x bass volume -> limiter
+//                                                         (1.5 ms lookahead)
 //
 // Voices come from the kit (DrumKit.h): either recorded samples, played
 // straight from flash, or these synthesized ones. A lane a kit has no
@@ -34,6 +35,12 @@
 // count-in, then wraps at its end or at the loop's last bar. Crash accents
 // and the speed trainer apply to styles only.
 //
+// Bass (setBassBuffer, setBassOn): a song's bass line plays on a plucked-
+// string bass (PluckBass.h), on the same tick clock as the drums, not
+// during the count-in, muted when the drums stop. It joins the bus after
+// the compressor (the kick doesn't pump it) with its own volume, and the
+// limiter keeps the sum below -0.5 dBFS.
+//
 // Dynamics: every hit has a velocity 1..9 from its lane, varied at random
 // per lane (hats and cymbals the most, the click not at all). A sampled
 // lane plays the layer recorded nearest that velocity. Each lane has a fixed
@@ -48,6 +55,7 @@
 
 #include "DrumKit.h"
 #include "DrumSong.h"
+#include "PluckBass.h"
 #include "irdsp_blocks.h"
 
 namespace irdsp {
@@ -75,6 +83,14 @@ class DrumMachine {
   // The drum bus is delayed by this many samples (1.5 ms at 44.1 kHz), the
   // drum-bus compressor's lookahead.
   static constexpr int kLatency = 64;
+  // process() blocks longer than this are split (the bass's block buffer).
+  static constexpr int kMaxBlock = 256;
+  // setBassBuffer's size in floats: the bass's strings, its lookahead
+  // delay and a block.
+  static constexpr int kBassBufLen = 2 * PluckBass::kLineLen + kLatency + kMaxBlock;
+  // The hit hook's voice for bass events: vel is the note (0 = mute), +128
+  // for a dead note.
+  static constexpr int kBassHookVoice = 32;
 
   explicit DrumMachine(float sampleRate = 44100.0f);
 
@@ -110,6 +126,12 @@ class DrumMachine {
     loopA_ = first < 1 ? 0 : first;
     loopB_ = first < 1 || last < first ? 0 : last;
   }
+  // Bass: buf is kBassBufLen floats (DMAMEM on the Teensy); without one
+  // there is no bass. Call before the audio runs.
+  void setBassBuffer(float* buf);
+  void setBassOn(bool on) { bassOn_ = on; }
+  void setBassVolume(float n);  // 0..1, the same curve as setVolume
+  void setBassTone(float t) { bassToneReq_ = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t); }
   void start() { stopReq_ = false; startReq_ = true; }
   void stop() { startReq_ = false; stopReq_ = true; }
 
@@ -156,6 +178,9 @@ class DrumMachine {
   void trigger(int voice, int code, uint64_t sample);
   bool voicesActive() const;
   void renderVoices(float* outL, float* outR, int n);
+  void bus(float* outL, float* outR, int n);
+  void playBass(const BassEvent& e, uint64_t sample);
+  bool render(float* outL, float* outR, int n);
   void startSample(int voice, float vel);
   void fadeLane(int voice, float ms, int keep);
   void fadeVoice(int i, float ms);
@@ -203,6 +228,14 @@ class DrumMachine {
   volatile bool busDynamics_ = true;
   volatile float volTarget_ = 0.0f;
   float volCur_ = 0.0f;
+  // Bass.
+  PluckBass bass_;
+  float* bassLa_ = nullptr;   // its lookahead delay (kLatency), beside the drums'
+  float* bassBlk_ = nullptr;  // this block's bass (kMaxBlock)
+  volatile bool bassOn_ = true;
+  volatile float bassVolTarget_ = 0.7f, bassToneReq_ = 0.5f;
+  float bassVolCur_ = 0.7f, bassTone_ = -1.0f;
+  uint32_t bassIdx_ = 0;
 
   // Drum-bus compressor: envelope, gain (with makeup) and its ramp.
   float compAtt_, compRel_, compEnv_ = 0.0f, compGainNow_ = 1.0f, compStep_ = 0.0f;
