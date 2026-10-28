@@ -132,13 +132,17 @@
 // ---------------------------------------------------------------------------
 #define SDCARD_CS_PIN 10  // SD slot on the Teensy 4 Audio Shield (Rev D)
 
-// Optional momentary buttons to GND (internal pull-ups). -1 disables.
-// Free pins with the audio shield fitted: 0-5, 9, 14, 16, 17, 22
-// (15 is the shield's volume-pot pad, 6 its memory-chip CS).
-#define BUTTON_NEXT_PIN 2
-#define BUTTON_PREV_PIN 3
-#define BUTTON_BYPASS_PIN 4
-#define BUTTON_REVERB_PIN 5
-#define BUTTON_DELAY_PIN 9
+// OLED + encoder module (see DISPLAY.md). The display shares the codec's I2C
+// bus (pins 18/19); the encoder and the keys switch to GND (internal
+// pull-ups). Other free pins with the audio shield fitted: 0, 1, 14, 16, 17,
+// 22 (15 is the shield's volume-pot pad, 6 its memory-chip CS).
+#define OLED_I2C_ADDR 0x3C       // 0x3D on some modules (tried too); -1 disables the display
+#define ENC_A_PIN 2
+#define ENC_B_PIN 3
+#define ENC_PUSH_PIN 4
+#define KEY_CONFIRM_PIN 5
+#define KEY_BACK_PIN 9
+#define ENC_COUNTS_PER_DETENT 4  // most EC11 encoders; try 2 if one click moves two steps
+#define ENC_REVERSE 1            // 1 if clockwise moves the wrong way (it does on our module)
 
 #define AUDIO_MEMORY_BLOCKS 20

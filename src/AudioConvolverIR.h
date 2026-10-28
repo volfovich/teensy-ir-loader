@@ -144,11 +144,20 @@ class AudioConvolverIR : public AudioStream {
   bool drumsCountingIn() const { return drums_.countingIn(); }
   float drumTempoNow() const { return drums_.tempoNow(); }
   int drumBar() const { return drums_.bar(); }
+  // The beat sounding (0-based, -1 stopped) and the bar's beats.
+  void drumBeatPos(int* beat, int* beats) const { drums_.beatPos(beat, beats); }
 
   // Meters: return the peak (linear, 1.0 = full scale) since the last call.
   float takeInputPeak() { float p = inPeak_; inPeak_ = 0.0f; return p; }
   float takeOutputPeak() { float p = outPeak_; outPeak_ = 0.0f; return p; }
   uint32_t clipCount() const { return clips_; }
+  // The same for the display, kept apart so the serial meter and the OLED
+  // don't take each other's peaks.
+  void takeDisplayPeaks(float& in, float& out) {
+    in = dispInPeak_;
+    out = dispOutPeak_;
+    dispInPeak_ = dispOutPeak_ = 0.0f;
+  }
 
   // CPU load of this object, in percent of one core.
   float cpuPercent() const { return cyclesToPercent(cyclesAvg_); }
@@ -165,7 +174,7 @@ class AudioConvolverIR : public AudioStream {
     float x[B], y[B], dl[B], dr[B], ol[B], orr[B];
 
     audio_block_t* in = receiveReadOnly(0);
-    float pk = inPeak_;
+    float pk = 0.0f;  // this block's
     if (in) {
       for (int i = 0; i < B; i++) {
         x[i] = in->data[i] * (1.0f / 32768.0f);
@@ -176,7 +185,8 @@ class AudioConvolverIR : public AudioStream {
       // No input yet: keep processing silence so the IR tail decays.
       for (int i = 0; i < B; i++) x[i] = 0.0f;
     }
-    inPeak_ = pk;
+    inPeak_ = fmaxf(inPeak_, pk);
+    dispInPeak_ = fmaxf(dispInPeak_, pk);
 
     engine_.process(x, y);
 
@@ -215,7 +225,7 @@ class AudioConvolverIR : public AudioStream {
     const float* addR = drums ? drumR : nullptr;
     drumCyclesAvg_ = drumCyclesAvg_ + ((float)(ARM_DWT_CYCCNT - t3) - drumCyclesAvg_) * 0.01f;
 
-    float opk = outPeak_;
+    float opk = 0.0f;  // this block's
     uint32_t clips = 0;
     audio_block_t* outL = allocate();
     if (!outL) return;
@@ -238,7 +248,8 @@ class AudioConvolverIR : public AudioStream {
       }
       release(outL);
     }
-    outPeak_ = opk;
+    outPeak_ = fmaxf(outPeak_, opk);
+    dispOutPeak_ = fmaxf(dispOutPeak_, opk);
     clips_ += clips;
 
     const uint32_t c = ARM_DWT_CYCCNT - t0;
@@ -463,6 +474,7 @@ class AudioConvolverIR : public AudioStream {
   volatile float gainTarget_ = 0.5f, gainCur_ = 0.5f;
   volatile float wetTarget_ = 1.0f, wetCur_ = 1.0f;
   volatile float inPeak_ = 0.0f, outPeak_ = 0.0f;
+  volatile float dispInPeak_ = 0.0f, dispOutPeak_ = 0.0f;
   volatile uint32_t clips_ = 0;
   volatile float cyclesAvg_ = 0.0f;
   volatile uint32_t cyclesMax_ = 0;

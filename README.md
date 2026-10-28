@@ -46,7 +46,7 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
   - A count-in (2 bars by default), and a speed trainer that raises the tempo every few bars up to a target, with a count-in at each new tempo.
   - Mixed into the outputs in stereo after the effects, with its own volume, so the drums never go through your guitar effects.
 - **Remembers settings:** the last IR, your levels and the delay, reverb and drum settings are stored in EEPROM.
-- **Controls:** USB serial commands, plus optional *next*, *previous*, *bypass*, *reverb* and *delay* buttons.
+- **Controls:** a 0.96" OLED with a rotary encoder and two keys (every setting, the IR list, a level meter and a status page; see [DISPLAY.md](DISPLAY.md)), and USB serial commands. Both work at the same time.
 
 ## Hardware
 
@@ -56,7 +56,7 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
 | Amp line out ground | **GND** next to the line-in pads | |
 | To mixer / interface / power amp | **LINE OUT L** and **R** + GND | Stereo when the delay or reverb is on; both carry the same signal when they are off. For a mono rig use L. If the gear you feed is not AC-coupled, add a 2.2–10 µF capacitor in series. |
 | Headphones | 3.5 mm jack | **Headphones only.** The jack's ground is a *virtual* ground, so never connect it to another device's ground. |
-| Buttons (optional) | pins 2 (next), 3 (prev), 4 (bypass), 5 (reverb on/off), 9 (delay on/off) to GND | Change or disable them in `include/config.h`. |
+| OLED + encoder module (SSD1306, 128x64) | VCC **3.3 V**, GND, SDA **18**, SCL **19** (shared with the codec); encoder A **2**, B **3**, push **4**; CONFIRM **5**; BACK **9** | Never 5 V. Wiring, controls and screens: [DISPLAY.md](DISPLAY.md). Pins, I2C address and encoder direction are in `include/config.h`. |
 
 ### ⚠️ Level and safety
 
@@ -191,7 +191,9 @@ src/IRLibrary.{h,cpp}       SD card scanning and IR loading
 src/DrumSongs.{h,cpp}       drum songs: the built-in ones and MIDI files in /DRUMS
 src/Settings.{h,cpp}        settings saved in EEPROM
 src/SerialUI.{h,cpp}        serial commands and level meter
-src/Buttons.{h,cpp}         next / previous / bypass / reverb / delay buttons
+src/Controls.{h,cpp}        the panel's encoder (interrupt-driven) and keys
+src/Oled.{h,cpp}            minimal SSD1306 driver on the codec's I2C bus
+src/DisplayUI.{h,cpp}       the OLED panel: settings and model for lib/oledui, sending changed pages
 src/AudioConvolverIR.h      Teensy Audio Library object (IR, gain, bypass, delay, reverb, meters, CPU stats)
 lib/irdsp/src/              portable DSP core (no Arduino dependencies)
   PartitionedConvolver.h    the UPOLS convolution engine
@@ -207,6 +209,7 @@ lib/irdsp/src/              portable DSP core (no Arduino dependencies)
   irdsp_blocks.h            shared shelving filter, biquad filters, Hermite read, LFO and mix law
   irdsp_fft.h               small radix-2 FFT
   IRLoader.{h,cpp}          WAV parser, resampler, IR trimming and normalization
+lib/oledui/src/             the panel UI, Arduino-free: canvas, font, menu tree, screens, meters, keys
 kits/rock/                  the recorded drum kit (WAVs, kit.txt, credits, our originals)
 songs/                      the built-in drum songs (text, compiled in)
 tools/                      drum kit tools: import_kit.py (build a kit's WAVs), make_kits.py (compile kits in)
@@ -238,7 +241,6 @@ The tests check:
 
 ## Ideas for next steps
 
-- **OLED + rotary encoder:** an SSD1306 display on the I2C pins (18/19) is already shared with the codec, so it can be added without extra wiring.
 - **Tone controls:** low-cut, high-cut and a presence biquad after the convolver.
 - **Two-IR blending:** the engine already evaluates two IRs during crossfades.
 - **USB audio:** build with `-D USB_MIDI_AUDIO_SERIAL` and add `AudioOutputUSB` to record directly into a computer (verify it with your chosen block size).

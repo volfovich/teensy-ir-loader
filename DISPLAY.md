@@ -1,8 +1,8 @@
-# OLED + Encoder Control (plan)
+# OLED + Encoder Control
 
-This plan adds a 0.96" SSD1306 OLED module with a rotary encoder (with push switch) and two buttons. It replaces the five optional buttons and makes every serial-terminal function available from the front panel. The serial UI keeps working alongside it.
+A 0.96" SSD1306 OLED module with a rotary encoder (with push switch) and two buttons. It replaced the five optional buttons and makes every serial-terminal function available from the front panel. The serial UI keeps working alongside it.
 
-The UI itself is written and tested on the PC: `lib/oledui` draws every screen and runs the menu and the panel's controls (`test/host/test_ui.cpp`, and `render_ui` renders the screens to PNG). The display driver, the encoder and keys, and the wiring into the firmware are not done yet ([Implementation steps](#implementation-steps)).
+The UI is written and tested on the PC: `lib/oledui` draws every screen and runs the menu and the panel's controls (`test/host/test_ui.cpp`, and `render_ui` renders the screens to PNG). The firmware adds the display driver, the encoder and keys, and the glue to the settings ([Files](#files)).
 
 ## Summary
 
@@ -12,7 +12,7 @@ The UI itself is written and tested on the PC: `lib/oledui` draws every screen a
   - A small SSD1306 driver of our own, running from flash. It sends only the 128-byte pages that changed.
   - An interrupt-driven encoder.
   - A table-driven menu that calls the existing setters in `AudioGraph`.
-- **Memory:** the UI costs about 0.5 KB of RAM1. **No current feature has to be removed.** See [RAM1 strategy](#ram1-strategy).
+- **Memory:** the panel costs 768 B of RAM1 code (most of it the Teensy core's pin-interrupt code) and 2 KB of RAM2. **No feature had to be removed.** See [RAM1 strategy](#ram1-strategy).
 
 ## Hardware
 
@@ -51,6 +51,7 @@ Notes:
 
 - **I2C address:** usually 0x3C. Some modules are set to 0x3D with a resistor on the back. It is set in `config.h`.
 - **Pull-ups:** the OLED module and the Audio Shield both have I2C pull-ups. In parallel they are still within spec, so nothing needs removing.
+- **Encoder direction:** on our module, clockwise counts down, so `config.h` has `ENC_REVERSE 1`. Set it to 0 if clockwise moves the cursor left on yours.
 - **Encoder and buttons:** the firmware uses the Teensy's internal pull-ups (`INPUT_PULLUP`), with the contacts switching to GND. If the module has its own pull-ups to VCC, that is fine at 3.3 V.
 - **Encoder bounce:** if the module has no RC filter on the encoder, a 100 nF capacitor from A and from B to GND helps. The state-table decoder tolerates bounce anyway, so try without first.
 - **Physical access:** with the shield stacked, pins 18/19 are reachable on the shield's header or on the Teensy's top header pins.
@@ -311,10 +312,10 @@ Every serial command has a place:
 ### Files
 
 ```
-src/Controls.{h,cpp}    replaces Buttons.{h,cpp}: encoder ISR, 3 debounced keys, events
-src/Oled.{h,cpp}        minimal SSD1306 driver: init, 1 KB frame buffer, text, bars, dirty pages
+src/Controls.{h,cpp}    replaced Buttons.{h,cpp}: encoder ISR, 3 debounced keys (ui::Key), events
+src/Oled.{h,cpp}        minimal SSD1306 driver: init, send one page
 src/DisplayUI.{h,cpp}   fills the UiModel and implements MenuHost (g_settings + the setters); feeds
-                        the control events to ui::Panel and flushes the pages it draws
+                        the control events to ui::Panel and sends the pages that changed
 lib/oledui/             the UI, Arduino-free (done): Canvas, font, Menu (the table and its engine),
                         Screens (drawing from a UiModel), Meter, Key, Panel (screens and controls)
 include/config.h        pin/address defines (replace BUTTON_*)
@@ -333,7 +334,7 @@ src/main.cpp            controlsBegin()/displayBegin() in setup(); service calls
 #define KEY_CONFIRM_PIN 5
 #define KEY_BACK_PIN 9
 #define ENC_COUNTS_PER_DETENT 4  // most EC11 encoders; try 2 if one click moves two steps
-#define ENC_REVERSE 0            // 1 if clockwise moves the wrong way
+#define ENC_REVERSE 1            // 1 if clockwise moves the wrong way (it does on our module)
 ```
 
 ### Controls
@@ -344,20 +345,15 @@ src/main.cpp            controlsBegin()/displayBegin() in setup(); service calls
   - Because it is interrupt-driven, no steps are lost while `loop()` is blocked, for example during an IR load (about 29 ms).
   - The ISR is a few instructions long and stays in ITCM.
 - **Keys:** the same 15 ms debounce as today's `Button` struct, extended with press, release and hold (≥ 600 ms) detection.
-- **API:** `serviceControls()` turns all of this into a small event queue for the UI: `kTurn(±n)`, `kPush`, `kHold`, `kConfirm`, `kBack`.
+- **API:** `readControls()`, called every `loop()` pass, returns the whole detents turned since the last call and one `ui::Key` event (press, release, hold) per key. `DisplayUI` maps them: push release → `Panel::push`, push hold → `hold`, CONFIRM and BACK press → `confirm` / `back`.
 
 ### Oled driver
 
-Why our own driver: see [RAM1 strategy](#ram1-strategy). It is about 150 lines.
+Why our own driver: see [RAM1 strategy](#ram1-strategy). It is about 70 lines.
 
-- **Init:** the standard SSD1306 128x64 init sequence (charge pump on, page addressing mode).
-- **Frame buffer:** `DMAMEM uint8_t fb[8][128]` (1 KB in RAM2) and a `uint8_t dirty` bitmask with one bit per page.
-- **Drawing:** `clear`, `text(col, row, str, big)`, `invert(row range)`, `hbar(...)` and `vline(...)`. They all draw into the buffer and mark pages dirty.
-- **Flushing:**
-  - `oledFlushOne()` sends **one dirty page per call**: a 3-byte address command plus 129 bytes of data.
-  - The Teensy 4 `Wire` buffer is 136 bytes, so a whole page fits in one transaction.
-  - A page takes about 3.3 ms at 400 kHz. A full-screen redraw spreads over 8 `loop()` passes instead of blocking for 25 ms.
-- **Font:** a 5x7 ASCII font (95 glyphs x 5 bytes = 475 bytes) in `PROGMEM`. The 2x font is drawn by scaling the same glyphs, so it costs nothing extra.
+- **Init:** probes `OLED_I2C_ADDR`, then 0x3D, and sends the standard SSD1306 128x64 init sequence (charge pump on, page addressing mode). With no display found, the panel stays off and the firmware runs as before.
+- **Sending:** `oledSendPage(p, data)` sends one page: a 3-byte address command, then 1 control byte + 128 data bytes. The Teensy 4 `Wire` buffer is 136 bytes, so a whole page fits in one transaction. A page takes about 3.3 ms at 400 kHz.
+- **Drawing** is `ui::Canvas` (`lib/oledui`): the frame buffer, text in the 5x7 font (in flash) and its 2x scaling, lines, boxes and inversion.
 
 ### DisplayUI
 
@@ -379,9 +375,13 @@ Why our own driver: see [RAM1 strategy](#ram1-strategy). It is about 150 lines.
   - The table itself is `PROGMEM`.
   - Output gain is stored as half-dB steps (`get` returns `lroundf(g * 2)`, `set` calls `setOutputGainDb(v * 0.5f)`), so every item is an `int`.
 - **Setters:** all changes go through the existing setters. They already clamp, apply, and call `scheduleSave()`, which is debounced, so turning the knob doesn't wear the EEPROM.
-- **Sync with serial:** the UI keeps a copy of the `Settings` it last drew plus `irCurrent()`. Each pass it compares them (`memcmp`, a few hundred bytes) and redraws when anything changed. Changes made over serial therefore show on the screen with no coupling between the two UIs.
+- **Redraw and send:**
+  - The current screen is drawn into the canvas right after any control event, and otherwise every 40 ms (25 Hz), from a model filled fresh each time. The meters take their readings there.
+  - A second 1 KB buffer (`DMAMEM`) holds what the OLED shows. `serviceDisplay()` sends **at most one page per call, and only a page whose bytes differ** from it, round-robin so the meter rows can't starve the others.
+  - So a still home screen sends only the meter rows (and the beat row while the drums play), and changes made over serial show on the screen within a frame, with no coupling between the two UIs.
 - **Serial echo:** the setters print a confirmation on Serial at every encoder step, for example `Delay time 385 ms`. That is harmless. If it gets noisy, add a `quiet` flag later.
-- **Loop budget:** `serviceDisplay()` does at most one page flush (about 3 ms) per call, and meter updates are limited to 25 Hz.
+- **Loop budget:** `serviceDisplay()` sends at most one page (about 3.3 ms) per call. Drawing a screen runs from flash and takes much less.
+- **Splash:** shown for 1.5 s at the end of `setup()`, after the SD scan, so it can show the IR count. Input is ignored meanwhile.
 
 ### main.cpp
 
@@ -390,14 +390,13 @@ void setup() {
   controlsBegin();
   loadSettings();
   audioBegin();
-  displayBegin();      // after audioBegin(): Wire is up; sets 400 kHz, shows a splash
-  ...
+  ...                  // serial, SD scan, startup IR, drum song
+  displayBegin();      // after audioBegin() (Wire is up; sets 400 kHz) and the scan; shows the splash
 }
 
 void loop() {
   serviceSerial();
-  serviceControls();
-  serviceDisplay();    // UI events, redraws, one page flush
+  serviceDisplay();    // controls, redraws, at most one page sent
   serviceMeter();
   serviceSave();
 }
@@ -428,15 +427,15 @@ So the display must not be added the "normal" way:
 
 ### The options
 
-**No current feature has to be removed.** Option A keeps the UI out of RAM1, and option B is already done. C and D are only for the future.
+**No feature had to be removed.** Options A and B are done. C and D are only for the future.
 
-#### A. Keep the UI out of RAM1 (recommended, part of this plan)
+#### A. Keep the UI out of RAM1 (done)
 
 - All UI functions are marked `FLASHMEM`. They run from flash through the 32 KB instruction cache, which is far faster than an I2C display needs.
 - The font, the menu table and the strings go in `PROGMEM` / `PSTR()`.
 - The frame buffer is `DMAMEM` (RAM2).
 - Our own small driver instead of a library, so everything above is under our control.
-- **RAM1 cost:** the encoder ISR plus a few state variables, about 0.5 KB. ITCM stays at 4 banks and the stack keeps about 41 KB.
+- **RAM1 cost, measured** (2026-10-28, against the build just before): ITCM code +768 B (127,976 → 128,744 B; 2,328 B of padding left in the 4 banks). Our own share is the encoder ISR (72 B) and the display peak pair in `update()` (48 B); the rest is Teensy core code that comes with pin interrupts (`attachInterrupt` 292 B, the GPIO interrupt dispatcher 192 B) and `Wire.setClock` (132 B). DTCM variables +1.2 KB (the GPIO interrupt tables, the model, the panel), so the stack went from 34,880 to 33,696 B. RAM2: the two 1 KB screen buffers.
 
 #### B. Move existing non-real-time code to flash (done)
 
@@ -457,23 +456,20 @@ So the display must not be added the "normal" way:
 - `DELAY_MAX_MS` 750 → 600 frees about 26 KB of RAM1. Each 100 ms costs about 17.6 KB per delay line.
 - Moving `g_delayA` to `DMAMEM` frees 132 KB of RAM1 but leaves only about 15 KB free in RAM2. It is also a bigger change to the delay's memory layout.
 
-## Implementation steps
+## Bring-up (2026-10-28)
 
-1. **Driver:** `Oled.{h,cpp}`, init plus "hello" text, sharing `Wire` with the codec. Check that the codec still works by changing `in`/`out` over serial while the display updates.
-2. **Controls:** `Controls.{h,cpp}` with the encoder ISR and keys. Print events on serial to check the direction, the counts per detent and the hold timing.
-3. **Display peaks:** add the display peak pair to `AudioConvolverIR`.
-4. **Home screen:** the blocks, the drums, the meters, and the block controls (`ui::Panel`, done on the PC).
-5. **Menus:** menu table, list, value editor, IR list, Status, full-screen Meter (done on the PC).
-6. **Remove `Buttons.{h,cpp}`** and the `BUTTON_*` defines. Update the README (hardware table, controls, project layout, *Ideas for next steps*).
-
-Each step builds and runs on its own, so steps can be tested on the hardware one at a time.
+- **Bus:** the OLED answered at 0x3C on the shared bus, and the codec still takes `in` / `out` over serial with the display running.
+- **Picture:** the right way round with the init as written (`A1`, `C8`).
+- **Encoder:** one event per detent both ways with `ENC_COUNTS_PER_DETENT 4`, but clockwise counted down, hence `ENC_REVERSE 1`. `CONTROLS_DEBUG` in `DisplayUI.cpp` prints the events on serial for checking another module.
+- **Keys:** push, CONFIRM and BACK all fire; push on the IR block opened the list and loaded an IR; CONFIRM started and stopped the drums.
+- **CPU:** unchanged with the meters running (28.7 % average and 31.0 % max with the reverb on, as before). Drums at 240 BPM with crashes and four IR switches: 32.0 % average, 51.8 % max, no clipped samples (the reference is about 52 %).
 
 ## Testing
 
 **Memory and performance**
 
-- Run `teensy_size` after each step. RAM1 free should stay at about 40 KB or more, ITCM should stay within 4 banks (check the `padding` figure), and RAM2 should still have well over 100 KB free.
-- Take a baseline `s` before flashing (about 31.5 % average and 52 % max during a crossfade). CPU should be unchanged with the display running, because the UI works in `loop()`, not in the audio interrupt.
+- Run `teensy_size` after each change. ITCM should stay within 4 banks (check the `padding` figure), and RAM2 should still have well over 100 KB free.
+- Take a baseline `s` before flashing (about 52 % max during a crossfade while the drums play). CPU should be unchanged with the display running, because the UI works in `loop()`, not in the audio interrupt.
 - Spin the encoder fast and switch IRs during heavy page flushing. There should be no clicks or dropouts, and the `s` max should not rise.
 
 **Controls**
@@ -499,7 +495,4 @@ Each step builds and runs on its own, so steps can be tested on the hardware one
 
 ## Open choices
 
-These are defaults. Each one is easy to change.
-
-1. **Bus:** shared `Wire` (18/19, 400 kHz) or a separate `Wire1` (16/17, 1 MHz).
-2. **Option B:** done before the display work.
+- **Bus:** shared `Wire` (18/19, 400 kHz) for now. A separate `Wire1` (16/17, 1 MHz) would be a rewiring and a one-line change in `Oled.cpp`, only worth it if the shared bus ever causes trouble.
