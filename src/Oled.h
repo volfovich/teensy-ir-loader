@@ -1,6 +1,7 @@
-// Oled.h - minimal SSD1306 128x64 driver on the codec's I2C bus (Wire, pins
-// 18/19, 400 kHz). It holds no frame buffer: the UI draws into a ui::Canvas
-// and sends it a page (8 pixel rows x 128 columns) at a time.
+// Oled.h - minimal SH1106 / SSD1306 128x64 driver (OLED_SH1106 in config.h)
+// on the codec's I2C bus (Wire, pins 18/19, 400 kHz). It holds no frame
+// buffer: the UI draws into a ui::Canvas and sends it a page (8 pixel rows x
+// 128 columns) at a time.
 #pragma once
 
 #include <stdint.h>

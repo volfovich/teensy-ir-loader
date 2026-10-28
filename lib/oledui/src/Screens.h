@@ -17,35 +17,21 @@ struct UiModel {
   int irCount = 0, irCurrent = -1;
   const char* (*irPath)(int idx) = nullptr;
 
-  // Effects.
-  bool bypass = false, delayOn = false, reverbOn = false, studioDelay = true;
-  bool reverb80 = false, reverbGated = false;
-  int delayTimeMs = 0, delayMix = 0, reverbMix = 0;
+  // The blocks' on/off.
+  bool bypass = false, delayOn = false, reverbOn = false, drumsPlaying = false;
 
-  // Drums.
-  bool drumsPlaying = false, drumsCountingIn = false;
-  const char* drumStyle = "";      // the style's name
-  const char* drumSong = nullptr;  // the song's title; nullptr: the style plays
-  const char* drumKit = "";
-  int drumTempo = 0, drumVolume = 0;  // the tempo now (trainer)
-  int drumBar = 0;                    // groove bars, from 1 (styles)
-  int drumSongBar = 0, drumSongBars = 0;   // songs: the bar from 1, of n
-  int drumLoopFrom = 0, drumLoopTo = 0;    // songs: loop bars, 0 = no loop
+  // Drums, shown while they play.
+  int drumTempo = 0;                 // the tempo now (trainer)
   int drumBeat = -1, drumBeats = 4;  // the beat sounding (0-based, -1 stopped), beats in the bar
-  bool trainerOn = false;
-  int trainerTarget = 0;
 
-  // Meters.
+  // Meter screen.
   MeterState in, out;
-
-  // Status.
-  float cpu = 0, cpuMax = 0, cpuDelay = 0, cpuReverb = 0, latencyMs = 0, gainDb = 0;
-  int blocksUsed = 0, blocksMax = 0, partitions = 0, blockSize = 0;
-  int hpPercent = 0, lineIn = 0, lineOut = 0;
+  int lineIn = 0;
   uint32_t clips = 0;
 
-  // Splash.
-  int irMaxLength = 0;
+  // Status.
+  float cpu = 0, cpuMax = 0;
+  int blocksUsed = 0, blocksMax = 0;
 };
 
 // The file name without the folder and the .wav extension.
@@ -55,17 +41,16 @@ void irDisplayName(const char* path, char* out, int n);
 // the effects).
 enum HomeBlock : uint8_t { kBlockIR, kBlockDelay, kBlockReverb, kBlockDrums, kHomeBlocks };
 
+// Screens in rows of 16 px (the 8x16 font): row r is pages 2r and 2r+1.
 void drawSplash(Canvas& c, const UiModel& m);
-// Pages 0-5 of the home screen: the blocks with the cursor under `block`,
-// the selected block's details, and the drums (tempo, style or song, beat).
+// Row 0 the IR name; row 1 the blocks, filled when on, the cursor under
+// `block`; rows 2-3 the drums' tempo, and the beat while they play.
 void drawHome(Canvas& c, const UiModel& m, int block);
-// Pages 6-7 of the home screen (redrawn at the meter rate).
-void drawHomeMeters(Canvas& c, const UiModel& m);
 // The IR list: entries 0..irCount-1 plus "Rescan SD card" (index irCount).
 // marquee: characters the cursor row's name is scrolled by.
 void drawIrBrowser(Canvas& c, const UiModel& m, int cursor, int top, int marquee);
-static constexpr int kIrBrowserRows = 7;
-static constexpr int kIrBrowserNameChars = 15;  // of a name, per row
+static constexpr int kIrBrowserRows = 3;
+static constexpr int kIrBrowserNameChars = 12;  // of a name, per row
 void drawStatus(Canvas& c, const UiModel& m);
 void drawMeterScreen(Canvas& c, const UiModel& m);
 

@@ -115,7 +115,7 @@ class Menu {
     kExit,        // back from the top level: return to the home screen
     kOpenScreen,  // push on a kScreen item: see screen()
   };
-  static constexpr int kRows = 7;  // item rows under the title
+  static constexpr int kRows = 3;  // item rows under the title (8x16 font)
   static constexpr uint32_t kFastMs = 40;
   static constexpr int kFastFactor = 5;
 

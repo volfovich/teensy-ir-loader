@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-#include "Font5x7.h"
+#include "Fonts.h"
 #include "ui_port.h"
 
 namespace ui {
@@ -57,65 +57,38 @@ UI_COLD void Canvas::invert(int x, int y, int w, int h) {
     for (int i = x; i < x + w; i++) pixel(i, j, !get(i, j));
 }
 
-UI_COLD void Canvas::invertText(int x, int page, int w) {
-  if (page < 0 || page >= kPages) return;
-  uint8_t* row = buf_ + page * kW;
-  for (int i = x < 0 ? 0 : x; i < x + w && i < kW; i++) row[i] = (uint8_t)~(row[i] << 1);
-  dirty_ |= 1 << page;
-}
-
 UI_COLD void Canvas::dots(int x0, int x1, int y) {
   for (int x = x0; x <= x1; x += 2) pixel(x, y, true);
 }
 
-// Spreads the 8 bits of b over 16 (each bit doubled), for the 2x font.
-static UI_COLD uint16_t stretch(uint8_t b) {
-  uint16_t r = 0;
-  for (int i = 0; i < 8; i++)
-    if (b & (1 << i)) r |= 3u << (2 * i);
-  return r;
-}
-
-UI_COLD int Canvas::text(int x, int page, const char* s, bool big) {
-  if (page < 0 || page >= kPages || (big && page + 1 >= kPages)) return x;
-  const int cw = big ? kBigCharW : kCharW;
+UI_COLD int Canvas::text(int x, int page, const char* s, Font f) {
+  const bool big = f == Font::kBig;
+  const int cw = big ? kBigCharW : kCharW, pages = big ? 4 : 2;
+  if (page < 0 || page + pages > kPages) return x;
   for (; *s; s++, x += cw) {
     if (x < 0) continue;
-    // The glyph must fit; its spacing column(s) may fall off the edge.
-    if (x + cw - (big ? 2 : 1) > kW) break;
-    const uint8_t* g = glyph(*s);
-    uint8_t* row = buf_ + page * kW;
-    if (!big) {
-      for (int c = 0; c < 5; c++) row[x + c] = g[c];
-      if (x + 5 < kW) row[x + 5] = 0;
-    } else {
-      uint8_t* row2 = row + kW;
-      for (int c = 0; c < 6; c++) {
-        const uint16_t v = c < 5 ? stretch(g[c]) : 0;
-        for (int d = 0; d < 2; d++) {
-          const int cx = x + 2 * c + d;
-          if (cx >= kW) break;
-          row[cx] = (uint8_t)v;
-          row2[cx] = (uint8_t)(v >> 8);
-        }
-      }
-    }
+    // The glyph's last column is blank spacing, so it may fall off the edge.
+    if (x + cw - 1 > kW) break;
+    const unsigned ch = (unsigned char)*s;
+    const int idx = ch >= 32 && ch <= 126 ? (int)ch - 32 : '?' - 32;
+    const uint8_t* g = big ? kFont16x32[idx] : kFont8x16[idx];
+    const int n = x + cw > kW ? kW - x : cw;
+    for (int p = 0; p < pages; p++) memcpy(buf_ + (page + p) * kW + x, g + p * cw, n);
   }
-  dirty_ |= (big ? 3 : 1) << page;
+  dirty_ |= ((1 << pages) - 1) << page;
   return x;
 }
 
-UI_COLD int Canvas::width(const char* s, bool big) {
-  return (int)strlen(s) * (big ? kBigCharW : kCharW);
+UI_COLD int Canvas::width(const char* s, Font f) {
+  return (int)strlen(s) * (f == Font::kBig ? kBigCharW : kCharW);
 }
 
-UI_COLD int Canvas::textRight(int xEnd, int page, const char* s, bool big) {
-  // The last character's spacing column is dropped, so the ink ends at xEnd.
-  return text(xEnd - width(s, big) + (big ? 2 : 1), page, s, big);
+UI_COLD int Canvas::textRight(int xEnd, int page, const char* s, Font f) {
+  return text(xEnd - width(s, f), page, s, f);
 }
 
-UI_COLD int Canvas::textCenter(int page, const char* s, bool big) {
-  return text((kW - width(s, big) + (big ? 2 : 1)) / 2, page, s, big);
+UI_COLD int Canvas::textCenter(int page, const char* s, Font f) {
+  return text((kW - width(s, f)) / 2, page, s, f);
 }
 
 UI_COLD int Canvas::takeDirtyPage() {

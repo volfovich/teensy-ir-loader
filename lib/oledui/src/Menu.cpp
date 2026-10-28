@@ -206,16 +206,6 @@ UI_COLD void formatValue(const MenuItem& it, int v, bool spaced, char* buf, int 
   }
 }
 
-// A range end for the editor, without the unit ("-60", "+24", "750").
-static UI_COLD void formatBound(const MenuItem& it, int v, char* buf, int n) {
-  if (it.unit == Unit::kHalfDb) {
-    if (v % 2) halfDb(v, buf, n);
-    else snprintf(buf, n, UI_STR("%s%d"), v > 0 ? UI_STR("+") : UI_STR(""), v / 2);
-  } else {
-    snprintf(buf, n, UI_STR("%d"), it.unit == Unit::kOneBased ? v + 1 : v);
-  }
-}
-
 // ---- Engine --------------------------------------------------------------------
 
 UI_COLD bool Menu::visible(const MenuItem& it) {
@@ -336,10 +326,10 @@ UI_COLD Menu::Result Menu::back() {
 // ---- Drawing -------------------------------------------------------------------
 
 static UI_COLD void titleBar(Canvas& c, const char* left, const char* right) {
-  c.clearPages(0, 0);
-  c.text(1, 0, left);
-  if (right) c.textRight(Canvas::kW - 1, 0, right);
-  c.invertPage(0);
+  c.clearPages(0, Canvas::kRowPages - 1);
+  c.text(Canvas::kLeft, 0, left);
+  if (right) c.textRight(Canvas::kW, 0, right);
+  c.invertRow(0);
 }
 
 UI_COLD void Menu::draw(Canvas& c) {
@@ -354,20 +344,16 @@ UI_COLD void Menu::drawList(Canvas& c) {
   const int count = visibleCount();
   if (lv.top > lv.cursor) lv.top = lv.cursor;
   if (lv.top + kRows > count) lv.top = count > kRows ? count - kRows : 0;
-  // More items than rows: scroll marks on the title bar.
-  const char* marks = nullptr;
-  if (count > kRows) {
-    const bool up = lv.top > 0, down = lv.top + kRows < count;
-    marks = up && down ? UI_STR("^v") : (up ? UI_STR("^ ") : UI_STR(" v"));
-  }
-  titleBar(c, pages_[lv.page].title, marks);
+  // Where the cursor is ("3/9") when the page has more items than rows.
+  char pos[8];
+  if (count > kRows) snprintf(pos, sizeof(pos), UI_STR("%d/%d"), lv.cursor + 1, count);
+  titleBar(c, pages_[lv.page].title, count > kRows ? pos : nullptr);
   for (int row = 0; row < kRows; row++) {
     const int n = lv.top + row;
     const MenuItem* it = visibleItem(n);
     if (!it) break;
-    const int page = row + 1;
-    if (n == lv.cursor) c.text(0, page, UI_STR(">"));
-    c.text(12, page, it->label);
+    const int page = (row + 1) * Canvas::kRowPages;
+    c.text(Canvas::kLeft, page, it->label);
     char val[24] = "";
     if (host_.valueText(it->id, val, sizeof(val))) {
       // named value or screen row
@@ -379,14 +365,14 @@ UI_COLD void Menu::drawList(Canvas& c) {
     if (val[0]) {
       // A value too long for the space after the label is cut short with a
       // '~' (the editor shows it in full).
-      const int room = (Canvas::kW - 2 - (12 + Canvas::width(it->label) + Canvas::kCharW)) / Canvas::kCharW;
+      const int room = (Canvas::kW - Canvas::kLeft - Canvas::width(it->label) - Canvas::kCharW) / Canvas::kCharW;
       if (room > 1 && (int)strlen(val) > room) {
         val[room - 1] = '~';
         val[room] = 0;
       }
-      c.textRight(Canvas::kW - 2, page, val);
+      c.textRight(Canvas::kW, page, val);
     }
-    if (n == lv.cursor) c.invertPage(page);
+    if (n == lv.cursor) c.invertRow(page);  // the cursor
   }
 }
 
@@ -399,31 +385,23 @@ UI_COLD void Menu::drawEditor(Canvas& c) {
   c.clear();
   const MenuItem* it = current();
   if (!it) return;
-  char buf[32];
-  snprintf(buf, sizeof(buf), UI_STR("%s > %s"), pages_[stack_[depth_].page].title, it->label);
-  titleBar(c, buf, nullptr);
+  titleBar(c, it->label, nullptr);
 
-  // The value big, or small if it is a name too long for the 2x font.
+  // The value big, or in the normal font if it is a name too long for it.
+  char buf[32];
   const int v = host_.get(it->id);
   if (!host_.valueText(it->id, buf, sizeof(buf))) formatValue(*it, v, true, buf, sizeof(buf));
-  if (Canvas::width(buf, true) <= Canvas::kW) c.textCenter(2, buf, true);
-  else c.textCenter(2, buf);
+  if (Canvas::width(buf, Font::kBig) <= Canvas::kW) c.textCenter(2, buf, Font::kBig);
+  else c.textCenter(3, buf);
 
   // Position bar: from the low end, or from 0 for ranges that span it.
   int lo, hi;
   range(*it, &lo, &hi);
-  const int x0 = 4, w = Canvas::kW - 8, y = 4 * 8 + 1, h = 6;
+  const int x0 = 4, w = Canvas::kW - 8, y = 6 * 8 + 3, h = 10;
   c.frame(x0, y, w, h);
   const int from = barPos(lo < 0 && hi > 0 ? 0 : lo, lo, hi, x0, w), to = barPos(v, lo, hi, x0, w);
   c.fill(from < to ? from : to, y + 1, (from < to ? to - from : from - to) + 1, h - 2, true);
-  if (lo < 0 && hi > 0) c.vline(barPos(0, lo, hi, x0, w), y - 1, y + h);
-
-  formatBound(*it, lo, buf, sizeof(buf));
-  c.text(x0, 5, buf);
-  formatBound(*it, hi, buf, sizeof(buf));
-  c.textRight(Canvas::kW - x0, 5, buf);
-  c.text(0, 7, UI_STR("push=ok"));
-  c.textRight(Canvas::kW, 7, UI_STR("back=cancel"));
+  if (lo < 0 && hi > 0) c.vline(barPos(0, lo, hi, x0, w), y - 2, y + h + 1);
 }
 
 }  // namespace ui

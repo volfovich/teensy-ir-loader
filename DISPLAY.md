@@ -1,15 +1,15 @@
 # OLED + Encoder Control
 
-A 0.96" SSD1306 OLED module with a rotary encoder (with push switch) and two buttons. It replaced the five optional buttons and makes every serial-terminal function available from the front panel. The serial UI keeps working alongside it.
+A 128x64 OLED module (1.3" SH1106 or 0.96" SSD1306) with a rotary encoder (with push switch) and two buttons. It replaced the five optional buttons and makes every serial-terminal function available from the front panel. The serial UI keeps working alongside it.
 
 The UI is written and tested on the PC: `lib/oledui` draws every screen and runs the menu and the panel's controls (`test/host/test_ui.cpp`, and `render_ui` renders the screens to PNG). The firmware adds the display driver, the encoder and keys, and the glue to the settings ([Files](#files)).
 
 ## Summary
 
-- **Display:** 128x64 SSD1306 on I2C, sharing the bus with the audio codec (pins 18/19). No extra bus is needed.
+- **Display:** 128x64 SH1106 (1.3") or SSD1306 (0.96") on I2C, sharing the bus with the audio codec (pins 18/19). No extra bus is needed. `OLED_SH1106` in `config.h` picks the controller.
 - **Inputs:** the encoder and the two buttons reuse the five wires of today's buttons (pins 2, 3, 4, 5, 9).
 - **Software:**
-  - A small SSD1306 driver of our own, running from flash. It sends only the 128-byte pages that changed.
+  - A small SH1106 / SSD1306 driver of our own, running from flash. It sends only the 128-byte pages that changed.
   - An interrupt-driven encoder.
   - A table-driven menu that calls the existing setters in `AudioGraph`.
 - **Memory:** the panel costs 768 B of RAM1 code (most of it the Teensy core's pin-interrupt code) and 2 KB of RAM2. **No feature had to be removed.** See [RAM1 strategy](#ram1-strategy).
@@ -102,63 +102,47 @@ Short presses act on release, so a short press and a hold on the same button can
 
 ## Screens
 
-The small font is 6x8 px, giving 21 characters x 8 rows. The 2x font is 12x16 px, giving 10 characters x 4 rows. The mockups are character grids.
+All text is in the Spleen 8x16 font: 16 characters x 4 rows of 16 px. Big numbers (the tempo, the value being edited) are in Spleen 16x32. The mockups are character grids; `screenshots/` has the real screens, rendered from the UI code (`make -C test/host screenshots`).
 
 ### Home
 
 ```
-┌─────────────────────┐
-│ IR → DLY → REV + DRM│  row 0: the blocks; inverted = on, dotted underline = off
-│ ▀▀                  │  row 1: the cursor, a bar under the selected block
-│3/12 V30 SM57 Mesa 4x│  row 2: the selected block in a line
-│100  rock            │  rows 3-4: the tempo in the 2x font; the style or song,
-│     BPM   bar 3     │    and where it is
-│■□□□       to 140 BPM│  row 5: beat dots; the song's progress, or the trainer
-│IN  ########|...:..:.│  row 6: input meter
-│OUT ######.....|.CLIP│  row 7: output meter
-└─────────────────────┘
+┌────────────────┐
+│V30 SM57 Mesa 4x│  row 0: the IR (BYPASS + name when bypassed)
+│IR  DLY REV DRM │  row 1: the blocks, filled = on, outlined = off,
+│▀▀              │    a bar under the selected one
+│100   BPM       │  rows 2-3: the tempo in the big font,
+│      ■□□□      │    the beat boxes while the drums play
+└────────────────┘
 ```
 
-- **The blocks** follow the signal: the IR, then the delay, then the reverb. The `+` before DRM shows that the drums are mixed in after the effects, never through them. IR is "on" when not bypassed.
-- **Row 2** follows the cursor:
-  - IR: `3/12 V30 SM57 Mesa 4x`, or `BYPASS V30 SM57 …` when bypassed. The file name is shown without the folder or the `.wav` extension. With no SD card or no IRs: `No SD card` or `No IRs in / or /IR`.
-  - DLY: `380ms 80s mix 30%` (`PP` for ping-pong), with `off` in front when it is off.
-  - REV: `80s hall mix 25%`, `80s gated …` or `plate …`, with `off` in front when it is off.
-  - DRM: `kit rock  vol 60%`.
-- **Rows 3–4:** the tempo now (with the speed trainer, the tempo it has reached), the style's name or the song's title (14 characters), and `stopped`, `count-in`, `bar 3` (a style) or `bar 12/32` (a song).
-- **Row 5:**
-  - one box per beat of the bar (up to 7), the beat sounding filled; they also count the count-in and are all hollow when stopped.
-  - for a song: a progress bar over its bars, with ticks at the loop's first and last bar.
-  - for a style with the speed trainer on: its target, `to 140 BPM`.
+- **The blocks** follow the signal: the IR, then the delay, then the reverb, then the drums (mixed in after the effects, never through them). IR is "on" when not bypassed.
+- **Row 0:** the file name without the folder or the `.wav` extension (16 characters). With no SD card or no IRs: `No SD card` or `No IRs on SD`.
+- **Rows 2–3:** the tempo now (with the speed trainer, the tempo it has reached). While the drums play, one box per beat of the bar (up to 7), the beat sounding filled; they also count the count-in.
+- Everything else (delay time, mixes, the style, song and bar, the kit, the meters) is in the menus and on the Meter screen, to keep the home screen readable.
 
 ### Menu list
 
 ```
-┌─────────────────────┐
-│MENU                 │
-│> IR                 │   cursor row is drawn inverted
-│  Delay          ON  │
-│  Reverb        OFF  │
-│  Levels             │
-│  Bypass        OFF  │
-│  Meter              │
-│  Status             │
-└─────────────────────┘
+┌────────────────┐
+│DELAY       4/10│  title, inverted; the cursor's place when the page scrolls
+│Type  studio 80s│
+│Mix          30%│
+│Time       380ms│  cursor row, inverted
+└────────────────┘
 ```
+
+Three items show at a time. A value too long for its row is cut with `~`; the editor shows it in full.
 
 ### Value editor
 
 ```
-┌─────────────────────┐
-│DELAY > Time         │
-│                     │
-│      380 ms         │   2x font
-│                     │
-│[#########.........] │   position within min..max
-│20               750 │
-│                     │
-│push=ok   back=cancel│
-└─────────────────────┘
+┌────────────────┐
+│Time            │  the item, inverted
+│     380 ms     │  big font (the normal one for long names)
+│                │
+│[#######.......]│  position within min..max (a mark at 0 for the gain)
+└────────────────┘
 ```
 
 ### IR list
@@ -166,93 +150,51 @@ The small font is 6x8 px, giving 21 characters x 8 rows. The 2x font is 12x16 px
 Opened by pushing the IR block, or from Menu → IR.
 
 ```
-┌─────────────────────┐
-│IR  3/12             │
-│  01 Greenback       │
-│  02 V30 Room        │
-│>*03 V30 SM57 close  │   * marks the loaded IR, > the cursor
-│  04 V30 R121        │
-│  05 Alnico Blue     │
-│  06 G12H 2x12       │
-│  Rescan SD card     │   last entry
-└─────────────────────┘
+┌────────────────┐
+│IR          3/12│
+│01 Greenback    │
+│02 V30 Room     │
+│03 V30 SM57 Mes*│  cursor row inverted, * = loaded
+└────────────────┘
 ```
 
-It opens on the loaded IR. Push loads the IR under the cursor and the list stays open, so IRs can be compared one after the other. Long names scroll sideways while selected.
+The last entry is `Rescan SD card`. It opens on the loaded IR. Push loads the IR under the cursor and the list stays open, so IRs can be compared one after the other. Long names scroll sideways while selected.
 
 ### Status (Menu → Status)
 
 ```
-┌─────────────────────┐
-│CPU  31.5% / 52.0%max│
-│ dly 3.1%  rev 6.0%  │
-│Blocks  12/20        │
-│Latency 1.45ms+codec │
-│Parts  250 x 32      │
-│Clips  0             │
-│Gain -6.0dB  HP 50%  │
-│In 0   Out 29        │
-└─────────────────────┘
+┌────────────────┐
+│STATUS          │
+│CPU 33% max 35% │
+│Clips 0         │
+│Blocks 4/20     │
+└────────────────┘
 ```
 
-This screen shows the same numbers as the serial `s` command. It refreshes once a second and resets the max values like `s` does.
+It refreshes once a second and resets the max values like serial `s` does. Serial `s` has the full details.
 
 ## Level meter
 
 ### Where the peaks come from
 
-`convolver.takeInputPeak()` and `takeOutputPeak()` reset on read, and the serial meter (`m`) and `s` already use them. If the display read them too, each reader would steal peaks from the other.
+`convolver.takeInputPeak()` and `takeOutputPeak()` reset on read, and the serial meter (`m`) and `s` use them. If the display read them too, each reader would steal peaks from the other. So `AudioConvolverIR` keeps a second peak pair for the display, `takeDisplayPeaks(float& in, float& out)`. The audio interrupt updates both pairs, two extra `max` operations per block.
 
-The fix is to add a second peak pair for the display to `AudioConvolverIR`: `takeDisplayPeaks(float& in, float& out)`. The audio interrupt updates both pairs. This costs two extra `max` operations per block, which is negligible.
-
-### Home-screen meter (rows 6 and 7)
-
-```
-IN  #########|...:..:.
-OUT #######.....|.CLIP
-    ^        ^  ^  ^ ^
-  -48 dB   peak -12 -6 0
-```
-
-- **Layout:** each meter is one 8-px row. There are 24 px for the `IN`/`OUT` label and 100 px for the bar.
-- **Scale:** linear in dB from −48 to 0 dBFS, about 0.5 dB per pixel. That is plenty for setting levels.
-- **Ticks:** 1-px tick marks at −24, −12, −6, −3 and 0 dBFS, drawn in the empty part of the bar.
-- **Ballistics:**
-  - The bar rises instantly and falls at about 20 dB/s, which is easy to read.
-  - A peak-hold marker (a 1-px vertical line) stays for 1.5 s and then falls.
-  - All of this is computed on the display side from the raw peaks.
-- **Clipping:**
-  - `CLIP` appears inverted at the right end of the bar for at least 2 s.
-  - It shows when the input exceeds −0.5 dBFS or the output exceeds −0.1 dBFS, the same rule as the serial meter.
-  - The clip counter from `convolver.clipCount()` also triggers it, so short clips aren't missed between screen updates.
-- **Update rate:** 20–25 Hz, and only rows 6 and 7 are sent. Two 128-byte pages take about 7 ms of I2C at 400 kHz, sent one page per `loop()` pass. This doesn't affect the audio, which runs in its own interrupt.
-
-**Cost of meters that move all the time:**
-
-- **Audio:** none. The audio runs in its own interrupt, which always takes priority over `loop()`, where all the display work happens. The meters can delay `loop()` (serial, saving, the start of an IR load) by one page flush of about 3.3 ms, but never the audio.
-- **I2C:** only pages 6–7 are redrawn at the meter rate. That is about 50 pages a second, roughly 165 ms of I2C time per second, one page per `loop()` pass. The rest of the home screen is redrawn only when something on it changes (a beat dot, a setting).
-- **Interrupt:** the readings come from the display peak pair, two `max` operations per block.
-- **RAM1:** none. The UI code is `UI_COLD` and runs from flash, and the frame buffer is in RAM2.
-- **The real risk is noise, not CPU.** The SSD1306's charge pump draws a current that changes with the number of lit pixels. On the 3.3 V rail, that could be heard as a faint whine on the line out or headphones, and moving meters change it all the time. See [Testing](#testing), *Noise*.
-
-### Full-screen meter (Menu → Meter)
+### The Meter screen (Menu → Meter)
 
 This screen is for setting the input level (the procedure in the README's *Level and safety* section) without a computer.
 
 ```
-┌─────────────────────┐
-│IN   -7.5 dB  pk -4.2│
-│#############|..[ ]..│   [ ] = target zone -6..-3 dBFS
-│                     │
-│OUT -12.0 dB  pk -9.8│
-│##########|..........│
-│                     │
-│Line-in sens  0      │   turn encoder = change "in 0..15"
-│Clips 0     back=exit│
-└─────────────────────┘
+┌────────────────┐
+│METER    clips 0│  CLIP instead of the count while clipping
+│IN  ######|.[ ].│  [ ] = target zone -6..-3 dBFS
+│OUT ####|.......│
+│Sens 0   pk -7.5│  line-in sensitivity; input peak hold
+└────────────────┘
 ```
 
-- The bars are 2 rows (16 px) tall, with the numeric dBFS and peak-hold value above each one.
+- **Scale:** linear in dB from −48 to 0 dBFS, with tick marks at −24, −12, −6 and −3 dBFS in the empty part of the bar.
+- **Ballistics:** the bar rises instantly and falls at about 20 dB/s. A peak-hold marker stays for 1.5 s and then falls. All of this is computed on the display side from the raw peaks, 25 times a second.
+- **Clipping:** `CLIP` shows in the title for at least 2 s when the input exceeds −0.5 dBFS or the output −0.1 dBFS (the serial meter's rule), or when the clip counter moved, so short clips aren't missed between frames.
 - **Turning the encoder changes the line-in sensitivity** (`setLineInLevel`, 0–15), so you can play and adjust at the same time.
 - CONFIRM resets the clip counter and peak holds. BACK exits.
 
@@ -313,7 +255,7 @@ Every serial command has a place:
 
 ```
 src/Controls.{h,cpp}    replaced Buttons.{h,cpp}: encoder ISR, 3 debounced keys (ui::Key), events
-src/Oled.{h,cpp}        minimal SSD1306 driver: init, send one page
+src/Oled.{h,cpp}        minimal SH1106 / SSD1306 driver: init, send one page
 src/DisplayUI.{h,cpp}   fills the UiModel and implements MenuHost (g_settings + the setters); feeds
                         the control events to ui::Panel and sends the pages that changed
 lib/oledui/             the UI, Arduino-free (done): Canvas, font, Menu (the table and its engine),
@@ -328,6 +270,8 @@ src/main.cpp            controlsBegin()/displayBegin() in setup(); service calls
 ```cpp
 // OLED + encoder module (see DISPLAY.md). OLED_I2C_ADDR -1 disables the display.
 #define OLED_I2C_ADDR 0x3C
+#define OLED_SH1106 1            // 1 = SH1106 (1.3" modules), 0 = SSD1306 (0.96")
+#define OLED_COL_OFFSET 0        // SH1106: first visible RAM column (2 on many modules, 0 on ours)
 #define ENC_A_PIN 2
 #define ENC_B_PIN 3
 #define ENC_PUSH_PIN 4
@@ -351,9 +295,11 @@ src/main.cpp            controlsBegin()/displayBegin() in setup(); service calls
 
 Why our own driver: see [RAM1 strategy](#ram1-strategy). It is about 70 lines.
 
-- **Init:** probes `OLED_I2C_ADDR`, then 0x3D, and sends the standard SSD1306 128x64 init sequence (charge pump on, page addressing mode). With no display found, the panel stays off and the firmware runs as before.
+- **Init:** probes `OLED_I2C_ADDR`, then 0x3D, and sends the 128x64 init sequence for the controller `OLED_SH1106` selects: the SSD1306's charge pump and page addressing mode, or the SH1106's DC-DC converter (it only has page addressing). It then blanks the whole display RAM (132 columns on the SH1106), so no power-on garbage shows. With no display found, the panel stays off and the firmware runs as before.
+- **SH1106 column offset:** its RAM is 132 columns wide and the glass shows 128 of them, starting at `OLED_COL_OFFSET`. That is 2 on many modules but 0 on ours. If it is wrong, the line ends are cut off on one side and stray pixels show on the other.
 - **Sending:** `oledSendPage(p, data)` sends one page: a 3-byte address command, then 1 control byte + 128 data bytes. The Teensy 4 `Wire` buffer is 136 bytes, so a whole page fits in one transaction. A page takes about 3.3 ms at 400 kHz.
-- **Drawing** is `ui::Canvas` (`lib/oledui`): the frame buffer, text in the 5x7 font (in flash) and its 2x scaling, lines, boxes and inversion.
+- **Drawing** is `ui::Canvas` (`lib/oledui`): the frame buffer, text in the two fonts, lines, boxes and inversion.
+- **Fonts:** Spleen 8x16 and 16x32 by Frederic Cambus (BSD-2-Clause), 2.2.0. `tools/make_font.py` converts the BDF files in `fonts/spleen/` into `lib/oledui/src/Fonts.cpp` (7.6 KB in flash, ASCII 32..126) in the display's page layout, so a glyph's columns are copied straight into the frame buffer. Text rows start at x = 1: the glyphs' blank column is on the right, and this keeps inverted rows off the left edge.
 
 ### DisplayUI
 
@@ -377,8 +323,8 @@ Why our own driver: see [RAM1 strategy](#ram1-strategy). It is about 70 lines.
 - **Setters:** all changes go through the existing setters. They already clamp, apply, and call `scheduleSave()`, which is debounced, so turning the knob doesn't wear the EEPROM.
 - **Redraw and send:**
   - The current screen is drawn into the canvas right after any control event, and otherwise every 40 ms (25 Hz), from a model filled fresh each time. The meters take their readings there.
-  - A second 1 KB buffer (`DMAMEM`) holds what the OLED shows. `serviceDisplay()` sends **at most one page per call, and only a page whose bytes differ** from it, round-robin so the meter rows can't starve the others.
-  - So a still home screen sends only the meter rows (and the beat row while the drums play), and changes made over serial show on the screen within a frame, with no coupling between the two UIs.
+  - A second 1 KB buffer (`DMAMEM`) holds what the OLED shows. `serviceDisplay()` sends **at most one page per call, and only a page whose bytes differ** from it, round-robin so busy rows (the Meter screen's bars) can't starve the others.
+  - So a still home screen sends nothing (only the beat row while the drums play), and changes made over serial show on the screen within a frame, with no coupling between the two UIs.
 - **Serial echo:** the setters print a confirmation on Serial at every encoder step, for example `Delay time 385 ms`. That is harmless. If it gets noisy, add a `quiet` flag later.
 - **Loop budget:** `serviceDisplay()` sends at most one page (about 3.3 ms) per call. Drawing a screen runs from flash and takes much less.
 - **Splash:** shown for 1.5 s at the end of `setup()`, after the SD scan, so it can show the IR count. Input is ignored meanwhile.

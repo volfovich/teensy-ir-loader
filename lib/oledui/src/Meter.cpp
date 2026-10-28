@@ -49,30 +49,16 @@ static UI_COLD void drawBar(Canvas& c, int x, int y, int w, int h, const MeterSt
   if (m.peakDb > MeterState::kFloorDb) c.vline(x + (px >= w ? w - 1 : px), y, y + h - 1);
 }
 
-UI_COLD void drawRowMeter(Canvas& c, int page, const char* label, const MeterState& m, uint32_t now) {
-  c.clearPages(page, page);
-  c.text(0, page, label);
-  const int x = 26, w = Canvas::kW - x;
-  drawBar(c, x, page * 8 + 1, w, 6, m);
-  if (m.clipping(now)) {
-    const char* clip = UI_STR("CLIP");
-    const int cx = Canvas::kW - Canvas::width(clip) - 1;
-    c.fill(cx - 1, page * 8, Canvas::kW - cx + 1, 8, false);
-    c.text(cx, page, clip);
-    c.invertText(cx - 1, page, Canvas::kW - cx + 1);
-  }
-}
-
-UI_COLD void drawWideMeter(Canvas& c, int page, const MeterState& m, bool zone) {
-  c.clearPages(page, page);
-  drawBar(c, 0, page * 8, Canvas::kW, 8, m);
+UI_COLD void drawMeterBar(Canvas& c, int x, int page, const MeterState& m, bool zone) {
+  const int y = page * 8 + 2, w = Canvas::kW - x, h = 12;
+  drawBar(c, x, y, w, h, m);
   if (zone) {
     // Two dotted lines across -6 .. -3 dBFS, inverted so they show on both
     // the filled and the empty part of the bar.
-    const int z0 = barX(-6.0f, Canvas::kW), z1 = barX(-3.0f, Canvas::kW);
-    for (int x = z0; x <= z1; x += 2) {
-      c.pixel(x, page * 8 + 2, !c.get(x, page * 8 + 2));
-      c.pixel(x, page * 8 + 5, !c.get(x, page * 8 + 5));
+    const int z0 = x + barX(-6.0f, w), z1 = x + barX(-3.0f, w);
+    for (int i = z0; i <= z1; i += 2) {
+      c.pixel(i, y + 3, !c.get(i, y + 3));
+      c.pixel(i, y + h - 4, !c.get(i, y + h - 4));
     }
   }
 }

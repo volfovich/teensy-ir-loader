@@ -84,7 +84,7 @@ inline const char* fakeIrPath(int i) {
   return names[i % 12];
 }
 
-// The home-screen model of the DISPLAY.md mockups.
+// The model of the DISPLAY.md mockups.
 inline ui::UiModel fakeModel() {
   ui::UiModel m;
   m.nowMs = 10000;
@@ -94,22 +94,12 @@ inline ui::UiModel fakeModel() {
   m.irPath = fakeIrPath;
   m.delayOn = true;
   m.reverbOn = true;
-  m.studioDelay = true;
-  m.delayTimeMs = 380;
-  m.delayMix = 30;
-  m.reverb80 = true;
-  m.reverbMix = 25;
   m.drumsPlaying = true;
-  m.drumStyle = "rock";
-  m.drumKit = "rock";
   m.drumTempo = 100;
-  m.drumVolume = 60;
-  m.drumBar = 3;
   m.drumBeat = 1;
   m.drumBeats = 4;
-  m.cpu = 33.2f; m.cpuMax = 35.1f; m.cpuDelay = 4.4f; m.cpuReverb = 6.2f;
-  m.blocksUsed = 4; m.blocksMax = 20; m.latencyMs = 1.45f; m.partitions = 250; m.blockSize = 32;
-  m.gainDb = -6.0f; m.hpPercent = 50; m.lineIn = 0; m.lineOut = 29; m.irMaxLength = 8192;
+  m.cpu = 33.2f; m.cpuMax = 35.1f;
+  m.blocksUsed = 4; m.blocksMax = 20; m.lineIn = 0;
   m.in.update(0.42f, false, 9000);    // -7.5 dBFS
   m.in.update(0.30f, false, 10000);   // falling
   m.out.update(0.32f, false, 9500);   // -9.9 dBFS

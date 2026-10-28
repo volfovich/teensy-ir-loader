@@ -211,29 +211,9 @@ FLASHMEM static void fillModel(uint32_t now) {
   m.bypass = s.bypass;
   m.delayOn = s.delayOn;
   m.reverbOn = s.reverbOn;
-  m.studioDelay = s.delayType == 1;
-  m.reverb80 = s.reverbType == 1;
-  m.reverbGated = s.reverbType == 1 && s.reverbMode == 1;
-  m.delayTimeMs = s.delayTimeMs;
-  m.delayMix = s.delayMix;
-  m.reverbMix = s.reverbMix;
-
-  const irdsp::DrumSong* song = currentDrumSong();
   m.drumsPlaying = convolver.drumsPlaying();
-  m.drumsCountingIn = convolver.drumsCountingIn();
-  m.drumStyle = irdsp::drumStyle(s.drumStyle).title;
-  m.drumSong = song ? song->title : nullptr;
-  m.drumKit = irdsp::drumKit(s.drumKit).name;
   m.drumTempo = m.drumsPlaying ? (int)lroundf(convolver.drumTempoNow()) : s.drumTempo;
-  m.drumVolume = s.drumVolume;
-  m.drumBar = convolver.drumBar() + 1;
-  m.drumSongBar = convolver.drumSongBar() + 1;
-  m.drumSongBars = song ? song->barCount : 0;
-  m.drumLoopFrom = drumLoopFirst();
-  m.drumLoopTo = drumLoopLast();
   convolver.drumBeatPos(&m.drumBeat, &m.drumBeats);
-  m.trainerOn = s.trainerOn && !song;
-  m.trainerTarget = s.trainerTarget;
 
   // Meters: CLIP at the serial meter's thresholds (in > -0.5 dBFS, out >
   // -0.1 dBFS), or when the clip counter moved since the last frame.
@@ -253,16 +233,8 @@ FLASHMEM static void fillModel(uint32_t now) {
     g_statusAt = now;
     m.cpu = convolver.cpuPercent();
     m.cpuMax = convolver.cpuPercentMax();
-    m.cpuDelay = convolver.delayCpuPercent();
-    m.cpuReverb = convolver.reverbCpuPercent();
     m.blocksUsed = AudioMemoryUsageMax();
     m.blocksMax = AUDIO_MEMORY_BLOCKS;
-    m.latencyMs = 2 * AUDIO_BLOCK_SAMPLES * 1000.0f / AUDIO_SAMPLE_RATE_EXACT;
-    m.partitions = convolver.engine().activePartitions();
-    m.blockSize = AUDIO_BLOCK_SAMPLES;
-    m.gainDb = s.outGainDb;
-    m.hpPercent = (int)lroundf(s.hpVolume * 100);
-    m.lineOut = s.lineOut;
     convolver.resetCpuMax();
     AudioProcessorUsageMaxReset();
   }
@@ -293,8 +265,6 @@ FLASHMEM void displayBegin() {
   memset(g_shown, 0, sizeof(g_shown));  // oledBegin() blanked the display
   const uint32_t now = millis();
   fillModel(now);
-  g_model.irMaxLength = IR_MAX_LENGTH;
-  g_model.blockSize = AUDIO_BLOCK_SAMPLES;
   ui::drawSplash(g_canvas, g_model);
   while (sendOnePage()) {}
   g_splashUntil = now + kSplashMs;

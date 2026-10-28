@@ -43,8 +43,7 @@ class Panel {
   bool back(uint32_t nowMs);
   bool tick(uint32_t nowMs);  // call often: the timeout, the marquee
 
-  // The whole screen. On the home screen the meters (pages 6-7) can be
-  // redrawn alone with drawHomeMeters().
+  // The whole screen.
   void draw(Canvas& c, const UiModel& m);
 
   Screen screen() const { return screen_; }

@@ -30,11 +30,9 @@ struct MeterState {
 
 float toDb(float linear);
 
-// One 8 px row at page p: label (3 characters) then a 100 px bar with
-// ticks at -24, -12, -6, -3 and 0 dBFS, the peak marker and CLIP.
-void drawRowMeter(Canvas& c, int page, const char* label, const MeterState& m, uint32_t nowMs);
-// A full-width 8 px bar at page p, with the -6..-3 dBFS target zone marked
-// (for setting the input level).
-void drawWideMeter(Canvas& c, int page, const MeterState& m, bool zone);
+// A bar from x to the right edge on the 16 px text row at page p, with
+// ticks at -24, -12, -6 and -3 dBFS and the peak marker; zone marks the
+// -6..-3 dBFS target (for setting the input level).
+void drawMeterBar(Canvas& c, int x, int page, const MeterState& m, bool zone);
 
 }  // namespace ui

@@ -1,20 +1,24 @@
 // Canvas.h - 128x64 monochrome frame buffer in the SSD1306 page layout
 // (8 pages of 128 column bytes, bit 0 = top pixel of the page), with text in
-// the 5x7 font, a 2x font, lines, boxes and a dirty mask per page.
+// two fonts, lines, boxes and a dirty mask per page.
 //
 // Text positions are in pixels across and pages (8-pixel rows) down. The
-// small font is 6 px per character (21 per row), the 2x font 12 px wide and
-// 2 pages tall (10 per row).
+// normal font is 8x16 (16 characters x 4 rows, 2 pages per row), the big one
+// 16x32 (8 characters, 4 pages tall). Spleen fonts, see Fonts.h.
 #pragma once
 
 #include <stdint.h>
 
 namespace ui {
 
+enum class Font : uint8_t { kNormal, kBig };
+
 class Canvas {
  public:
   static constexpr int kW = 128, kH = 64, kPages = 8;
-  static constexpr int kCharW = 6, kBigCharW = 12, kCols = kW / kCharW;
+  static constexpr int kCharW = 8, kBigCharW = 16, kCols = kW / kCharW;
+  static constexpr int kRowPages = 2;  // a row of normal text
+  static constexpr int kLeft = 1;      // x of left-aligned rows
 
   // buf: kW * kPages bytes (DMAMEM on the Teensy). Call clear() before use.
   explicit Canvas(uint8_t* buf) : buf_(buf) {}
@@ -29,23 +33,21 @@ class Canvas {
   void fill(int x, int y, int w, int h, bool on);
   void frame(int x, int y, int w, int h);  // 1 px outline
   void invert(int x, int y, int w, int h);
-  // Inverts small text on page p, columns x .. x+w-1, moving it down one
-  // pixel first: glyphs use the top 7 of the page's 8 rows, so this leaves
-  // a lit row above the text (otherwise a 'T' merges into the dark row
-  // above and reads as 'I').
-  void invertText(int x, int page, int w);
-  void invertPage(int page) { invertText(0, page, kW); }
+  // Inverts a row of normal text (pages p and p+1), columns x .. x+w-1.
+  void invertText(int x, int page, int w) { invert(x, page * 8, w, kRowPages * 8); }
+  void invertRow(int page) { invertText(0, page, kW); }
   // Every other pixel of row y from x0 to x1 (a dotted underline).
   void dots(int x0, int x1, int y);
 
-  // Draws s at x (pixels), page p; returns the x after the last character.
-  // Characters past the right edge are dropped. Only the cells drawn are
-  // overwritten (their background turns off).
-  int text(int x, int page, const char* s, bool big = false);
+  // Draws s at x (pixels), its top at page p; returns the x after the last
+  // character. Glyphs have their blank column on the right, so rows start
+  // at x = 1 (kLeft) to keep inverted text off the edge. Characters past the right edge are dropped. Only the cells
+  // drawn are overwritten (their background turns off).
+  int text(int x, int page, const char* s, Font f = Font::kNormal);
   // Right-aligned so the text ends at x (exclusive); centered on the screen.
-  int textRight(int xEnd, int page, const char* s, bool big = false);
-  int textCenter(int page, const char* s, bool big = false);
-  static int width(const char* s, bool big = false);
+  int textRight(int xEnd, int page, const char* s, Font f = Font::kNormal);
+  int textCenter(int page, const char* s, Font f = Font::kNormal);
+  static int width(const char* s, Font f = Font::kNormal);
 
   const uint8_t* page(int p) const { return buf_ + p * kW; }
   uint8_t dirtyMask() const { return dirty_; }

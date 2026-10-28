@@ -169,7 +169,6 @@ UI_COLD void Panel::draw(Canvas& c, const UiModel& m) {
   switch (screen_) {
     case kHome:
       drawHome(c, m, block_);
-      drawHomeMeters(c, m);
       break;
     case kMenu:
       menu_.draw(c);

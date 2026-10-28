@@ -56,7 +56,7 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
 | Amp line out ground | **GND** next to the line-in pads | |
 | To mixer / interface / power amp | **LINE OUT L** and **R** + GND | Stereo when the delay or reverb is on; both carry the same signal when they are off. For a mono rig use L. If the gear you feed is not AC-coupled, add a 2.2–10 µF capacitor in series. |
 | Headphones | 3.5 mm jack | **Headphones only.** The jack's ground is a *virtual* ground, so never connect it to another device's ground. |
-| OLED + encoder module (SSD1306, 128x64) | VCC **3.3 V**, GND, SDA **18**, SCL **19** (shared with the codec); encoder A **2**, B **3**, push **4**; CONFIRM **5**; BACK **9** | Never 5 V. Wiring, controls and screens: [DISPLAY.md](DISPLAY.md). Pins, I2C address and encoder direction are in `include/config.h`. |
+| OLED + encoder module (128x64, SH1106 1.3" or SSD1306 0.96") | VCC **3.3 V**, GND, SDA **18**, SCL **19** (shared with the codec); encoder A **2**, B **3**, push **4**; CONFIRM **5**; BACK **9** | Never 5 V. Wiring, controls and screens: [DISPLAY.md](DISPLAY.md). Pins, I2C address, the controller (`OLED_SH1106`) and encoder direction are in `include/config.h`. |
 
 ### ⚠️ Level and safety
 
@@ -192,7 +192,7 @@ src/DrumSongs.{h,cpp}       drum songs: the built-in ones and MIDI files in /DRU
 src/Settings.{h,cpp}        settings saved in EEPROM
 src/SerialUI.{h,cpp}        serial commands and level meter
 src/Controls.{h,cpp}        the panel's encoder (interrupt-driven) and keys
-src/Oled.{h,cpp}            minimal SSD1306 driver on the codec's I2C bus
+src/Oled.{h,cpp}            minimal SH1106 / SSD1306 driver on the codec's I2C bus
 src/DisplayUI.{h,cpp}       the OLED panel: settings and model for lib/oledui, sending changed pages
 src/AudioConvolverIR.h      Teensy Audio Library object (IR, gain, bypass, delay, reverb, meters, CPU stats)
 lib/irdsp/src/              portable DSP core (no Arduino dependencies)
@@ -209,7 +209,8 @@ lib/irdsp/src/              portable DSP core (no Arduino dependencies)
   irdsp_blocks.h            shared shelving filter, biquad filters, Hermite read, LFO and mix law
   irdsp_fft.h               small radix-2 FFT
   IRLoader.{h,cpp}          WAV parser, resampler, IR trimming and normalization
-lib/oledui/src/             the panel UI, Arduino-free: canvas, font, menu tree, screens, meters, keys
+lib/oledui/src/             the panel UI, Arduino-free: canvas, fonts, menu tree, screens, meters, keys
+fonts/spleen/               the panel's fonts (Spleen, BSD-2-Clause; tools/make_font.py compiles them in)
 kits/rock/                  the recorded drum kit (WAVs, kit.txt, credits, our originals)
 songs/                      the built-in drum songs (text, compiled in)
 tools/                      drum kit tools: import_kit.py (build a kit's WAVs), make_kits.py (compile kits in)

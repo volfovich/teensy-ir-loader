@@ -1,11 +1,12 @@
 // Host-side tests for the OLED UI library (no hardware needed).
 //   make -C test/host && ./test/host/test_ui
 #include <cmath>
+#include <cctype>
 #include <cstdio>
 #include <cstring>
 
 #include "Canvas.h"
-#include "Font5x7.h"
+#include "Fonts.h"
 #include "Key.h"
 #include "Menu.h"
 #include "Meter.h"
@@ -272,49 +273,62 @@ static void testCanvas() {
   c.clear();
   while (c.takeDirtyPage() >= 0) {}
   c.text(0, 2, "A");
-  const uint8_t* g = ui::glyph('A');
-  check(!std::memcmp(c.page(2), g, 5) && c.page(2)[5] == 0, "small glyph bytes land in its page", 0);
-  check(c.dirtyMask() == 0x04, "only that page is dirty", c.dirtyMask());
-  c.text(0, 4, "A", true);
-  check(c.dirtyMask() == 0x34, "2x text marks two pages", c.dirtyMask());
-  check(c.takeDirtyPage() == 2 && c.takeDirtyPage() == 4 && c.takeDirtyPage() == 5 && c.takeDirtyPage() == -1,
-        "dirty pages come out lowest first", 0);
-  // Right-aligned text ends with ink in the column before xEnd.
+  const uint8_t* g = ui::kFont8x16['A' - 32];
+  check(!std::memcmp(c.page(2), g, 8) && !std::memcmp(c.page(3), g + 8, 8), "8x16 glyph bytes land in pages 2-3", 0);
+  check(c.dirtyMask() == 0x0C, "only those pages are dirty", c.dirtyMask());
+  c.text(0, 4, "A", ui::Font::kBig);
+  check(c.dirtyMask() == 0xFC, "16x32 text marks four pages", c.dirtyMask());
+  check(c.takeDirtyPage() == 2 && c.takeDirtyPage() == 3 && c.takeDirtyPage() == 4, "dirty pages come out lowest first", 0);
+  c.text(0, 7, "A");
+  check(c.page(7)[1] == 0, "a row that would run off the bottom is not drawn", 0);
+  check(ui::Canvas::width("abc") == 24 && ui::Canvas::width("abc", ui::Font::kBig) == 48, "text widths 8 / 16 px", 0);
+  // Right-aligned text ends at the right edge.
   c.clear();
-  c.textRight(128, 0, "I");
-  check(c.get(126, 0) && !c.get(127, 0), "right-aligned 'I' ends at column 126", 0);
-  check(ui::Canvas::width("abc") == 18 && ui::Canvas::width("abc", true) == 36, "text widths 6 / 12 px", 0);
-
-  // drawHome leaves the meter rows alone; drawHomeMeters only touches them.
-  ui::UiModel m = fakeModel();
-  c.clear();
-  while (c.takeDirtyPage() >= 0) {}
-  ui::drawHome(c, m, ui::kBlockIR);
-  check(c.dirtyMask() == 0x3F, "home: pages 0-5 dirty", c.dirtyMask());
-  while (c.takeDirtyPage() >= 0) {}
-  ui::drawHomeMeters(c, m);
-  check(c.dirtyMask() == 0xC0, "home meters: pages 6-7 dirty", c.dirtyMask());
+  c.textRight(128, 0, "M");
+  check(c.get(121, 8) && !c.get(119, 8), "right-aligned 'M' sits in the last cell", 0);
+  // Every letter and digit has ink and fits its cell.
+  bool ok = true;
+  for (int ch = '0'; ch <= 'z'; ch++) {
+    if (!std::isalnum(ch)) continue;
+    int ink = 0;
+    for (int i = 0; i < 16; i++) ink += ui::kFont8x16[ch - 32][i] != 0;
+    ok = ok && ink > 0;
+  }
+  check(ok, "8x16: every letter and digit has ink", 0);
 }
 
-// The home screen's blocks: the cursor bar under the selected one, and the
-// beat dots (DISPLAY.md, "Home").
+// The home screen: the blocks (filled when on), the cursor under one, the
+// tempo and beat while the drums play (DISPLAY.md, "Home").
 static void testHome() {
   std::printf("Home screen\n");
   uint8_t buf[1024];
   ui::Canvas c(buf);
-  ui::UiModel m = fakeModel();
+  ui::UiModel m = fakeModel();  // IR on, delay and reverb on, drums playing
   c.clear();
   ui::drawHome(c, m, ui::kBlockDelay);
-  check(c.get(40, 9) && c.get(40, 10) && !c.get(12, 9), "cursor bar under DLY, not under IR", 0);
+  check(c.get(40, 30) && c.get(40, 31) && !c.get(10, 30), "cursor bar under DLY, not under IR", 0);
+  check(c.get(28, 17) && c.get(98, 17), "on blocks are filled (DLY, DRM)", 0);
   c.clear();
   ui::drawHome(c, m, ui::kBlockIR);
-  check(c.get(12, 9) && !c.get(40, 9), "  ... and under IR", 0);
-  check(c.get(10, 43) && !c.get(3, 43) && c.get(1, 43), "beat 2 of 4: its box filled, the others hollow", m.drumBeat);
+  check(c.get(10, 30) && !c.get(40, 30), "  ... and under IR", 0);
+  // The beat boxes: 8 px every 10 px from 6 px after the big "100", rows
+  // 52-59; beat 2 of 4 filled, the others hollow.
+  bool beats = true;
+  for (int i = 0; i < 4; i++) {
+    const int bx = 48 + 6 + i * 10;
+    beats = beats && c.get(bx, 55) && c.get(bx + 4, 55) == (i == 1);
+  }
+  check(beats && !c.get(54 + 40, 55), "playing: 4 beat boxes, beat 2 filled", 0);
   m.drumsPlaying = false;
-  m.drumBeat = -1;
+  m.delayOn = false;
   c.clear();
   ui::drawHome(c, m, ui::kBlockIR);
-  check(!c.get(10, 43) && c.get(8, 43), "stopped: every box hollow", 0);
+  bool boxes = false, tempo = false;
+  for (int x = 54; x < 128; x++) boxes = boxes || c.get(x, 55);
+  for (int y = 32; y < 64; y++)
+    for (int x = 0; x < 48; x++) tempo = tempo || c.get(x, y);
+  check(!boxes && tempo, "stopped: the tempo, no beat boxes", 0);
+  check(!c.get(40, 20) && c.get(27, 20) && c.get(56, 20), "off block: an outline (DLY)", 0);
 }
 
 static void testPanel() {

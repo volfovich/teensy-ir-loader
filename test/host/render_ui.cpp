@@ -88,33 +88,19 @@ int main(int argc, char** argv) {
   // Home, with the cursor on each block.
   const char* const homeShots[ui::kHomeBlocks] = {"02_home", "02b_home_delay", "02c_home_reverb", "02d_home_drums"};
   for (int blk = 0; blk < ui::kHomeBlocks; blk++) {
-    c.clear(); ui::drawHome(c, m, blk); ui::drawHomeMeters(c, m);
+    c.clear(); ui::drawHome(c, m, blk);
     snap(homeShots[blk]);
   }
 
-  ui::UiModel s = m;  // a song, looping bars 9-16
-  s.drumSong = "Back in Black-ish";
-  s.drumTempo = 94; s.drumSongBar = 12; s.drumSongBars = 32; s.drumLoopFrom = 9; s.drumLoopTo = 16;
-  s.drumBeat = 2;
-  c.clear(); ui::drawHome(c, s, ui::kBlockDrums); ui::drawHomeMeters(c, s);
-  snap("03_home_song");
+  ui::UiModel st = m;  // drums stopped, delay off
+  st.drumsPlaying = false; st.drumBeat = -1; st.delayOn = false;
+  c.clear(); ui::drawHome(c, st, ui::kBlockIR);
+  snap("03_home_stopped");
 
-  ui::UiModel t = m;  // the speed trainer on its way to 140
-  t.trainerOn = true; t.trainerTarget = 140; t.drumTempo = 115; t.drumBar = 14; t.drumBeat = 3;
-  c.clear(); ui::drawHome(c, t, ui::kBlockDrums); ui::drawHomeMeters(c, t);
-  snap("03b_home_trainer");
-
-  ui::UiModel st = m;  // stopped, the 6/8 ballad
-  st.drumsPlaying = false; st.drumBeat = -1; st.drumBeats = 2; st.drumStyle = "6/8 ballad"; st.drumTempo = 60;
-  c.clear(); ui::drawHome(c, st, ui::kBlockDrums); ui::drawHomeMeters(c, st);
-  snap("03c_home_stopped");
-
-  ui::UiModel x = m;
-  x.bypass = true; x.delayOn = false;
-  x.in.update(0.99f, false, 10000);
-  x.out.update(1.0f, true, 10000);
-  c.clear(); ui::drawHome(c, x, ui::kBlockIR); ui::drawHomeMeters(c, x);
-  snap("04_home_bypass_clip");
+  ui::UiModel x = m;  // bypassed, a 6/8 groove at 140
+  x.bypass = true; x.drumTempo = 140; x.drumBeats = 6; x.drumBeat = 4;
+  c.clear(); ui::drawHome(c, x, ui::kBlockIR);
+  snap("04_home_bypass");
 
   menu.open(); menu.turn(1, 0);
   menu.draw(c);
