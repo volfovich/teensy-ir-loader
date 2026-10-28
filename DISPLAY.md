@@ -68,15 +68,17 @@ Notes:
 
 ### Home screen
 
-The home screen shows the chain as blocks, IR › DLY › REV + DRM, with a cursor under one of them.
+The home screen shows the chain as blocks, IR › DLY › REV › DRM, then the tempo, with a cursor under one of them.
 
 | Input | Action |
 |---|---|
-| Turn encoder | Move the cursor between the blocks |
-| Push encoder | Open the block: the [IR list](#ir-list) for IR, the Delay, Reverb or Drums page of the menu for the others. BACK from there comes back home, with the cursor where it was. |
-| Hold encoder (≥ 0.6 s) | The block under the cursor on/off: IR = bypass, DRM = drums start/stop |
+| Turn encoder | Move the cursor: IR, DLY, REV, DRM, then the tempo |
+| Push encoder | Open the block: the [IR list](#ir-list) for IR, the Delay, Reverb or Drums page of the menu for the others. BACK from there comes back home, with the cursor where it was. On the tempo: edit it in place (below). |
+| Hold encoder (≥ 0.6 s) | The block under the cursor on/off: IR = bypass, DRM and the tempo = drums start/stop |
 | CONFIRM | Drums start/stop, wherever the cursor is |
 | BACK | Open the menu (Levels, Meter, Status, Bypass …) |
+
+**Editing the tempo:** the tempo is drawn inverted. Turning changes it live, 1 BPM per click and ×5 when the clicks come less than 40 ms apart, from 40 to 240 BPM. Push keeps it, BACK restores the tempo from before, and 30 s without input keeps it. It is saved like any other setting.
 
 ### Menus
 
@@ -111,15 +113,15 @@ All text is in the Spleen 8x16 font: 16 characters x 4 rows of 16 px. Big number
 │V30 SM57 Mesa 4x│  row 0: the IR (BYPASS + name when bypassed)
 │IR  DLY REV DRM │  row 1: the blocks, filled = on, outlined = off,
 │▀▀              │    a bar under the selected one
-│100   BPM       │  rows 2-3: the tempo in the big font,
-│      ■□□□      │    the beat boxes while the drums play
+│100   offbeat8  │  rows 2-3: the tempo in the big font; the style's
+│▀▀▀   ■□□□      │    short name and a box per beat (cursor on the tempo)
 └────────────────┘
 ```
 
 - **The blocks** follow the signal: the IR, then the delay, then the reverb, then the drums (mixed in after the effects, never through them). IR is "on" when not bypassed.
 - **Row 0:** the file name without the folder or the `.wav` extension (16 characters). With no SD card or no IRs: `No SD card` or `No IRs on SD`.
-- **Rows 2–3:** the tempo now (with the speed trainer, the tempo it has reached). While the drums play, one box per beat of the bar (up to 7), the beat sounding filled; they also count the count-in.
-- Everything else (delay time, mixes, the style, song and bar, the kit, the meters) is in the menus and on the Meter screen, to keep the home screen readable.
+- **Rows 2–3:** the tempo now (with the speed trainer, the tempo it has reached), selectable and editable from here. Beside it, the style's short name (at most 9 characters: `metronome`, `offbeat16`, `shuffle` …) or the selected song's, and one box per beat of the bar (up to 7). The beat sounding is filled; all are hollow while stopped, so nothing appears or moves when the drums start. They also count the count-in.
+- Everything else (delay time, mixes, the song's bar, the kit, the meters) is in the menus and on the Meter screen, to keep the home screen readable.
 
 ### Menu list
 
@@ -139,11 +141,13 @@ Three items show at a time. A value too long for its row is cut with `~`; the ed
 ```
 ┌────────────────┐
 │Time            │  the item, inverted
-│     380 ms     │  big font (the normal one for long names)
+│     380 ms     │  the value
 │                │
 │[#######.......]│  position within min..max (a mark at 0 for the gain)
 └────────────────┘
 ```
+
+The font is fixed per item, so it never changes while turning (`Menu::bigValue`): numbers are always in the 16x32 font (every value of every item fits, the widest being `-60.0 dB`; a test checks them all), and names (Style, Kit, Song: `Unit::kName`) always in 8x16, wrapped onto two rows at a space when longer than 16 characters.
 
 ### IR list
 
@@ -297,6 +301,7 @@ Why our own driver: see [RAM1 strategy](#ram1-strategy). It is about 70 lines.
 
 - **Init:** probes `OLED_I2C_ADDR`, then 0x3D, and sends the 128x64 init sequence for the controller `OLED_SH1106` selects: the SSD1306's charge pump and page addressing mode, or the SH1106's DC-DC converter (it only has page addressing). It then blanks the whole display RAM (132 columns on the SH1106), so no power-on garbage shows. With no display found, the panel stays off and the firmware runs as before.
 - **SH1106 column offset:** its RAM is 132 columns wide and the glass shows 128 of them, starting at `OLED_COL_OFFSET`. That is 2 on many modules but 0 on ours. If it is wrong, the line ends are cut off on one side and stray pixels show on the other.
+- **"SH1106" modules with an SSD1306-compatible chip:** ours is one (hence offset 0). It stayed black after power-up until the SSD1306 charge-pump command (`8D 14`) was added to the SH1106 init; a real SH1106 ignores it. This only shows from cold: the setting survives a warm restart (a reflash), so a module once started by the SSD1306 init works until it is unplugged. The init also waits 100 ms between the converter and display-on, as the SH1106 datasheet asks.
 - **Sending:** `oledSendPage(p, data)` sends one page: a 3-byte address command, then 1 control byte + 128 data bytes. The Teensy 4 `Wire` buffer is 136 bytes, so a whole page fits in one transaction. A page takes about 3.3 ms at 400 kHz.
 - **Drawing** is `ui::Canvas` (`lib/oledui`): the frame buffer, text in the two fonts, lines, boxes and inversion.
 - **Fonts:** Spleen 8x16 and 16x32 by Frederic Cambus (BSD-2-Clause), 2.2.0. `tools/make_font.py` converts the BDF files in `fonts/spleen/` into `lib/oledui/src/Fonts.cpp` (7.6 KB in flash, ASCII 32..126) in the display's page layout, so a glyph's columns are copied straight into the frame buffer. Text rows start at x = 1: the glyphs' blank column is on the right, and this keeps inverted rows off the left edge.

@@ -36,6 +36,10 @@ FLASHMEM bool oledBegin() {
       0xD3, 0x00,  // no display offset
       0x40,        // start line 0
       0xAD, 0x8B,  // DC-DC converter on (internal VCC)
+      // Charge pump on, SSD1306-style: some "SH1106" 1.3" modules carry an
+      // SSD1306-compatible chip (ours: column offset 0) and stay black from
+      // cold without it. A real SH1106 ignores it.
+      0x8D, 0x14,
       0xA1,        // columns mirrored: module mounted upright
       0xC8,        // rows scan from COM63 down
       0xDA, 0x12,  // COM pins: alternative (128x64)
@@ -79,6 +83,10 @@ FLASHMEM bool oledBegin() {
     Wire.write(zeros, OLED_SH1106 ? 132 : 128);
     Wire.endTransmission();
   }
+  // The SH1106 datasheet's power-on sequence wants 100 ms between switching
+  // the DC-DC converter on and the display on.
+  const uint32_t t = millis();
+  while (millis() - t < 100) {}
   static const uint8_t PROGMEM kOn[] = {0xAF};
   command(kOn, sizeof(kOn));
   return true;
@@ -98,3 +106,4 @@ FLASHMEM void oledSendPage(int p, const uint8_t* data) {
   Wire.write(data, 128);
   Wire.endTransmission();
 }
+

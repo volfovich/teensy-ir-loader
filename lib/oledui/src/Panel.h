@@ -4,10 +4,12 @@
 // panel runs and is tested on a PC.
 //
 // Controls (DISPLAY.md, "Controls"):
-//   home:    turn = move between the blocks (IR, DLY, REV, DRM);
-//            push = open the block (IR list, or its menu page);
-//            hold = the block on/off (IR: bypass; DRM: start/stop);
-//            CONFIRM = drums start/stop; BACK = the menu
+//   home:    turn = move between the blocks (IR, DLY, REV, DRM) and the
+//            tempo; push = open the block (IR list, or its menu page);
+//            hold = the block on/off (IR: bypass; DRM, tempo: drums
+//            start/stop); CONFIRM = drums start/stop; BACK = the menu
+//   tempo:   push edits it in place: turn = BPM, applied live (x5 when
+//            fast); push = keep; BACK = restore
 //   menu:    as in Menu.h; CONFIRM works like push; BACK from the page it
 //            opened at returns home
 //   IR list: turn = move; push or CONFIRM = load (stays on the list); BACK
@@ -46,7 +48,10 @@ class Panel {
   // The whole screen.
   void draw(Canvas& c, const UiModel& m);
 
+  static constexpr int kTempoMin = 40, kTempoMax = 240;  // setDrumTempo's range
+
   Screen screen() const { return screen_; }
+  bool tempoEditing() const { return tempoEdit_; }
   int block() const { return block_; }
   int irCursor() const { return irCursor_; }
   Menu& menu() { return menu_; }
@@ -65,6 +70,9 @@ class Panel {
   uint8_t block_ = kBlockIR;
   int irCursor_ = 0, irTop_ = 0, marquee_ = 0;
   uint32_t lastInputMs_ = 0, marqueeMs_ = 0;
+  bool tempoEdit_ = false;
+  int tempoOrig_ = 0;
+  uint32_t tempoTurnMs_ = 0;
 };
 
 }  // namespace ui

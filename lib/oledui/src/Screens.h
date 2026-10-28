@@ -20,7 +20,8 @@ struct UiModel {
   // The blocks' on/off.
   bool bypass = false, delayOn = false, reverbOn = false, drumsPlaying = false;
 
-  // Drums, shown while they play.
+  // Drums.
+  const char* drumStyle = "";        // the style's or song's short name
   int drumTempo = 0;                 // the tempo now (trainer)
   int drumBeat = -1, drumBeats = 4;  // the beat sounding (0-based, -1 stopped), beats in the bar
 
@@ -37,15 +38,16 @@ struct UiModel {
 // The file name without the folder and the .wav extension.
 void irDisplayName(const char* path, char* out, int n);
 
-// The home screen's blocks, in signal order (the drums are mixed in after
-// the effects).
-enum HomeBlock : uint8_t { kBlockIR, kBlockDelay, kBlockReverb, kBlockDrums, kHomeBlocks };
+// The home screen's items: the blocks in signal order (the drums are mixed
+// in after the effects), then the tempo.
+enum HomeBlock : uint8_t { kBlockIR, kBlockDelay, kBlockReverb, kBlockDrums, kBlockTempo, kHomeBlocks };
 
 // Screens in rows of 16 px (the 8x16 font): row r is pages 2r and 2r+1.
 void drawSplash(Canvas& c, const UiModel& m);
-// Row 0 the IR name; row 1 the blocks, filled when on, the cursor under
-// `block`; rows 2-3 the drums' tempo, and the beat while they play.
-void drawHome(Canvas& c, const UiModel& m, int block);
+// Row 0 the IR name; row 1 the blocks, filled when on; rows 2-3 the tempo
+// big, the style and a box per beat. The cursor is a bar under `block`;
+// editingTempo draws the tempo inverted instead.
+void drawHome(Canvas& c, const UiModel& m, int block, bool editingTempo = false);
 // The IR list: entries 0..irCount-1 plus "Rescan SD card" (index irCount).
 // marquee: characters the cursor row's name is scrolled by.
 void drawIrBrowser(Canvas& c, const UiModel& m, int cursor, int top, int marquee);

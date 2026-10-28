@@ -212,6 +212,8 @@ FLASHMEM static void fillModel(uint32_t now) {
   m.delayOn = s.delayOn;
   m.reverbOn = s.reverbOn;
   m.drumsPlaying = convolver.drumsPlaying();
+  const irdsp::DrumSong* song = currentDrumSong();
+  m.drumStyle = song ? song->name : irdsp::drumStyle(s.drumStyle).name;
   m.drumTempo = m.drumsPlaying ? (int)lroundf(convolver.drumTempoNow()) : s.drumTempo;
   convolver.drumBeatPos(&m.drumBeat, &m.drumBeats);
 

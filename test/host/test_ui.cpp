@@ -4,6 +4,7 @@
 #include <cctype>
 #include <cstdio>
 #include <cstring>
+#include <initializer_list>
 
 #include "Canvas.h"
 #include "Fonts.h"
@@ -323,12 +324,56 @@ static void testHome() {
   m.delayOn = false;
   c.clear();
   ui::drawHome(c, m, ui::kBlockIR);
-  bool boxes = false, tempo = false;
-  for (int x = 54; x < 128; x++) boxes = boxes || c.get(x, 55);
+  bool hollow = true, tempo = false;
+  for (int i = 0; i < 4; i++) hollow = hollow && c.get(54 + i * 10, 55) && !c.get(58 + i * 10, 55);
   for (int y = 32; y < 64; y++)
     for (int x = 0; x < 48; x++) tempo = tempo || c.get(x, y);
-  check(!boxes && tempo, "stopped: the tempo, no beat boxes", 0);
+  check(hollow && tempo, "stopped: the tempo, the beat boxes all hollow", 0);
+  bool style = false;
+  for (int y = 34; y < 46; y++)
+    for (int x = 54; x < 128; x++) style = style || c.get(x, y);
+  check(style, "the style's name beside the tempo", 0);
+  c.clear();
+  ui::drawHome(c, m, ui::kBlockTempo);
+  check(c.get(10, 60) && !c.get(10, 30), "cursor on the tempo: a bar under the digits", 0);
+  c.clear();
+  ui::drawHome(c, m, ui::kBlockTempo, true);
+  check(c.get(1, 35) && !c.get(10, 60), "editing the tempo: drawn inverted", 0);
   check(!c.get(40, 20) && c.get(27, 20) && c.get(56, 20), "off block: an outline (DLY)", 0);
+}
+
+// The editor's font is fixed per item: every number fits the 16x32 font at
+// both ends of its range; names are always in 8x16.
+static void testEditorFonts() {
+  std::printf("Editor fonts\n");
+  FakeHost h;
+  const ui::MenuPage* pages = ui::menuPages();
+  ui::Menu menu(pages, h);
+  bool fits = true, names = true;
+  for (int pg = 0; pg <= ui::kPageTrainer; pg++) {
+    for (int i = 0; i < pages[pg].count; i++) {
+      const ui::MenuItem& it = pages[pg].items[i];
+      if (it.kind != ui::Kind::kValue) continue;
+      if (!ui::Menu::bigValue(it)) {
+        names = names && (it.id == ui::kDrumStyle || it.id == ui::kDrumKit || it.id == ui::kDrumSong);
+        continue;
+      }
+      int lo = it.min, hi = it.max;
+      h.limits(it.id, &lo, &hi);
+      for (int v : {lo, hi, 0}) {
+        char buf[32];
+        if (v < lo || v > hi) continue;
+        if (!(it.id == ui::kDrumLoopFrom && v == 0 && h.valueText(it.id, buf, sizeof(buf))))
+          ui::formatValue(it, v, true, buf, sizeof(buf));
+        if (ui::Canvas::width(buf, ui::Font::kBig) > ui::Canvas::kW) {
+          std::printf("    too wide for 16x32: %s\n", buf);
+          fits = false;
+        }
+      }
+    }
+  }
+  check(fits, "every number fits the big font at its range ends", 0);
+  check(names, "only Style, Kit and Song are names (small)", 0);
 }
 
 static void testPanel() {
@@ -344,7 +389,34 @@ static void testPanel() {
   p.turn(1, t);
   check(p.block() == ui::kBlockDelay, "  ... turn: DLY", p.block());
   p.turn(10, t);
-  check(p.block() == ui::kBlockDrums, "  ... and stops at DRM", p.block());
+  check(p.block() == ui::kBlockTempo, "  ... past DRM to the tempo, and stops there", p.block());
+
+  // The tempo: push edits it in place, live; BACK restores, push keeps.
+  const int bpm = h.v[ui::kDrumTempo];
+  p.push(t);
+  check(p.tempoEditing() && p.screen() == P::kHome, "push on the tempo: editing, still home", p.tempoEditing());
+  p.turn(1, t);
+  p.turn(1, t + 500);
+  check(h.v[ui::kDrumTempo] == bpm + 2, "  ... two slow detents: +2 BPM, applied live", h.v[ui::kDrumTempo]);
+  p.turn(1, t + 510);
+  check(h.v[ui::kDrumTempo] == bpm + 7, "  ... a fast detent counts x5", h.v[ui::kDrumTempo]);
+  p.back(t);
+  check(!p.tempoEditing() && p.screen() == P::kHome && h.v[ui::kDrumTempo] == bpm, "  ... BACK restores, stays home",
+        h.v[ui::kDrumTempo]);
+  p.push(t);
+  p.turn(-500, t + 2000);
+  check(h.v[ui::kDrumTempo] == P::kTempoMin, "  ... clamped at 40 BPM", h.v[ui::kDrumTempo]);
+  p.push(t);
+  check(!p.tempoEditing() && h.v[ui::kDrumTempo] == P::kTempoMin, "  ... push keeps it", h.v[ui::kDrumTempo]);
+  p.push(t);
+  check(p.tick(t + P::kTimeoutMs) && !p.tempoEditing(), "  ... 30 s idle ends editing", p.tempoEditing());
+  h.v[ui::kDrumTempo] = bpm;
+  const int playing = h.v[ui::kDrumsPlay];
+  p.hold(t);
+  check(h.v[ui::kDrumsPlay] == !playing, "hold on the tempo: drums start/stop", h.v[ui::kDrumsPlay]);
+  p.hold(t);
+  p.turn(-1, t);
+  check(p.block() == ui::kBlockDrums, "  ... turn back: DRM", p.block());
 
   // Push opens the block's page; BACK from it returns home, cursor kept.
   p.push(t);
@@ -444,6 +516,7 @@ int main() {
   testMeter();
   testCanvas();
   testHome();
+  testEditorFonts();
   testPanel();
   std::printf(failures ? "\n%d FAILURE(S)\n" : "\nALL TESTS PASSED\n", failures);
   return failures ? 1 : 0;

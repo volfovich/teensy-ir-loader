@@ -95,6 +95,7 @@ inline ui::UiModel fakeModel() {
   m.delayOn = true;
   m.reverbOn = true;
   m.drumsPlaying = true;
+  m.drumStyle = "rock";
   m.drumTempo = 100;
   m.drumBeat = 1;
   m.drumBeats = 4;

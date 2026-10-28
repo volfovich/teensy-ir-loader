@@ -86,11 +86,14 @@ int main(int argc, char** argv) {
   snap("01_splash");
 
   // Home, with the cursor on each block.
-  const char* const homeShots[ui::kHomeBlocks] = {"02_home", "02b_home_delay", "02c_home_reverb", "02d_home_drums"};
+  const char* const homeShots[ui::kHomeBlocks] = {"02_home", "02b_home_delay", "02c_home_reverb", "02d_home_drums",
+                                                   "02e_home_tempo"};
   for (int blk = 0; blk < ui::kHomeBlocks; blk++) {
     c.clear(); ui::drawHome(c, m, blk);
     snap(homeShots[blk]);
   }
+  c.clear(); ui::drawHome(c, m, ui::kBlockTempo, true);
+  snap("02f_home_tempo_edit");
 
   ui::UiModel st = m;  // drums stopped, delay off
   st.drumsPlaying = false; st.drumBeat = -1; st.delayOn = false;
@@ -98,7 +101,7 @@ int main(int argc, char** argv) {
   snap("03_home_stopped");
 
   ui::UiModel x = m;  // bypassed, a 6/8 groove at 140
-  x.bypass = true; x.drumTempo = 140; x.drumBeats = 6; x.drumBeat = 4;
+  x.bypass = true; x.drumTempo = 140; x.drumBeats = 6; x.drumBeat = 4; x.drumStyle = "ballad";
   c.clear(); ui::drawHome(c, x, ui::kBlockIR);
   snap("04_home_bypass");
 
@@ -162,6 +165,11 @@ int main(int argc, char** argv) {
   menu.open(); menu.turn(3, 0); menu.push(); menu.turn(2, 0);  // Drums > Song
   menu.draw(c);
   snap("19_menu_drums_song");
+  menu.push();  // the song's name: two rows in the 8x16 font
+  host.v[ui::kDrumSong] = 3;
+  menu.draw(c);
+  snap("19b_edit_drum_song");
+  menu.back();
   host.v[ui::kDrumSong] = 0;
   host.v[ui::kDrumLoopFrom] = 0;
   host.v[ui::kDrumLoopTo] = 32;

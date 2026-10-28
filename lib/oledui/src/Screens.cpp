@@ -38,8 +38,9 @@ UI_COLD void drawSplash(Canvas& c, const UiModel& m) {
 // mixed in after them. A block is a box around its label, filled when on.
 struct HomeBlockPos { const char* label; int x, w; };
 static constexpr int kBlockY = 16, kBlockH = 13, kCursorY = 30;
+static constexpr int kHomeColumnX = 54;  // the style and the beat boxes (9 characters)
 
-UI_COLD void drawHome(Canvas& c, const UiModel& m, int block) {
+UI_COLD void drawHome(Canvas& c, const UiModel& m, int block, bool editingTempo) {
   char buf[40], name[64];
   c.clear();
 
@@ -54,14 +55,14 @@ UI_COLD void drawHome(Canvas& c, const UiModel& m, int block) {
   c.text(Canvas::kLeft, 0, buf);
 
   // Row 1: the blocks, the cursor under one.
-  const HomeBlockPos blocks[kHomeBlocks] = {
+  const HomeBlockPos blocks[kBlockTempo] = {
       {UI_STR("IR"), 0, 22},
       {UI_STR("DLY"), 27, 30},
       {UI_STR("REV"), 62, 30},
       {UI_STR("DRM"), 97, 30},
   };
-  const bool on[kHomeBlocks] = {!m.bypass, m.delayOn, m.reverbOn, m.drumsPlaying};
-  for (int i = 0; i < kHomeBlocks; i++) {
+  const bool on[kBlockTempo] = {!m.bypass, m.delayOn, m.reverbOn, m.drumsPlaying};
+  for (int i = 0; i < kBlockTempo; i++) {
     const HomeBlockPos& b = blocks[i];
     c.text(b.x + (b.w - Canvas::width(b.label)) / 2, 2, b.label);
     // The font's blank rows above and below the capitals are inside the
@@ -70,18 +71,21 @@ UI_COLD void drawHome(Canvas& c, const UiModel& m, int block) {
     if (on[i]) c.invert(b.x, kBlockY, b.w, kBlockH);
     else c.frame(b.x, kBlockY, b.w, kBlockH);
   }
-  if (block >= 0 && block < kHomeBlocks) c.fill(blocks[block].x, kCursorY, blocks[block].w, 2, true);
+  if (block >= 0 && block < kBlockTempo) c.fill(blocks[block].x, kCursorY, blocks[block].w, 2, true);
 
-  // Rows 2-3: the drums' tempo big, and while they play the beat as boxes.
+  // Rows 2-3: the tempo big (its digits' ink is y 38-57), and in a column
+  // beside it the style and a box per beat, the one sounding filled (all
+  // hollow when stopped, so nothing moves when the drums start).
   snprintf(buf, sizeof(buf), UI_STR("%d"), m.drumTempo);
-  const int x = c.text(0, 4, buf, Font::kBig) + 6;
-  c.text(x, 4, UI_STR("BPM"));
-  if (!m.drumsPlaying) return;
-  const int beats = m.drumBeats > 7 ? 7 : m.drumBeats, size = 8, step = 10, y = 52;
+  const int tw = c.text(0, 4, buf, Font::kBig);
+  if (editingTempo) c.invert(0, 34, tw, 26);
+  else if (block == kBlockTempo) c.fill(0, 60, tw, 2, true);
+  snprintf(buf, sizeof(buf), UI_STR("%.9s"), m.drumStyle ? m.drumStyle : UI_STR(""));
+  c.text(kHomeColumnX, 4, buf);
+  const int beats = m.drumBeats > 7 ? 7 : m.drumBeats, size = 8, step = 10, y = 50;
   for (int i = 0; i < beats; i++) {
-    const int bx = x + i * step;
-    if (bx + size > Canvas::kW) break;
-    if (i == m.drumBeat) c.fill(bx, y, size, size, true);
+    const int bx = kHomeColumnX + i * step;
+    if (m.drumsPlaying && i == m.drumBeat) c.fill(bx, y, size, size, true);
     else c.frame(bx, y, size, size);
   }
 }

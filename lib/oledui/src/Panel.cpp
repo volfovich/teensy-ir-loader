@@ -51,6 +51,14 @@ UI_COLD bool Panel::turn(int detents, uint32_t now) {
   touch(now);
   switch (screen_) {
     case kHome: {
+      if (tempoEdit_) {
+        const int factor = (tempoTurnMs_ != 0 && now - tempoTurnMs_ < Menu::kFastMs) ? Menu::kFastFactor : 1;
+        tempoTurnMs_ = now ? now : 1;
+        int v = host_.get(kDrumTempo) + detents * factor;
+        v = v < kTempoMin ? kTempoMin : (v > kTempoMax ? kTempoMax : v);
+        host_.set(kDrumTempo, v);
+        return true;
+      }
       int b = block_ + detents;
       b = b < 0 ? 0 : (b >= kHomeBlocks ? kHomeBlocks - 1 : b);
       if (b == block_) return false;
@@ -86,6 +94,13 @@ UI_COLD bool Panel::push(uint32_t now) {
   touch(now);
   switch (screen_) {
     case kHome:
+      if (block_ == kBlockTempo) {
+        // Push starts editing the tempo in place, and push again keeps it.
+        tempoEdit_ = !tempoEdit_;
+        tempoOrig_ = host_.get(kDrumTempo);
+        tempoTurnMs_ = 0;
+        return true;
+      }
       if (block_ == kBlockIR) {
         openIrList(kHome);
         return true;
@@ -108,7 +123,7 @@ UI_COLD bool Panel::hold(uint32_t now) {
   touch(now);
   if (screen_ != kHome) return false;
   // The IR block is on when not bypassed: flipping bypass flips it.
-  static const uint8_t UI_PROGMEM kOnOff[kHomeBlocks] = {kBypass, kDelayOn, kReverbOn, kDrumsPlay};
+  static const uint8_t UI_PROGMEM kOnOff[kHomeBlocks] = {kBypass, kDelayOn, kReverbOn, kDrumsPlay, kDrumsPlay};
   return toggle(kOnOff[block_]);
 }
 
@@ -133,6 +148,11 @@ UI_COLD bool Panel::back(uint32_t now) {
   touch(now);
   switch (screen_) {
     case kHome:
+      if (tempoEdit_) {
+        host_.set(kDrumTempo, tempoOrig_);
+        tempoEdit_ = false;
+        return true;
+      }
       menu_.open();
       screen_ = kMenu;
       return true;
@@ -151,6 +171,10 @@ UI_COLD int Panel::marqueeOffset() const {
 }
 
 UI_COLD bool Panel::tick(uint32_t now) {
+  if (tempoEdit_ && now - lastInputMs_ >= kTimeoutMs) {
+    tempoEdit_ = false;  // keeps the tempo
+    return true;
+  }
   if (screen_ != kHome && screen_ != kMeter && now - lastInputMs_ >= kTimeoutMs) {
     screen_ = kHome;
     return true;
@@ -168,7 +192,7 @@ UI_COLD bool Panel::tick(uint32_t now) {
 UI_COLD void Panel::draw(Canvas& c, const UiModel& m) {
   switch (screen_) {
     case kHome:
-      drawHome(c, m, block_);
+      drawHome(c, m, block_, tempoEdit_);
       break;
     case kMenu:
       menu_.draw(c);

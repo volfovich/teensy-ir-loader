@@ -65,7 +65,7 @@ enum class Kind : uint8_t {
 
 enum class Unit : uint8_t {
   kNone, kPercent, kMs, kHalfDb, kBpm, kBars,
-  kOneBased,  // an index shown from 1 (the editor's range ends)
+  kName,  // an index shown by name (MenuHost::valueText); the number from 1 without one
 };
 
 struct MenuItem {
@@ -128,6 +128,9 @@ class Menu {
   Result push();
   Result back();
   bool editing() const { return editing_; }
+  // The editor's font is fixed per item, so it never changes while turning:
+  // the 16x32 font for numbers (every one fits), 8x16 for names.
+  static bool bigValue(const MenuItem& it) { return it.unit != Unit::kName; }
   uint8_t screen() const { return screen_; }
   void draw(Canvas& c);
 

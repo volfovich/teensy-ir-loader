@@ -132,11 +132,11 @@ static const MenuItem UI_PROGMEM kLevelItems[] = {
 // bars (the song's length; "off" for from = 0).
 static const MenuItem UI_PROGMEM kDrumItems[] = {
     {kLPlay, K::kToggle, kDrumsPlay, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
-    {kLStyle, K::kValue, kDrumStyle, 0, 0, 7, 1, U::kOneBased, kNoItem, nullptr},
-    {kLSong, K::kValue, kDrumSong, 0, 0, 5, 1, U::kNone, kNoItem, nullptr},
+    {kLStyle, K::kValue, kDrumStyle, 0, 0, 7, 1, U::kName, kNoItem, nullptr},
+    {kLSong, K::kValue, kDrumSong, 0, 0, 5, 1, U::kName, kNoItem, nullptr},
     {kLLoopFrom, K::kValue, kDrumLoopFrom, 0, 0, 32, 1, U::kNone, kIsDrumSong, nullptr},
     {kLLoopTo, K::kValue, kDrumLoopTo, 0, 1, 32, 1, U::kNone, kIsDrumSong, nullptr},
-    {kLKit, K::kValue, kDrumKit, 0, 0, 1, 1, U::kOneBased, kNoItem, nullptr},
+    {kLKit, K::kValue, kDrumKit, 0, 0, 1, 1, U::kName, kNoItem, nullptr},
     {kLCrash, K::kChoice, kDrumCrash, 0, 0, 4, 1, U::kNone, kNoItem, kCrashNames},
     {kLTempo, K::kValue, kDrumTempo, 0, 40, 240, 1, U::kBpm, kNoItem, nullptr},
     {kLVolume, K::kValue, kDrumVolume, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
@@ -195,7 +195,7 @@ UI_COLD void formatValue(const MenuItem& it, int v, bool spaced, char* buf, int 
     case Unit::kMs: snprintf(buf, n, UI_STR("%d%sms"), v, sp); break;
     case Unit::kBpm: snprintf(buf, n, UI_STR("%d BPM"), v); break;
     case Unit::kBars: snprintf(buf, n, UI_STR("%d bar%s"), v, v == 1 ? UI_STR("") : UI_STR("s")); break;
-    case Unit::kOneBased: snprintf(buf, n, UI_STR("%d"), v + 1); break;
+    case Unit::kName: snprintf(buf, n, UI_STR("%d"), v + 1); break;
     case Unit::kHalfDb: {
       char num[16];
       halfDb(v, num, sizeof(num));
@@ -376,6 +376,25 @@ UI_COLD void Menu::drawList(Canvas& c) {
   }
 }
 
+// A name centered on row 1.5, or wrapped onto rows 1-2 at the last space
+// that leaves at most a row's worth on the first line.
+static UI_COLD void drawName(Canvas& c, const char* s) {
+  const int len = (int)strlen(s);
+  if (len <= Canvas::kCols) {
+    c.textCenter(3, s);
+    return;
+  }
+  int cut = Canvas::kCols;
+  while (cut > 0 && s[cut] != ' ') cut--;
+  if (cut == 0) cut = Canvas::kCols;  // no space: break mid-word
+  const char* rest = s + cut + (s[cut] == ' ');
+  char line[Canvas::kCols + 1];
+  snprintf(line, sizeof(line), UI_STR("%.*s"), cut, s);
+  c.textCenter(2, line);
+  snprintf(line, sizeof(line), UI_STR("%s"), rest);
+  c.textCenter(4, line);
+}
+
 // x of value v on the editor's bar (inside the frame at x0, w wide).
 static UI_COLD int barPos(int v, int lo, int hi, int x0, int w) {
   return x0 + 1 + (int)((long)(v - lo) * (w - 3) / (hi > lo ? hi - lo : 1));
@@ -387,12 +406,12 @@ UI_COLD void Menu::drawEditor(Canvas& c) {
   if (!it) return;
   titleBar(c, it->label, nullptr);
 
-  // The value big, or in the normal font if it is a name too long for it.
+  // The value: numbers big, names in the normal font (bigValue).
   char buf[32];
   const int v = host_.get(it->id);
   if (!host_.valueText(it->id, buf, sizeof(buf))) formatValue(*it, v, true, buf, sizeof(buf));
-  if (Canvas::width(buf, Font::kBig) <= Canvas::kW) c.textCenter(2, buf, Font::kBig);
-  else c.textCenter(3, buf);
+  if (bigValue(*it)) c.textCenter(2, buf, Font::kBig);
+  else drawName(c, buf);
 
   // Position bar: from the low end, or from 0 for ranges that span it.
   int lo, hi;
