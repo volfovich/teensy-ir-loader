@@ -461,8 +461,12 @@ So the display must not be added the "normal" way:
 - **Bus:** the OLED answered at 0x3C on the shared bus, and the codec still takes `in` / `out` over serial with the display running.
 - **Picture:** the right way round with the init as written (`A1`, `C8`).
 - **Encoder:** a transition log showed one full, clean quadrature cycle per click (11 → 01 → 00 → 10 → 11, resting at 11), so `ENC_COUNTS_PER_DETENT` is 4. Clockwise counted down, hence `ENC_REVERSE 1`. `CONTROLS_DEBUG` in `DisplayUI.cpp` prints the events on serial for checking another module.
-- **Keys:** push, CONFIRM and BACK all fire; push on the IR block opened the list and loaded an IR; CONFIRM started and stopped the drums.
+- **Keys:** push, CONFIRM and BACK all fire; push on the IR block opened the list and loaded an IR; CONFIRM started and stopped the drums. Holding the push toggles the block under the cursor.
+- **Menus:** values apply live while turning, and BACK while editing restores the old value.
+- **Meter:** the OLED meters agree roughly with the serial `m` meter, and `CLIP` shows on the hits where serial reports `CLIP!` (there the input was at 0.0 dBFS, clipping at the codec's converter).
+- **Persistence:** settings changed from the panel survive a power cycle.
 - **CPU:** unchanged with the meters running (28.7 % average and 31.0 % max with the reverb on, as before). Drums at 240 BPM with crashes and four IR switches: 32.0 % average, 51.8 % max, no clipped samples (the reference is about 52 %).
+- **Noise:** none audible on headphones at high gain with the meters moving, compared with the display unplugged. No supply filtering was needed.
 
 ## Testing
 
