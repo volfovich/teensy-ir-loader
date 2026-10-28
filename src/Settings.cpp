@@ -8,7 +8,8 @@
 
 Settings g_settings;
 
-static const uint32_t kSettingsMagic = 0x49524C41;  // "IRLA"
+static const uint32_t kSettingsMagic = 0x49524C42;  // "IRLB"
+static const uint32_t kSettingsMagicVA = 0x49524C41;  // "IRLA": no bass
 static const uint32_t kSettingsMagicV9 = 0x49524C39;  // "IRL9": no drum comp
 static const uint32_t kSettingsMagicV8 = 0x49524C38;  // "IRL8": no drum songs
 static const uint32_t kSettingsMagicV7 = 0x49524C37;  // "IRL7": plate reverb only
@@ -68,6 +69,13 @@ FLASHMEM static void defaultReverb80Settings() {
   g_settings.reverbGateMs = DEFAULT_REVERB_GATE;
 }
 
+FLASHMEM static void defaultBassSettings() {
+  g_settings.bassOn = DEFAULT_BASS_ON;
+  g_settings.bassVolume = DEFAULT_BASS_VOLUME;
+  g_settings.bassKey = DEFAULT_BASS_KEY;
+  g_settings.bassTone = DEFAULT_BASS_TONE;
+}
+
 FLASHMEM static void defaultSettings() {
   memset(&g_settings, 0, sizeof(g_settings));
   g_settings.magic = kSettingsMagic;
@@ -82,6 +90,7 @@ FLASHMEM static void defaultSettings() {
   defaultKitSettings();
   defaultReverb80Settings();
   g_settings.drumComp = DEFAULT_DRUM_COMP;
+  defaultBassSettings();
 }
 
 FLASHMEM void loadSettings() {
@@ -121,8 +130,12 @@ FLASHMEM void loadSettings() {
     g_settings.drumSong = 0;
   }
   if (g_settings.magic == kSettingsMagicV9) {
-    g_settings.magic = kSettingsMagic;
+    g_settings.magic = kSettingsMagicVA;
     g_settings.drumComp = DEFAULT_DRUM_COMP;
+  }
+  if (g_settings.magic == kSettingsMagicVA) {
+    g_settings.magic = kSettingsMagic;
+    defaultBassSettings();
   }
   // The style and kit lists can change between firmware versions: one that
   // no longer exists falls back to the default, without resetting the rest.
@@ -147,7 +160,8 @@ FLASHMEM void loadSettings() {
       g_settings.reverbPreDelay > 150 || g_settings.reverbMod > 100 || g_settings.reverbEra > 100 ||
       g_settings.reverbGateMs < 100 || g_settings.reverbGateMs > 600 || g_settings.trainerOn > 1 || g_settings.trainerStep < 1 ||
       g_settings.trainerStep > 20 || g_settings.trainerEvery < 1 || g_settings.trainerEvery > 16 ||
-      g_settings.trainerTarget < 40 || g_settings.trainerTarget > 240) {
+      g_settings.trainerTarget < 40 || g_settings.trainerTarget > 240 || g_settings.bassOn > 1 ||
+      g_settings.bassVolume > 100 || g_settings.bassKey > 11 || g_settings.bassTone > 100) {
     defaultSettings();
   }
   g_settings.irPath[IR_PATH_MAX - 1] = 0;

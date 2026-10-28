@@ -1,11 +1,14 @@
 // PluckBass.h - a monophonic electric bass from a plucked-string model
 // (Karplus-Strong), for the drum machine's bass lines.
 //
-//   pluck: a triangle (the string pulled at 1/5 of its length) plus a trace
-//          of noise, low-passed (zero phase, around the period) to as many
-//          harmonics as the string keeps, more for hard notes -> the
-//          string's delay line; a 1.5 ms attack ramp. A pluck brighter
-//          than the string would be a click followed by a dull tone.
+//   pluck: a triangle (the string pulled at 1/5 of its length, its mean
+//          removed) plus a trace of noise, low-passed to as many harmonics
+//          as the string keeps (more for hard notes), fed into the string
+//          sample by sample during its first period; a 1.5 ms attack ramp.
+//          A pluck brighter than the string would be a click followed by a
+//          dull tone. Feeding it in as it plays keeps noteOn() cheap: it
+//          runs in the audio interrupt, and filling a whole period at once
+//          from flash took up to 0.7 ms (a block is 0.73 ms).
 //   string: delay line -> allpass (fractional delay, exact tuning) ->
 //          one-pole low-pass at a multiple of the note's frequency (Tone:
 //          how many harmonics last; the higher ones die within a fraction
@@ -23,8 +26,8 @@
 // a pluck faded from the start, the percussive thump.
 //
 // noteOn(), mute() and setTone() may run in the audio interrupt between
-// process() calls; they fill or retune a string and live in flash
-// (IRDSP_COLD), only process() is hot. The delay lines are a buffer the
+// process() calls; they only retune a string (a few microseconds) and live
+// in flash (IRDSP_COLD), only process() is hot. The delay lines are a buffer the
 // caller provides (DMAMEM on the Teensy).
 #pragma once
 
@@ -66,6 +69,10 @@ class PluckBass {
     float hz = 0.0f;
     float env = 0.0f, envMul = 1.0f;  // output envelope, its factor per sample
     float att = 1.0f;                 // attack ramp 0 -> 1
+    // The pluck being fed in: samples left, the triangle and its slope
+    // (up to the peak, then down), its low-pass, the noise level, the gain.
+    int exc = 0, excPeak = 0;
+    float tri = 0.0f, triUp = 0.0f, triDown = 0.0f, excA = 1.0f, excY = 0.0f, excNoise = 0.0f, excAmp = 0.0f;
     float peak = 0.0f;     // for idle detection
     bool on = false;
   };

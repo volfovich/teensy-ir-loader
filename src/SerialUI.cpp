@@ -57,7 +57,9 @@ FLASHMEM static void printSongs() {
 }
 
 FLASHMEM void printHelp() {
-  Serial.printf(
+  // The help text in flash (PSTR): as a plain literal it would be copied to
+  // RAM1, taking stack space.
+  Serial.printf(PSTR(
       "\nCommands:\n"
       "  l            list IR files\n"
       "  <number>     load IR by number\n"
@@ -85,6 +87,9 @@ FLASHMEM void printHelp() {
       "  drum comp <0-100>    drum-bus compression, 0 = natural (now %u)\n"
       "  drum count [0-4]     count-in bars, 0 = off; alone toggles (now %s)\n"
       "  drum train [step every target]  toggle / set the speed trainer (now %s)\n"
+      "  bass [on|off]  the bass with the drums; alone toggles (now %s)\n"
+      "  bass vol|tone <0-100>  bass volume, brightness (now %u, %u)\n"
+      "  bass key <C..B>  the styles' key, e.g. E, F#, Bb; songs keep their own (now %s)\n"
       "  rv           toggle reverb (now %s)\n"
       "  mix <0-100>  reverb dry/wet, 0 = dry only (now %u)\n"
       "  size <0-100> reverb time; 80s gated: decaying .. flat (50) .. rising (now %u)\n"
@@ -100,7 +105,7 @@ FLASHMEM void printHelp() {
       "  hp <0-100>   headphone volume (now %d%%)\n"
       "  m            toggle live level meter\n"
       "  s            status (CPU, levels, latency)\n"
-      "  r            rescan SD card\n",
+      "  r            rescan SD card\n"),
       g_settings.outGainDb, g_settings.delayOn ? "on" : "off", g_settings.delayMix, DELAY_MAX_MS,
       g_settings.delayTimeMs, g_settings.delayFeedback, g_settings.delayTone, g_settings.delayMod,
       delayTypeName(g_settings.delayType), g_settings.delayDuck, g_settings.delayDrive,
@@ -108,7 +113,8 @@ FLASHMEM void printHelp() {
       irdsp::drumStyle(g_settings.drumStyle).name, irdsp::drumKit(g_settings.drumKit).name, songText(), loopText(),
       crashText(),
       g_settings.drumVolume, g_settings.drumComp,
-      countText(), g_settings.trainerOn ? "on" : "off", g_settings.reverbOn ? "on" : "off", g_settings.reverbMix,
+      countText(), g_settings.trainerOn ? "on" : "off", g_settings.bassOn ? "on" : "off", g_settings.bassVolume,
+      g_settings.bassTone, bassKeyName(g_settings.bassKey), g_settings.reverbOn ? "on" : "off", g_settings.reverbMix,
       g_settings.reverbSize, g_settings.reverbTone, g_settings.reverbType ? "80s" : "plate",
       g_settings.reverbMode ? "gated" : "hall", g_settings.reverbPreDelay, g_settings.reverbMod, g_settings.reverbEra,
       g_settings.reverbGateMs, g_settings.lineIn, g_settings.lineOut,
@@ -143,6 +149,9 @@ FLASHMEM static void printDrums() {
   if (g_settings.trainerOn && !song)
     Serial.printf(", trainer +%u every %u bar%s to %u", g_settings.trainerStep, g_settings.trainerEvery,
                   g_settings.trainerEvery == 1 ? "" : "s", g_settings.trainerTarget);
+  if (!g_settings.bassOn) Serial.print(", bass off");
+  else if (song) Serial.printf(", bass %s, vol %u%%", song->bassCount ? "on" : "on (the song has none)", g_settings.bassVolume);
+  else Serial.printf(", bass in %s, vol %u%%", bassKeyName(g_settings.bassKey), g_settings.bassVolume);
   Serial.println();
 }
 
@@ -213,6 +222,37 @@ FLASHMEM static void drumCommand(char* arg) {
     }
     if (count == 3) setDrumTrainer(true, n[0], n[1], n[2]);
     else setDrumTrainer(!g_settings.trainerOn, g_settings.trainerStep, g_settings.trainerEvery, g_settings.trainerTarget);
+  } else {
+    printHelp();
+  }
+}
+
+// "bass ..." subcommands; arg is the rest of the line (may be null).
+FLASHMEM static void bassCommand(char* arg) {
+  if (!arg || !*arg) {
+    setBassOn(!g_settings.bassOn);
+    return;
+  }
+  char* val = strchr(arg, ' ');
+  if (val) { *val++ = 0; while (*val == ' ') val++; }
+  if (!strcmp(arg, "on") || !strcmp(arg, "off")) {
+    setBassOn(!strcmp(arg, "on"));
+  } else if (!strcmp(arg, "vol") && val && *val) {
+    setBassVolume(atoi(val));
+  } else if (!strcmp(arg, "tone") && val && *val) {
+    setBassTone(atoi(val));
+  } else if (!strcmp(arg, "key") && val && *val) {
+    // A note name: C D E F G A B, optionally # or b.
+    static const int8_t kPitch[] = {9, 11, 0, 2, 4, 5, 7};  // A B C D E F G
+    const char c = (char)toupper((unsigned char)val[0]);
+    if (c < 'A' || c > 'G') {
+      Serial.println("Key: a note name, e.g. E, F#, Bb");
+      return;
+    }
+    int key = kPitch[c - 'A'];
+    if (val[1] == '#') key++;
+    else if (val[1] == 'b') key--;
+    setBassKey(key);
   } else {
     printHelp();
   }
@@ -300,6 +340,8 @@ FLASHMEM static void handleCommand(char* line) {
     setDelayEra(atoi(arg));
   } else if (!strcmp(line, "drum")) {
     drumCommand(arg);
+  } else if (!strcmp(line, "bass")) {
+    bassCommand(arg);
   } else if (!strcmp(line, "bpm") && arg) {
     setDrumTempo(atoi(arg));
   } else if (!strcmp(line, "rv")) {

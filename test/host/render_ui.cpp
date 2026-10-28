@@ -137,7 +137,7 @@ int main(int argc, char** argv) {
   snap("11_status");
 
   host.v[ui::kTrainerOn] = 1;
-  menu.open(); menu.turn(3, 0); menu.push(); menu.turn(9, 0);  // Drums > Trainer
+  menu.open(); menu.turn(3, 0); menu.push(); menu.turn(10, 0);  // Drums > Trainer
   menu.draw(c);
   snap("12_menu_drums");
 
@@ -162,7 +162,7 @@ int main(int argc, char** argv) {
   host.v[ui::kDrumSong] = 4;
   host.v[ui::kDrumLoopFrom] = 9;
   host.v[ui::kDrumLoopTo] = 16;
-  menu.open(); menu.turn(3, 0); menu.push(); menu.turn(2, 0);  // Drums > Song
+  menu.open(); menu.turn(3, 0); menu.push(); menu.turn(3, 0);  // Drums > Song
   menu.draw(c);
   snap("19_menu_drums_song");
   menu.push();  // the song's name: two rows in the 8x16 font
@@ -173,6 +173,17 @@ int main(int argc, char** argv) {
   host.v[ui::kDrumSong] = 0;
   host.v[ui::kDrumLoopFrom] = 0;
   host.v[ui::kDrumLoopTo] = 32;
+
+  menu.open(); menu.turn(3, 0); menu.push(); menu.turn(1, 0);  // Drums, the cursor on Bass
+  menu.draw(c);
+  snap("20_menu_drums_bass");
+  menu.push();  // the Bass page
+  menu.draw(c);
+  snap("21_menu_bass");
+  menu.turn(2, 0); menu.push();  // Key
+  menu.draw(c);
+  snap("22_edit_bass_key");
+  menu.back();
 
   menu.open(); menu.turn(2, 0); menu.push(); menu.turn(1, 0);  // Reverb > Type (80s hall)
   menu.draw(c);

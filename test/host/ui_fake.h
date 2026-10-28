@@ -25,6 +25,7 @@ struct FakeHost : ui::MenuHost {
     v[ui::kDrumsPlay] = 1; v[ui::kDrumStyle] = 1; v[ui::kDrumTempo] = 100; v[ui::kDrumVolume] = 60;
     v[ui::kDrumCountIn] = 2; v[ui::kTrainerOn] = 0; v[ui::kTrainerStep] = 5; v[ui::kTrainerEvery] = 4;
     v[ui::kTrainerTarget] = 140; v[ui::kDrumKit] = 1; v[ui::kDrumCrash] = 2;
+    v[ui::kBassOn] = 1; v[ui::kBassVolume] = 70; v[ui::kBassKey] = 4; v[ui::kBassTone] = 50;
   }
   static const char* styleName(int i) {
     static const char* names[] = {"metronome", "rock",          "offbeat 8ths", "offbeat 16ths",
@@ -35,6 +36,10 @@ struct FakeHost : ui::MenuHost {
     static const char* names[] = {"off", "Back in Black-ish", "Sweet Child-ish", "Livin on a Prayer-ish",
                                   "Enter Sandman-ish", "Smoke on Water-ish"};
     return names[i < 0 || i > 5 ? 0 : i];
+  }
+  static const char* keyName(int i) {
+    static const char* names[] = {"C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"};
+    return names[i < 0 || i > 11 ? 0 : i];
   }
   static const char* kitName(int i) {
     static const char* names[] = {"synth", "rock"};
@@ -69,6 +74,7 @@ struct FakeHost : ui::MenuHost {
     else if (id == ui::kDrumKit) std::snprintf(buf, n, "%s", kitName(v[id]));
     else if (id == ui::kDrumSong) std::snprintf(buf, n, "%s", songName(v[id]));
     else if (id == ui::kDrumLoopFrom && v[id] == 0) std::snprintf(buf, n, "off");
+    else if (id == ui::kBassKey) std::snprintf(buf, n, "%s", keyName(v[id]));
     else return false;
     return true;
   }

@@ -241,6 +241,10 @@ Every serial command has a place:
 | | Comp | 0–100 %, 1 | `setDrumComp` | `drum comp` |
 | | Count-in | push steps off / 1 / 2 / 3 / 4 bars | `setDrumCountIn` | `drum count` |
 | | Trainer | page (shows ON/OFF) | | |
+| | Bass (after Play) | page (shows ON/OFF) | | |
+| **Drums > Bass** | On | toggle | `setBassOn` | `bass` |
+| | Volume / Tone | 0–100 %, 1 | `setBassVolume` / `setBassTone` | `bass vol` / `bass tone` |
+| | Key | C..B, shown by name | `setBassKey` | `bass key` |
 | **Drums > Trainer** | On | toggle | `setDrumTrainer` | `drum train` |
 | | Step / Every / Target | 1–20 BPM / 1–16 bars / 40–240 BPM | `setDrumTrainer` | `drum train s e t` |
 | **Levels** | Output gain | −60 to +24 dB, 0.5 | `setOutputGainDb` | `g` |

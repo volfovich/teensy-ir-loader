@@ -70,42 +70,31 @@ IRDSP_COLD void PluckBass::tune(Slot& s, float hz, float t60) {
   s.gain = g > 0.9999f ? 0.9999f : g;
 }
 
-// Fills the string with a pluck: a triangle peaking at 1/5 of its length
-// (fingered near the bridge) with a trace of noise, low-passed to about as
-// many harmonics as the string keeps (fewer for soft and dead notes), with
-// no DC, scaled to the velocity's level. The low-pass runs forward and
-// backward, twice each way around the period, so the shape stays centered
-// and continuous where the period wraps.
+// Starts a pluck: process() feeds it into the string during its first
+// period, ignoring what the string held before. A triangle peaking at 1/5
+// of its length (fingered near the bridge) with a trace of noise, low-passed
+// to about as many harmonics as the string keeps (fewer for soft and dead
+// notes). Its mean (0.5) is taken off, so it adds no DC.
 IRDSP_COLD void PluckBass::pluck(Slot& s, int vel, bool dead) {
   const int n = s.len;
   const int p = n / 5 > 1 ? n / 5 : 1;
   const float v = (vel < 1 ? 1 : (vel > 9 ? 9 : vel)) / 9.0f;
   float fc = s.hz * harmonics() * (0.6f + 0.9f * v) * (dead ? 0.5f : 1.0f);
   if (fc > 0.4f * fs_) fc = 0.4f * fs_;
-  const float a = 1.0f - expf(-6.2831853f * fc / fs_);
-  int r = s.w - n;
-  if (r < 0) r += kLineLen;
-  auto at = [&](int k) -> float& { return s.line[(r + k) % kLineLen]; };
-  for (int k = 0; k < n; k++) at(k) = (k < p ? (float)k / p : (float)(n - k) / (n - p)) + 0.03f * noise();
-  float y = at(n - 1);
-  for (int pass = 0; pass < 2; pass++)
-    for (int k = 0; k < n; k++) at(k) = y += a * (at(k) - y);
-  y = at(0);
-  for (int pass = 0; pass < 2; pass++)
-    for (int k = n - 1; k >= 0; k--) at(k) = y += a * (at(k) - y);
-  float mean = 0.0f;
-  for (int k = 0; k < n; k++) mean += at(k);
-  mean /= n;
-  float peak = 1e-9f;
-  for (int k = 0; k < n; k++) {
-    at(k) -= mean;
-    if (fabsf(at(k)) > peak) peak = fabsf(at(k));
-  }
-  const float amp = v * sqrtf(v) * (dead ? 0.6f : 1.0f) / peak;
-  for (int k = 0; k < n; k++) at(k) *= amp;
-  // The loop filters start where the waveform is (just before the read
-  // point), not at 0: a step there would circulate as a click per period.
-  s.apX = s.apY = s.lpY = at(n - 1);
+  s.excA = 1.0f - expf(-6.2831853f * fc / fs_);
+  s.exc = n;
+  s.excPeak = n - p;  // samples left when the triangle turns down
+  s.tri = 0.0f;
+  s.triUp = 1.0f / p;
+  s.triDown = 1.0f / (n - p);
+  s.excY = -0.5f;  // where the period ends (the triangle back at 0), so it wraps smoothly
+  s.excNoise = 0.03f;
+  // The triangle minus its mean spans +-0.5: x2 for a peak of 1 at full
+  // velocity, as before the low-pass rounds it.
+  s.excAmp = 2.0f * v * sqrtf(v) * (dead ? 0.6f : 1.0f);
+  // The loop filters start where the waveform starts, not at 0: a step
+  // there would circulate as a click per period.
+  s.apX = s.apY = s.lpY = -0.5f * s.excAmp;
   s.env = 1.0f;
   s.envMul = dead ? fadeMul(kDeadT60) : 1.0f;
   s.att = 0.0f;
@@ -140,7 +129,13 @@ bool PluckBass::process(float* out, int n) {
       if (!s.on) continue;
       int r = s.w - s.len;
       if (r < 0) r += kLineLen;
-      const float d = s.line[r];
+      float d = s.line[r];
+      if (s.exc > 0) {
+        // The pluck's first period: fed in, in place of the old note.
+        s.excY += s.excA * (s.tri - 0.5f + s.excNoise * noise() - s.excY);
+        s.tri += --s.exc > s.excPeak ? s.triUp : -s.triDown;
+        d = s.excAmp * s.excY;
+      }
       // Allpass (fractional delay), loop low-pass, loop gain.
       const float a = s.ap * (d - s.apY) + s.apX;
       s.apX = d;

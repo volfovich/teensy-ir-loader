@@ -122,9 +122,10 @@ IRDSP_COLD void DrumMachine::init() {
 IRDSP_COLD void DrumMachine::setBassBuffer(float* buf) {
   if (!buf) return;
   bass_.init(fs_, buf);
-  bassLa_ = buf + 2 * PluckBass::kLineLen;
-  bassBlk_ = bassLa_ + kLatency;
-  for (int i = 0; i < kLatency + kMaxBlock; i++) bassLa_[i] = 0.0f;
+  float* la = buf + 2 * PluckBass::kLineLen;
+  for (int i = 0; i < kLatency + kMaxBlock; i++) la[i] = 0.0f;
+  bassBlk_ = la + kLatency;
+  bassLa_ = la;  // last: the interrupt plays bass once this is set
 }
 
 IRDSP_COLD void DrumMachine::setStyle(int idx) {

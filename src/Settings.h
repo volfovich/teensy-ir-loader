@@ -53,6 +53,11 @@ struct Settings {
   uint8_t drumSong;       // 0 = none (the style), else 1-based (built-in songs, then /DRUMS)
   // Added in "IRLA"; older records are upgraded with the default.
   uint8_t drumComp;       // drum-bus parallel compression, 0 .. 100
+  // Added in "IRLB"; older records are upgraded with the defaults.
+  uint8_t bassOn;         // 0 / 1
+  uint8_t bassVolume;     // 0 .. 100
+  uint8_t bassKey;        // the styles' key, 0 = C .. 11 = B
+  uint8_t bassTone;       // 0 .. 100
 };
 
 extern Settings g_settings;

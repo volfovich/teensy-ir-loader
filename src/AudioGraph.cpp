@@ -25,6 +25,8 @@ DMAMEM static float g_reverbMem[AudioConvolverIR::kReverbMemFloats];
 static const int kDelayLen = (int)(DELAY_MAX_MS * AUDIO_SAMPLE_RATE_EXACT / 1000.0f) + 8;
 static float g_delayA[kDelayLen];
 DMAMEM static float g_delayB[kDelayLen];
+// The bass's strings and its block buffers (13.6 KB).
+DMAMEM static float g_bassMem[AudioConvolverIR::kBassBufLen];
 
 FLASHMEM static void applyLevels() {
   codec.lineInLevel(g_settings.lineIn);
@@ -65,6 +67,10 @@ FLASHMEM static void applyLevels() {
   convolver.setDrumCrash(g_settings.drumCrash);
   convolver.setDrumTrainer(g_settings.trainerOn, g_settings.trainerStep, g_settings.trainerEvery,
                            g_settings.trainerTarget);
+  convolver.setBassOn(g_settings.bassOn);
+  convolver.setBassVolume(g_settings.bassVolume / 100.0f);
+  convolver.setBassKey(g_settings.bassKey);
+  convolver.setBassTone(g_settings.bassTone / 100.0f);
 }
 
 FLASHMEM void audioBegin() {
@@ -72,6 +78,7 @@ FLASHMEM void audioBegin() {
   convolver.engine().setFadeLength((int)(AUDIO_SAMPLE_RATE_EXACT * IR_FADE_MS / 1000.0f));
   convolver.beginReverb(g_reverbMem);
   convolver.beginDelay(g_delayA, g_delayB, kDelayLen);
+  convolver.setBassBuffer(g_bassMem);
   codec.enable();
   codec.inputSelect(AUDIO_INPUT_LINEIN);
   applyLevels();
@@ -332,6 +339,39 @@ FLASHMEM void setDrumTrainer(bool on, int step, int every, int target) {
                   g_settings.trainerEvery, g_settings.trainerEvery == 1 ? "" : "s", g_settings.trainerTarget);
   else
     Serial.println("Speed trainer off");
+}
+
+FLASHMEM const char* bassKeyName(int key) {
+  static const char* const kNames[] = {"C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"};
+  return kNames[((key % 12) + 12) % 12];
+}
+
+FLASHMEM void setBassOn(bool on) {
+  g_settings.bassOn = on;
+  convolver.setBassOn(on);
+  scheduleSave();
+  Serial.println(on ? PSTR("BASS ON") : PSTR("BASS OFF"));
+}
+
+FLASHMEM void setBassVolume(int percent) {
+  g_settings.bassVolume = constrain(percent, 0, 100);
+  convolver.setBassVolume(g_settings.bassVolume / 100.0f);
+  scheduleSave();
+  Serial.printf(PSTR("Bass volume %u%%\n"), g_settings.bassVolume);
+}
+
+FLASHMEM void setBassKey(int key) {
+  g_settings.bassKey = ((key % 12) + 12) % 12;
+  convolver.setBassKey(g_settings.bassKey);
+  scheduleSave();
+  Serial.printf(PSTR("Bass key %s (styles; songs keep their own)\n"), bassKeyName(g_settings.bassKey));
+}
+
+FLASHMEM void setBassTone(int percent) {
+  g_settings.bassTone = constrain(percent, 0, 100);
+  convolver.setBassTone(g_settings.bassTone / 100.0f);
+  scheduleSave();
+  Serial.printf(PSTR("Bass tone %u%%\n"), g_settings.bassTone);
 }
 
 FLASHMEM void setHeadphoneVolume(int percent) {

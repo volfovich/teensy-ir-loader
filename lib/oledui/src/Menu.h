@@ -38,6 +38,9 @@ enum ItemId : uint8_t {
   kDrumCrash,  // 0 off, 1..4 = every 2, 4, 8, 16 bars
   kDrumTempo, kDrumVolume, kDrumComp, kDrumCountIn,
   kTrainerOn, kTrainerStep, kTrainerEvery, kTrainerTarget,
+  kBassOn, kBassVolume,
+  kBassKey,   // the styles' key, 0 = C .. 11 = B
+  kBassTone,
   // Read-only, for visibility.
   kIsStudioDelay,  // 1 when the delay type is studio 80s
   kIsReverb80,     // 1 when the reverb type is 80s
@@ -53,7 +56,7 @@ enum ItemId : uint8_t {
 };
 
 // The pages of menuPages().
-enum MenuPageId : uint8_t { kPageTop, kPageDelay, kPageReverb, kPageLevels, kPageDrums, kPageTrainer };
+enum MenuPageId : uint8_t { kPageTop, kPageDelay, kPageReverb, kPageLevels, kPageDrums, kPageTrainer, kPageBass };
 
 enum class Kind : uint8_t {
   kSubmenu,  // push enters page `sub`; shows `id` (if any) as ON/OFF

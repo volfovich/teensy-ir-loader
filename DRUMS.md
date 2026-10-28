@@ -10,9 +10,10 @@ A small drum machine to practice along with. It plays one of eight built-in one-
 - **Two kits:**
   - **rock** (default): a recorded acoustic kit: our own kick, snare and closed hi-hat, with the cymbals, rim and toms from the AVL Drumkits "Red Zeppelin". Its samples are compiled into the firmware and played straight from flash.
   - **synth**: every sound generated in code, in the spirit of the classic analog drum machines.
+- **Bass:** a plucked-string electric bass plays along: the songs' bass lines, the bass part of MIDI files, and a line for each style in a key you choose. See [Bass](#bass).
 - **Crash accents:** a crash cymbal on the first beat of every 2, 4, 8 or 16 bars, so you always know where the phrase starts.
 - **Like a drummer:** hits have velocities 1–9 that follow a drummer's hands, vary at random a little (more on the hats), and are panned like a real kit.
-- **Kept apart from the guitar:** the drums are mixed into the outputs (line out and headphones), in stereo, **after** the IR, delay and reverb. They never go through your guitar effects, and they have their own volume.
+- **Kept apart from the guitar:** the drums and bass are mixed into the outputs (line out and headphones), in stereo, **after** the IR, delay and reverb. They never go through your guitar effects, and they have their own volumes.
 
 ## Contents
 
@@ -22,6 +23,7 @@ A small drum machine to practice along with. It plays one of eight built-in one-
 - [Crash accents](#crash-accents)
 - [Styles](#styles)
 - [Songs](#songs)
+- [Bass](#bass)
 - [Dynamics, humanize and panning](#dynamics-humanize-and-panning)
 - [Kits and sounds](#kits-and-sounds)
 - [Adding a kit](#adding-a-kit)
@@ -66,6 +68,10 @@ Playing is never saved, so the drums are always stopped after power-up. Everythi
 | `drum count [0-4]` | off, 1–4 bars | 2 bars | Bars of count-in clicks before the groove starts, and after every speed-trainer tempo step. `drum count` alone toggles between off and 2 bars. |
 | `drum train` | toggle | off | Speed trainer on/off. |
 | `drum train <step> <every> <target>` | 1–20 BPM, 1–16 bars, 40–240 BPM | 5, 4, 140 | Turns the trainer on with these settings. |
+| `bass` / `bass on` / `bass off` | toggle | on | The bass with the drums (see [Bass](#bass)). |
+| `bass vol` | 0–100 | 70 | Bass volume, on the drum volume's curve (100 = 0 dB). |
+| `bass key <C..B>` | a note name: `E`, `F#`, `Bb` … | E | The styles' key. Songs keep their own notes. |
+| `bass tone` | 0–100 | 50 | 0 = dark and round (flatwound), 100 = bright (roundwound, picked). |
 
 `s` shows the drums' state and settings, the current tempo (which rises with the trainer), the bar number and the drums' share of the CPU, for example:
 
@@ -73,15 +79,17 @@ Playing is never saved, so the drums are always stopped after power-up. Everythi
 Drums:     playing blues shuffle, 105 BPM, bar 9, kit rock, crash every 4 bars, vol 60%, count-in 2 bars, trainer +5 every 4 bars to 140
 ```
 
-**On the OLED** (once the module is wired), the menu has a **Drums** page:
-- Play, Style, **Song**, **Kit**, **Crash**, Tempo, Volume, **Comp**, Count-in, and **Trainer**, which opens its own page: On, Step, Every and Target. All four are always shown, so the trainer can be set up before it's switched on. The Trainer row on the Drums page shows ON/OFF.
+**On the OLED**, the menu has a **Drums** page:
+- Play, **Bass**, Style, **Song**, **Kit**, **Crash**, Tempo, Volume, **Comp**, Count-in, and **Trainer**.
+- **Bass** opens its own page: On (push toggles it), Volume, Key (by name) and Tone. The Bass row on the Drums page shows ON/OFF.
+- **Trainer** opens its own page: On, Step, Every and Target. All four are always shown, so the trainer can be set up before it's switched on. The Trainer row shows ON/OFF.
 - **Loop from** and **Loop to** appear under Song while a song is selected (from "off" = the whole song).
 - Style, Song and Kit are chosen by turning the encoder and are shown by name.
 - Each push on Crash steps it: off, 2, 4, 8, 16 bars.
 - Each push on Count-in steps it: off, 1, 2, 3, 4 bars.
-- The home screen always shows the drums: the tempo big, the style or song, the bar, a box per beat, and a song's progress with its loop or the trainer's target. **CONFIRM** starts and stops them from the home screen, and pushing the **DRM** block opens the Drums page.
+- The home screen shows the tempo big, the style's (or song's) short name and a box per beat. The tempo can be edited right there: turn past DRM, push, turn. **CONFIRM** starts and stops the drums from the home screen, and pushing the **DRM** block opens the Drums page.
 
-See [DISPLAY.md](DISPLAY.md#home) and the renders `screenshots/02d_home_drums.png`, `03_home_song.png`, `03b_home_trainer.png`, `12_menu_drums.png`, `13_edit_drum_style.png`, `14_menu_trainer.png`, `15_edit_trainer_target.png`, `16_edit_drum_kit.png` and `19_menu_drums_song.png`.
+See [DISPLAY.md](DISPLAY.md#home) and the renders `screenshots/02d_home_drums.png`, `02e_home_tempo.png`, `02f_home_tempo_edit.png`, `12_menu_drums.png`, `13_edit_drum_style.png`, `14_menu_trainer.png`, `15_edit_trainer_target.png`, `16_edit_drum_kit.png`, `19_menu_drums_song.png`, `20_menu_drums_bass.png`, `21_menu_bass.png` and `22_edit_bass_key.png`.
 
 ## Count-in and speed trainer
 
@@ -255,6 +263,7 @@ For a song's real drum part, use a MIDI file. Drum tracks of famous songs are ea
 - **Timing** is rounded to 24 steps per quarter note, which holds 16ths, 16th triplets and 32nds exactly.
 - **Velocity** 1–127 becomes 1–9, which picks the recorded velocity layer as usual.
 - **Limits:** up to 4,096 hits and 512 bars, roughly 150 bars of a busy song. A longer file is refused with a message.
+- **The bass part**, if the file has one (see [Bass](#bass)): the load message names its channel, or says there is none.
 
 **The General MIDI drum map onto the kit:**
 
@@ -273,6 +282,37 @@ For a song's real drum part, use a MIDI file. Drum tracks of famous songs are ea
 Other notes (cowbell, tambourine, percussion) are skipped, and the load message says how many.
 
 **Copyright:** a note-for-note MIDI file of a famous song is that song's arrangement. Keep such files on your own SD card for practice; don't add them to the repository. The built-in songs are original arrangements in the style of the originals.
+
+## Bass
+
+A plucked-string electric bass plays with the drums: the bass line of the song, or a line for the style in the key you choose. It is synthesized, not sampled (`lib/irdsp/src/PluckBass.{h,cpp}`).
+
+**The sound:**
+- A Karplus-Strong string: a delay line one period long, with an allpass for exact tuning (within 0.1 cent from B0 to G3) and a low-pass in the loop that keeps the same number of harmonics on every note (Tone sets how many), so the higher ones die within a fraction of a second, as on a real bass.
+- The pluck is a triangle (the string pulled at 1/5 of its length), band-limited to what the string keeps, fed into the string during its first period with a 1.5 ms attack. Harder notes are louder and a little brighter.
+- An open E1 rings about 3 s, higher notes less. A mute fades the note out smoothly (−60 dB in 80 ms), like lifting the finger; a new note fades the old one in 30 ms. A dead note is a damped thump.
+- A gentle saturation (1–2 % at normal levels) for warmth.
+- Monophonic: one note at a time, like a bass line.
+
+**What it plays:**
+- **Songs:** each built-in song has a simple bass line on the chord roots (`bass` lines in `songs/*.txt`, see [songs/README.md](songs/README.md)).
+- **MIDI files:** the bass part, if the file has one: the channel playing a General MIDI bass (programs 33–40) with the most notes; otherwise, when the drums are on channel 10, the channel with most of its notes below C3. It is reduced to one line: the lowest note of a chord, the sounding note's note-off as a mute, notes outside B0..G3 moved by octaves into range. Up to 4,096 bass events; a longer bass part is left out and the drums still play.
+- **Styles:** a line for each, in the bass key (`bass key`, default E; the root sounds from E1 to D#2):
+
+  | Style | Bass line |
+  |---|---|
+  | metronome | none |
+  | rock | driving 8ths on the root, the fifth and the octave at the end of the bar |
+  | offbeat 8ths | 8ths on the root, the fifth to turn around |
+  | offbeat 16ths | a 16th feel with dead-note ghosts |
+  | triplets | root, root, fifth, root on the beats |
+  | pop | long roots with a push, the fifth at the end |
+  | blues shuffle | a root-fifth-sixth-seventh boogie, swung |
+  | 6/8 ballad | root and fifth, a dotted quarter each |
+
+**When it plays:** on the drums' clock, sample-exact; not during count-ins (also the trainer's); it follows a song's loop; it stops (muted) when the drums stop, and a style without a line (the metronome) mutes it at the bar line.
+
+**The mix:** mono, in the center, added to the drum bus **after** the compressor (the kick doesn't pump it) and before the limiter, which keeps drums + bass below −0.5 dBFS. With drums and bass both at 100, the built-in songs peak at −0.7 dBFS.
 
 ## Dynamics, humanize and panning
 
@@ -411,7 +451,8 @@ Recorded drums are spiky: a hit is loud for a few milliseconds and then decays, 
 
 ```
 voices (stereo) -> bus gain -> natural ----------+
-                            -> compressor -------+-- Comp blend --> peak limiter -> drum volume -> added to the outputs
+                            -> compressor -------+-- Comp blend -> x drum volume --+
+                                            bass (mono) -> x bass volume ----------+-> peak limiter -> added to the outputs
 ```
 
 - **Bus gain:** brings the drums up to an average of about −18 dBFS RMS at volume 100 for the synth kit (−23 for rock), with their natural dynamics.
@@ -438,7 +479,7 @@ voices (stereo) -> bus gain -> natural ----------+
   | 100 | −21.7 dBFS | −19.1 dBFS |
 
   Peaks stay at or under −0.5 dBFS (about −1.4 dBFS for rock).
-- **The volume comes after the bus**, so the drums sound the same at any volume.
+- **The drum volume comes after the compressor**, so the drums sound the same at any volume; the limiter after it protects drums and bass together and only acts at the loud end.
 - **Idle:** when the drums go idle the bus resets, and the output is exactly the guitar again.
 
 The compressor settings are fixed voicing (constants in `DrumMachine.cpp`), like the delay's. To hear the difference on a computer, `make -C test/host render` writes `test/host/out/drums_02_rock_rock_comp0.wav`, `comp40.wav` and `comp100.wav`.
@@ -454,11 +495,13 @@ The compressor settings are fixed voicing (constants in `DrumMachine.cpp`), like
 - **CPU** while playing, measured on the Teensy 4.0 with 32-sample blocks:
   - rock kit: about 2.5 % at 100 BPM, including the drum bus (stereo, humanized, compressed); songs about 3 %.
   - synth kit: up to 3.3 % at 240 BPM.
+  - the bass adds about 1.2 % (drums + bass 4.4 % at 240 BPM). Starting a note takes about 3 µs: the pluck is fed into the string as it plays, because building a whole period at once took up to 0.7 ms in the audio interrupt (a block is 0.73 ms). Drums and bass at 240 BPM with IR switches peak at 55–58 % CPU, no dropouts.
   - Once stopped and silent it uses almost nothing (0.1 %), and the output is the guitar alone, bit for bit.
 - **Sample reads:** samples are read straight from flash in the audio interrupt, which needs only a few percent of the flash's bandwidth. Switching IRs while the drums play peaks at the same 55 % CPU as without them, with no dropouts.
 - **Memory:**
   - RAM1: about 3 KB of data (two pattern buffers, the synth voices' state, 16 sample voices and the bus's 1.5 ms lookahead) and about 6.8 KB of code (the real-time part).
-  - RAM2: 22 KB for a song loaded from the SD card (hits and bar table) and the `/DRUMS` file list.
+  - RAM2: 22 KB for a song loaded from the SD card (hits and bar table) and the `/DRUMS` file list, 16 KB for its bass part, and 13.6 KB for the bass's strings and buffers.
+  - The bass's real-time code is about 1 KB of RAM1; the drum machine's once-per-hit work (starting a hit, a bar line, a bass note) runs from flash to make room for it.
   - Flash: the rock kit's samples (613 KB), the built-in songs (about 9 KB), setup, the MIDI reader, and the style and kit tables.
 
 ## Defaults (`config.h`)
@@ -474,8 +517,12 @@ The compressor settings are fixed voicing (constants in `DrumMachine.cpp`), like
 | `DEFAULT_DRUM_COMP` | 40 | Drum-bus compression, 0 = natural .. 100 |
 | `DEFAULT_TRAINER_ON` | 0 | Trainer off |
 | `DEFAULT_TRAINER_STEP` / `_EVERY` / `_TARGET` | 5 / 4 / 140 | +5 BPM every 4 bars, up to 140 BPM |
+| `DEFAULT_BASS_ON` | 1 | Bass on |
+| `DEFAULT_BASS_VOLUME` | 70 | 0–100 |
+| `DEFAULT_BASS_KEY` | 4 | The styles' key, 0 = C .. 11 = B (4 = E) |
+| `DEFAULT_BASS_TONE` | 50 | 0 = dark .. 100 = bright |
 
-These are used when the EEPROM is blank, and when settings saved by older firmware are upgraded (the kit and crash settings arrived with `"IRL6"`).
+These are used when the EEPROM is blank, and when settings saved by older firmware are upgraded (the kit and crash settings arrived with `"IRL6"`, the bass with `"IRLB"`).
 
 ## Code and tests
 
@@ -486,16 +533,17 @@ These are used when the EEPROM is blank, and when settings saved by older firmwa
 | `lib/irdsp/src/DrumKit.h` | The kit format: per lane, up to 3 samples by hit level. |
 | `lib/irdsp/src/DrumKitData.cpp` | Generated from `kits/*/` by `tools/make_kits.py` (not in git): the samples and kit table, in flash. |
 | `kits/rock/` | The recorded kit: WAVs, `kit.txt`, credits, and our own originals in `originals/`. |
-| `lib/irdsp/src/DrumSong.h` | The song format: hits on a 24-per-quarter grid and a bar table. |
+| `lib/irdsp/src/DrumSong.h` | The song format: hits and bass events on a 24-per-quarter grid, and a bar table. |
+| `lib/irdsp/src/PluckBass.{h,cpp}` | The plucked-string bass. |
 | `songs/*.txt`, `tools/make_songs.py`, `lib/irdsp/src/DrumSongData.cpp` | The built-in songs, compiled (not in git) on every build. |
-| `lib/irdsp/src/MidiDrums.{h,cpp}` | Reads a MIDI file's drum part into a song (in flash on the Teensy). |
+| `lib/irdsp/src/MidiDrums.{h,cpp}` | Reads a MIDI file's drum and bass parts into a song (in flash on the Teensy). |
 | `src/DrumSongs.{h,cpp}` | The song list (built-in + `/DRUMS`), loading from the SD card, selecting, the loop. |
 | `tools/import_kit.py`, `tools/make_kits.py`, `tools/pio_kits.py` | Build a kit's WAVs from its sources; compile the kits in (run by PlatformIO and the host Makefile). |
 | `src/AudioConvolverIR.h` | Runs the drums each block and adds them to both outputs. |
 | `src/AudioGraph.cpp`, `src/SerialUI.cpp`, `src/Settings.cpp` | Setters, the `drum` and `bpm` commands, EEPROM. |
 | `lib/oledui/src/Menu.cpp`, `Screens.cpp` | The Drums menu page and the home-screen row. |
 
-`make -C test/host test` runs `test_drums` and `test_midi`. They check:
+`make -C test/host test` runs `test_drums`, `test_bass` and `test_midi`. They check:
 - **Timing:** the beat grid at 120 and 97 BPM over 16 bars.
 - **Count-in:**
   - With 1 bar: four clicks, then the first kick exactly one bar later.
@@ -543,6 +591,13 @@ These are used when the EEPROM is blank, and when settings saved by older firmwa
   - No crash accents in song mode, and the style comes back after `drum song off`.
   - The built-in songs are 32 bars with valid hits and bar tables, and stay below the drum bus's ceiling.
 - **Toms:** the recorded kit has a rack and a floor tom.
+- **Bass** (`test_bass`, `test_drums`):
+  - Tuning within 3 cents (measured 0.1) from B0 to G3; every note and tone stable; E1 falls 25–50 dB in 2 s.
+  - A mute is −60 dB within 100 ms, then the voice idles; dead notes die within 200 ms; louder with velocity.
+  - No clicks: slope jumps after a mute stay below 1 % of the note's level, and a new note or dead note adds no step.
+  - Song bass events on their exact samples, through loops, none in the count-in, muted by stop, none when off; the built-in bass lines are valid; drums + bass at full volume stay below the ceiling.
+  - Style lines in the key (rock in E: roots, fifth, octave on their 8ths; key A), dead notes, silent count-in, muted at the switch to the metronome, every line fits its bar.
+  - MIDI (`test_midi`): the GM bass program's channel (not the piano), the low channel without one, none with only a piano; note-offs as mutes, the lowest note of a chord, a re-struck pitch without a mute, octave folding, bar indexes; a too-long part is left out.
 - **MIDI files** (`test_midi`, files built in the test):
   - Format 0 and 1, 96 and 480 PPQ, tempo, running status.
   - Note-on with velocity 0 counts as a note-off.
@@ -555,7 +610,8 @@ These are used when the EEPROM is blank, and when settings saved by older firmwa
 
 To listen on your computer, `make -C test/host render` writes, in stereo:
 - 8 bars of every style with every kit, with a 2-bar count-in and a crash every 4 bars, to `test/host/out/drums_<n>_<style>_<kit>.wav`
-- every built-in song once through with the rock kit, to `test/host/out/song_<name>.wav`
+- every built-in song once through with the rock kit and its bass, to `test/host/out/song_<name>.wav` (the styles have their bass line in E)
+- the bass alone (`render_bass`): a scale, a rock line at three tones and long notes, to `test/host/out/bass_*.wav`
 
 ## Ideas for later
 

@@ -126,6 +126,12 @@
 #define DEFAULT_TRAINER_STEP 5      // 1 .. 20 BPM
 #define DEFAULT_TRAINER_EVERY 4     // 1 .. 16 bars
 #define DEFAULT_TRAINER_TARGET 140  // 40 .. 240 BPM
+// Bass: a plucked-string bass playing the songs' and styles' bass lines with
+// the drums (see DRUMS.md).
+#define DEFAULT_BASS_ON 1
+#define DEFAULT_BASS_VOLUME 70      // 0 .. 100 (the same curve as the drum volume)
+#define DEFAULT_BASS_KEY 4          // the styles' key: 0 = C .. 11 = B (4 = E; songs have their own)
+#define DEFAULT_BASS_TONE 50        // 0 = dark (flatwound) .. 100 = bright
 
 // ---------------------------------------------------------------------------
 // Hardware

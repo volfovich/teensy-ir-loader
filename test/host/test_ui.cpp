@@ -146,8 +146,8 @@ static void testSongRows() {
   m.open();
   m.turn(3, 0);
   m.push();
-  m.turn(2, 0);
-  check(m.current()->id == ui::kDrumSong, "Song after Style", m.current()->id);
+  m.turn(3, 0);
+  check(m.current()->id == ui::kDrumSong, "Song after Bass and Style", m.current()->id);
   m.turn(1, 0);
   check(m.current()->id == ui::kDrumKit, "  ... no song: the Loop rows are hidden", m.current()->id);
   m.turn(-1, 0);
@@ -196,6 +196,24 @@ static void testDrumsPage() {
   m.back();
   check(m.pageIndex() != trainerPage && m.current()->id == ui::kTrainerOn, "back returns to the Drums page", m.pageIndex());
   m.turn(-100, 0);
+  m.turn(1, 0);
+  check(m.current()->id == ui::kBassOn && m.current()->kind == ui::Kind::kSubmenu, "Bass right after Play (a page)",
+        m.current()->id);
+  m.push();
+  check(m.pageIndex() == ui::kPageBass && m.current()->id == ui::kBassOn, "  ... its first row: On", m.pageIndex());
+  m.push();
+  check(h.v[ui::kBassOn] == 0, "  ... push turns the bass off", h.v[ui::kBassOn]);
+  m.push();
+  m.turn(2, 0);
+  m.push();
+  m.turn(5, 1000);
+  char kb[8];
+  h.valueText(ui::kBassKey, kb, sizeof(kb));
+  check(h.v[ui::kBassOn] == 1 && h.v[ui::kBassKey] == 9 && !std::strcmp(kb, "A"), "  ... on again; key E -> A by name",
+        h.v[ui::kBassKey]);
+  m.push();
+  m.back();
+  check(m.pageIndex() == ui::kPageDrums && m.current()->id == ui::kBassOn, "  ... back to the Drums page", m.pageIndex());
   m.turn(1, 0);
   m.push();
   m.turn(2, 1000);

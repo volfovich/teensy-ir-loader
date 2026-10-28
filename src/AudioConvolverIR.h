@@ -140,6 +140,13 @@ class AudioConvolverIR : public AudioStream {
   const irdsp::DrumSong* drumSongPlaying() const { return drums_.running() ? drums_.song() : nullptr; }
   int drumSongBar() const { return drums_.songBar(); }  // 0-based
   void setDrumCrash(int bars) { drums_.setCrashEvery(bars); }
+  // Bass (DrumMachine): buf is kBassBufLen floats, set before the drums play.
+  static constexpr int kBassBufLen = irdsp::DrumMachine::kBassBufLen;
+  void setBassBuffer(float* buf) { drums_.setBassBuffer(buf); }
+  void setBassOn(bool on) { drums_.setBassOn(on); }
+  void setBassVolume(float v) { drums_.setBassVolume(v); }  // 0..1
+  void setBassKey(int key) { drums_.setBassKey(key); }      // 0 = C .. 11 = B
+  void setBassTone(float t) { drums_.setBassTone(t); }      // 0..1
   bool drumsPlaying() const { return drums_.playing(); }
   bool drumsCountingIn() const { return drums_.countingIn(); }
   float drumTempoNow() const { return drums_.tempoNow(); }

@@ -91,6 +91,10 @@ FLASHMEM int FirmwareHost::get(uint8_t id) {
     case ui::kTrainerStep: return s.trainerStep;
     case ui::kTrainerEvery: return s.trainerEvery;
     case ui::kTrainerTarget: return s.trainerTarget;
+    case ui::kBassOn: return s.bassOn;
+    case ui::kBassVolume: return s.bassVolume;
+    case ui::kBassKey: return s.bassKey;
+    case ui::kBassTone: return s.bassTone;
     case ui::kIsStudioDelay: return s.delayType == 1;
     case ui::kIsReverb80: return s.reverbType == 1;
     case ui::kIsReverbHall: return s.reverbType == 1 && s.reverbMode == 0;
@@ -146,6 +150,10 @@ FLASHMEM void FirmwareHost::set(uint8_t id, int v) {
     case ui::kTrainerStep: setDrumTrainer(s.trainerOn, v, s.trainerEvery, s.trainerTarget); break;
     case ui::kTrainerEvery: setDrumTrainer(s.trainerOn, s.trainerStep, v, s.trainerTarget); break;
     case ui::kTrainerTarget: setDrumTrainer(s.trainerOn, s.trainerStep, s.trainerEvery, v); break;
+    case ui::kBassOn: setBassOn(v); break;
+    case ui::kBassVolume: setBassVolume(v); break;
+    case ui::kBassKey: setBassKey(v); break;
+    case ui::kBassTone: setBassTone(v); break;
     case ui::kIrLoad: loadIRIndex(v); break;
     case ui::kIrRescan:
       scanCard();
@@ -182,6 +190,7 @@ FLASHMEM bool FirmwareHost::valueText(uint8_t id, char* buf, int n) {
       return true;
     case ui::kDrumStyle: snprintf(buf, n, "%s", irdsp::drumStyle(g_settings.drumStyle).title); return true;
     case ui::kDrumKit: snprintf(buf, n, "%s", irdsp::drumKit(g_settings.drumKit).name); return true;
+    case ui::kBassKey: snprintf(buf, n, "%s", bassKeyName(g_settings.bassKey)); return true;
     case ui::kDrumSong:
       snprintf(buf, n, "%s", g_settings.drumSong ? drumSongTitle(g_settings.drumSong) : "off");
       return true;

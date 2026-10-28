@@ -16,6 +16,9 @@ UI_LABEL(kReverb, "REVERB");
 UI_LABEL(kLevels, "LEVELS");
 UI_LABEL(kDrums, "DRUMS");
 UI_LABEL(kTrainerTitle, "TRAINER");
+UI_LABEL(kBassTitle, "BASS");
+UI_LABEL(kLBass, "Bass");
+UI_LABEL(kLKey, "Key");
 UI_LABEL(kLDrums, "Drums");
 UI_LABEL(kLPlay, "Play");
 UI_LABEL(kLStyle, "Style");
@@ -132,6 +135,7 @@ static const MenuItem UI_PROGMEM kLevelItems[] = {
 // bars (the song's length; "off" for from = 0).
 static const MenuItem UI_PROGMEM kDrumItems[] = {
     {kLPlay, K::kToggle, kDrumsPlay, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
+    {kLBass, K::kSubmenu, kBassOn, kPageBass, 0, 0, 0, U::kNone, kNoItem, nullptr},
     {kLStyle, K::kValue, kDrumStyle, 0, 0, 7, 1, U::kName, kNoItem, nullptr},
     {kLSong, K::kValue, kDrumSong, 0, 0, 5, 1, U::kName, kNoItem, nullptr},
     {kLLoopFrom, K::kValue, kDrumLoopFrom, 0, 0, 32, 1, U::kNone, kIsDrumSong, nullptr},
@@ -154,6 +158,15 @@ static const MenuItem UI_PROGMEM kTrainerItems[] = {
     {kLTarget, K::kValue, kTrainerTarget, 0, 40, 240, 1, U::kBpm, kNoItem, nullptr},
 };
 
+// The bass playing with the drums: on/off first, so it is one push away.
+// The key is the styles' (songs have their own); named by MenuHost.
+static const MenuItem UI_PROGMEM kBassItems[] = {
+    {kLOn, K::kToggle, kBassOn, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
+    {kLVolume, K::kValue, kBassVolume, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
+    {kLKey, K::kValue, kBassKey, 0, 0, 11, 1, U::kName, kNoItem, nullptr},
+    {kLTone, K::kValue, kBassTone, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
+};
+
 #define UI_PAGE(title, items) {title, items, sizeof(items) / sizeof(items[0])}
 // In MenuPageId order.
 static const MenuPage UI_PROGMEM kPages[] = {
@@ -163,6 +176,7 @@ static const MenuPage UI_PROGMEM kPages[] = {
     UI_PAGE(kLevels, kLevelItems),
     UI_PAGE(kDrums, kDrumItems),
     UI_PAGE(kTrainerTitle, kTrainerItems),
+    UI_PAGE(kBassTitle, kBassItems),
 };
 #undef UI_PAGE
 

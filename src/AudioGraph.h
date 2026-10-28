@@ -40,6 +40,13 @@ void setDrumTrainer(bool on, int step, int every, int target);  // BPM, bars, BP
 void setDrumKit(int idx);             // 0-based, see irdsp::drumKit()
 void setDrumComp(int percent);        // drum-bus compression, 0 = natural .. 100
 void setDrumCrash(int bars);          // crash every 2/4/8/16 bars, 0 = off
+// Bass: plays the songs' and styles' bass lines with the drums.
+void setBassOn(bool on);
+void setBassVolume(int percent);      // 0 .. 100
+void setBassKey(int key);             // the styles' key, 0 = C .. 11 = B
+void setBassTone(int percent);        // 0 = dark .. 100 = bright
+// "C", "C#", ... "B"
+const char* bassKeyName(int key);
 void setReverbOn(bool on);
 void setReverbMix(int percent);       // 0 .. 100, 0 = dry only, 100 = wet only
 void setReverbSize(int percent);      // 0 .. 100, reverb time

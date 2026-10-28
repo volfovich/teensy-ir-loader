@@ -44,7 +44,8 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
   - Crash accents on beat 1 of every 2, 4, 8 or 16 bars.
   - Played like a drummer: velocities that follow the groove (softer hats under the snare), recorded velocity layers, a little random variation, and stereo panning from the drummer's seat.
   - A count-in (2 bars by default), and a speed trainer that raises the tempo every few bars up to a target, with a count-in at each new tempo.
-  - Mixed into the outputs in stereo after the effects, with its own volume, so the drums never go through your guitar effects.
+  - A plucked-string bass playing along: the songs' bass lines, the bass part of MIDI files, and a line for each style in a key you choose.
+  - Mixed into the outputs in stereo after the effects, with their own volumes, so the drums and bass never go through your guitar effects.
 - **Remembers settings:** the last IR, your levels and the delay, reverb and drum settings are stored in EEPROM.
 - **Controls:** a 0.96" OLED with a rotary encoder and two keys (every setting, the IR list, a level meter and a status page; see [DISPLAY.md](DISPLAY.md)), and USB serial commands. Both work at the same time.
 
@@ -121,6 +122,9 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `drum vol 0..100` | Drum volume |
 | `drum count [0-4]` | Count-in bars (0 = off; alone toggles off / 2), also played at each trainer tempo step |
 | `drum train [step every target]` | Toggle / set the speed trainer (+step BPM every `every` bars, up to `target`) |
+| `bass [on\|off]` | The bass with the drums on/off (alone toggles) |
+| `bass vol 0..100` / `bass tone 0..100` | Bass volume; brightness (0 = dark, 100 = bright) |
+| `bass key C..B` | The styles' key (`E`, `F#`, `Bb` …); songs keep their own notes |
 | `rv` | Toggle the reverb on/off (the tail rings out) |
 | `mix 0..100` | Reverb dry/wet blend (0 = dry only, 100 = reverb only). Equal-power crossfade. |
 | `size 0..100` | Reverb time (plate about 1.1 to 6 s, 80s hall 0.8 to 8 s); 80s gated: the burst's shape |
