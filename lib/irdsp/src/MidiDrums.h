@@ -11,6 +11,13 @@
 //     louder one
 //   - the first tempo -> the song's BPM (40..240, 120 if none); time
 //     signatures -> the bar table
+//   - the bass part, when there is one and a buffer for it:
+//       the channel playing a General MIDI bass (programs 33-40) with the
+//       most notes; else (with drums on channel 10) the channel with most
+//       of its notes below C3; else none.
+//     It is reduced to one line: on a chord the lowest note, the sounding
+//     note's note-off -> a mute, notes outside B0..G3 moved by octaves
+//     into it.
 //
 // The file is read through MidiSource, so the firmware can stream it from
 // the SD card. All of this runs from flash on the Teensy (IRDSP_COLD).
@@ -35,15 +42,17 @@ class MidiSource {
 struct MidiResult {
   const char* error = nullptr;  // nullptr: loaded
   uint32_t ignored = 0;         // drum notes with no lane
+  int bassChannel = -1;         // the bass part's channel (1..16), -1 = none
 };
 
 // The GM drum note's lane, or -1.
 int midiDrumLane(int note);
 
-// Loads the drum part into events[eventCap] and bars[barCap], and fills
-// song's bpm, events, eventCount, bars, barCount and endTick (the caller
-// sets the name and title).
+// Loads the drum part into events[eventCap] and bars[barCap], and the bass
+// part (if bass is given) into bass[bassCap]; fills song's bpm, events,
+// eventCount, bars, barCount, endTick, bass and bassCount (the caller sets
+// the name and title). A bass part too long for bassCap is left out.
 MidiResult loadMidiDrums(MidiSource& src, SongEvent* events, uint32_t eventCap, SongBar* bars, uint16_t barCap,
-                         DrumSong& song);
+                         DrumSong& song, BassEvent* bass = nullptr, uint32_t bassCap = 0);
 
 }  // namespace irdsp

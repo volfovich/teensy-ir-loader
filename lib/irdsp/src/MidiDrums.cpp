@@ -2,6 +2,7 @@
 #include "MidiDrums.h"
 
 #include "DrumKit.h"
+#include "PluckBass.h"
 #include "irdsp_port.h"
 
 namespace irdsp {
@@ -82,22 +83,36 @@ IRDSP_COLD void Reader::skip(uint32_t n) {
   while (n-- && !eof) byte();
 }
 
-// Shell sort by the packed value (tick, then lane). The hits come mostly in
-// order already; this stays out of RAM1, unlike std::sort.
-IRDSP_COLD void sortEvents(SongEvent* e, uint32_t n) {
+// Shell sort of packed events (SongEvent, BassEvent: tick in the high
+// bits). They come mostly in order already; this stays out of RAM1, unlike
+// std::sort or a template.
+IRDSP_COLD void sortPacked(uint32_t* e, uint32_t n) {
   static const uint32_t IRDSP_PROGMEM kGaps[] = {701, 301, 132, 57, 23, 10, 4, 1};
   for (uint32_t gap : kGaps)
     for (uint32_t i = gap; i < n; i++) {
-      const SongEvent v = e[i];
+      const uint32_t v = e[i];
       uint32_t j = i;
-      for (; j >= gap && e[j - gap].packed > v.packed; j -= gap) e[j] = e[j - gap];
+      for (; j >= gap && e[j - gap] > v; j -= gap) e[j] = e[j - gap];
       e[j] = v;
     }
 }
 
+// A MIDI note moved by octaves into the bass's range.
+IRDSP_COLD int foldBass(int note) {
+  while (note < PluckBass::kMinNote) note += 12;
+  while (note > PluckBass::kMaxNote) note -= 12;
+  return note;
+}
+
+IRDSP_COLD int midiVel(int v) { return (v * 9 + 126) / 127; }
+
 struct Meter { uint32_t tick; uint8_t beats, unit; };
 
 struct Track { uint32_t start, length, otherDrumNotes; };
+
+// A channel's notes, for finding the bass part: its program (-1 none), its
+// notes and those below C3.
+struct Chan { int program = -1; uint32_t notes = 0, low = 0; };
 
 // What one pass collects.
 struct Collect {
@@ -108,6 +123,12 @@ struct Collect {
   uint32_t tempoUs = 0;       // first tempo
   Meter meters[kMaxMeters];
   int meterCount = 0;
+  Chan chans[16];
+  // The bass pass: the notes on and off (velocity 0) of bassChan.
+  int bassChan = -1;
+  BassEvent* bass = nullptr;
+  uint32_t bassCap = 0, bassCount = 0;
+  bool bassOverflow = false;
 };
 
 // t (in the file's ticks) to our ticks, rounded. 32-bit only: a 64-bit
@@ -116,9 +137,11 @@ IRDSP_COLD uint32_t quantize(uint32_t t, uint32_t ppq) {
   return (t / ppq) * kSongPpq + ((t % ppq) * kSongPpq + ppq / 2) / ppq;
 }
 
-// Parses one track. In pass 1 (onlyTrack < 0) it takes channel-10 notes and
-// counts the other channels' notes in the drum range; in pass 2 it takes
-// every note of the chosen track.
+// Parses one track. In pass 1 (onlyTrack < 0) it takes channel-10 notes,
+// counts the other channels' notes in the drum range, and notes each
+// channel's program and pitches; in pass 2 it takes every note of the
+// chosen track. In the bass pass (bassChan >= 0) it only collects that
+// channel's notes on and off.
 IRDSP_COLD void parseTrack(Reader& r, Track& tr, int index, uint32_t ppq, Collect& c) {
   r.seek(tr.start);
   const uint32_t end = tr.start + tr.length;
@@ -142,7 +165,7 @@ IRDSP_COLD void parseTrack(Reader& r, Track& tr, int index, uint32_t ppq, Collec
       } else if (type == 0x58 && len >= 2) {
         const int num = r.byte(), den = r.byte();
         r.skip(len - 2);
-        if (c.meterCount < kMaxMeters && num > 0 && den <= 4) {
+        if (c.bassChan < 0 && c.meterCount < kMaxMeters && num > 0 && den <= 4) {
           c.meters[c.meterCount++] = {quantize(t, ppq), (uint8_t)num, (uint8_t)(1 << den)};
         }
       } else if (type == 0x2F) {
@@ -161,7 +184,24 @@ IRDSP_COLD void parseTrack(Reader& r, Track& tr, int index, uint32_t ppq, Collec
     const int kind = status & 0xF0, chan = status & 0x0F;
     const int d1 = b;
     const int d2 = (kind == 0xC0 || kind == 0xD0) ? 0 : r.byte();
+    if (c.bassChan >= 0) {
+      if (chan != c.bassChan || (kind != 0x90 && kind != 0x80)) continue;
+      const uint32_t q = quantize(t, ppq);
+      if (q > kBassMaxTick) continue;
+      if (c.bassCount >= c.bassCap) {
+        c.bassOverflow = true;
+        continue;
+      }
+      const bool on = kind == 0x90 && d2 > 0;
+      c.bass[c.bassCount++] = bassEvent(q, d1, on ? midiVel(d2) : 0);
+      continue;
+    }
+    if (kind == 0xC0 && c.onlyTrack < 0) c.chans[chan].program = d1;
     if (kind != 0x90 || d2 == 0) continue;  // note-ons only (velocity 0 = off)
+    if (c.onlyTrack < 0 && chan != 9) {
+      c.chans[chan].notes++;
+      if (d1 < 48) c.chans[chan].low++;
+    }
     const int lane = midiDrumLane(d1);
     const bool drumNote = d1 >= 35 && d1 <= 81;
     const bool take = c.onlyTrack < 0 ? chan == 9 : index == c.onlyTrack;
@@ -177,15 +217,73 @@ IRDSP_COLD void parseTrack(Reader& r, Track& tr, int index, uint32_t ppq, Collec
       c.overflow = true;
       continue;
     }
-    const int vel = (d2 * 9 + 126) / 127;
-    c.events[c.count++] = songEvent(quantize(t, ppq), lane, vel);
+    c.events[c.count++] = songEvent(quantize(t, ppq), lane, midiVel(d2));
   }
+}
+
+// The bass part's channel: a GM bass program (33-40, 0-based 32-39) with
+// the most notes; else, unless the drums came from a whole track (which
+// may hold low notes of its own), the channel with the largest share of
+// notes below C3, if over half. -1: none.
+IRDSP_COLD int pickBassChannel(const Collect& c) {
+  int best = -1;
+  for (int ch = 0; ch < 16; ch++) {
+    const Chan& k = c.chans[ch];
+    if (ch != 9 && k.notes && k.program >= 32 && k.program <= 39 && (best < 0 || k.notes > c.chans[best].notes)) best = ch;
+  }
+  if (best >= 0 || c.onlyTrack >= 0) return best;
+  for (int ch = 0; ch < 16; ch++) {
+    const Chan& k = c.chans[ch];
+    if (ch == 9 || k.low * 2 <= k.notes) continue;
+    if (best < 0 || (uint64_t)k.low * c.chans[best].notes > (uint64_t)c.chans[best].low * k.notes) best = ch;
+  }
+  return best;
+}
+
+// Reduces the collected notes on and off (sorted) to one bass line, in
+// place: per tick, the lowest new note plays (folded into range); a note-off
+// of the sounding note mutes it. Returns the events kept.
+IRDSP_COLD uint32_t reduceBass(BassEvent* e, uint32_t count) {
+  uint32_t n = 0;
+  int sounding = -1;  // the MIDI note playing, before folding
+  for (uint32_t i = 0; i < count;) {
+    const uint32_t tick = e[i].tick();
+    uint32_t j = i;
+    int low = -1, lowVel = 0;
+    bool offSounding = false, offLow = false;
+    for (; j < count && e[j].tick() == tick; j++) {
+      const int note = e[j].note();
+      if (e[j].vel() == 0) {
+        if (note == sounding) offSounding = true;
+      } else if (low < 0 || note < low) {
+        low = note;
+        lowVel = e[j].vel();
+      }
+    }
+    // An off of the new pitch on the same tick ends it at once, unless the
+    // same pitch was already sounding (then the off was the old note's).
+    if (low >= 0)
+      for (uint32_t k = i; k < j; k++) offLow = offLow || (e[k].vel() == 0 && e[k].note() == low && low != sounding);
+    if (low >= 0) {
+      e[n++] = bassEvent(tick, foldBass(low), lowVel);
+      sounding = low;
+      if (offLow) {
+        e[n++] = bassEvent(tick + 1, 0, 0);
+        sounding = -1;
+      }
+    } else if (offSounding) {
+      e[n++] = bassEvent(tick, 0, 0);
+      sounding = -1;
+    }
+    i = j;
+  }
+  return n;
 }
 
 }  // namespace
 
 IRDSP_COLD MidiResult loadMidiDrums(MidiSource& src, SongEvent* events, uint32_t eventCap, SongBar* bars,
-                                    uint16_t barCap, DrumSong& song) {
+                                    uint16_t barCap, DrumSong& song, BassEvent* bass, uint32_t bassCap) {
   MidiResult res;
   Reader r(src);
   r.seek(0);
@@ -228,7 +326,7 @@ IRDSP_COLD MidiResult loadMidiDrums(MidiSource& src, SongEvent* events, uint32_t
 
   // Sort by tick, then lane (the packing's order); on the same tick and
   // lane keep the louder hit.
-  sortEvents(events, c.count);
+  sortPacked(&events[0].packed, c.count);
   uint32_t n = 0;
   for (uint32_t i = 0; i < c.count; i++) {
     if (n && (events[n - 1].packed >> 4) == (events[i].packed >> 4)) {
@@ -245,16 +343,32 @@ IRDSP_COLD MidiResult loadMidiDrums(MidiSource& src, SongEvent* events, uint32_t
       c.meters[j] = c.meters[j - 1];
       c.meters[j - 1] = m;
     }
+  // The bass part: a pass over every track for its channel's notes.
+  uint32_t nBass = 0;
+  const int bassChan = bass && bassCap ? pickBassChannel(c) : -1;
+  if (bassChan >= 0) {
+    c.bassChan = bassChan;
+    c.bass = bass;
+    c.bassCap = bassCap;
+    for (int i = 0; i < nt; i++) parseTrack(r, tracks[i], i, ppq, c);
+    if (!c.bassOverflow && c.bassCount) {
+      sortPacked(&bass[0].packed, c.bassCount);
+      nBass = reduceBass(bass, c.bassCount);
+      res.bassChannel = bassChan + 1;
+    }
+  }
+
   const uint32_t last = events[n - 1].tick();
   uint8_t beats = 4, unit = 4;
   int mi = 0;
-  uint32_t t = 0, e = 0;
+  uint32_t t = 0, e = 0, eb = 0;
   uint16_t nb = 0;
   while (t <= last) {
     while (mi < c.meterCount && c.meters[mi].tick <= t) beats = c.meters[mi].beats, unit = c.meters[mi].unit, mi++;
     if (nb >= barCap) return res.error = "too many bars", res;
     while (e < n && events[e].tick() < t) e++;
-    bars[nb] = {t, e, beats, unit, 0};
+    while (eb < nBass && bass[eb].tick() < t) eb++;
+    bars[nb] = {t, e, beats, unit, eb};
     t += songBarTicks(bars[nb]);
     nb++;
   }
@@ -266,6 +380,8 @@ IRDSP_COLD MidiResult loadMidiDrums(MidiSource& src, SongEvent* events, uint32_t
   song.bars = bars;
   song.barCount = nb;
   song.endTick = t;
+  song.bass = nBass ? bass : nullptr;
+  song.bassCount = nBass;
   res.ignored = c.ignored;
   return res;
 }

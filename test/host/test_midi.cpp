@@ -77,11 +77,17 @@ static std::vector<uint8_t> smf(int format, int ppq, std::vector<Track> tracks) 
 struct Loaded {
   std::vector<irdsp::SongEvent> ev = std::vector<irdsp::SongEvent>(4096);
   std::vector<irdsp::SongBar> bars = std::vector<irdsp::SongBar>(512);
+  std::vector<irdsp::BassEvent> bass = std::vector<irdsp::BassEvent>(4096);
   irdsp::DrumSong song{};
   irdsp::MidiResult res;
-  Loaded(const std::vector<uint8_t>& file, uint32_t cap = 4096) {
+  Loaded(const std::vector<uint8_t>& file, uint32_t cap = 4096, uint32_t bassCap = 4096) {
     MemSource src(file);
-    res = irdsp::loadMidiDrums(src, ev.data(), cap, bars.data(), 512, song);
+    res = irdsp::loadMidiDrums(src, ev.data(), cap, bars.data(), 512, song, bass.data(), bassCap);
+  }
+  bool hasBass(uint32_t tick, int note, int vel = -1) const {
+    for (uint32_t i = 0; i < song.bassCount; i++)
+      if (song.bass[i].tick() == tick && song.bass[i].note() == note && (vel < 0 || song.bass[i].vel() == vel)) return true;
+    return false;
   }
   bool has(uint32_t tick, int lane, int vel) const {
     for (uint32_t i = 0; i < song.eventCount; i++)
@@ -170,6 +176,62 @@ int main() {
     }
     check(ok, "200 corrupted files: no crash, no overrun", 200);
   }
+  std::printf("MIDI bass\n");
+  // 96 PPQ: drums on channel 10 in every case; 2 bars of 4/4.
+  auto drums = [] {
+    Track d;
+    for (int i = 0; i < 8; i++) d.note(i * 96, 9, i % 2 ? 38 : 36, 100);
+    return d;
+  };
+  {
+    // A fingered bass (program 34) on channel 3, a piano on channel 1.
+    Track bass, piano;
+    bass.raw(0, {0xC2, 33});
+    bass.note(0, 2, 40, 127).note(48, 2, 40, 0);              // E2, off at tick 12: a mute
+    bass.note(96, 2, 35, 64).note(96, 2, 28, 100);            // a chord: the lowest, E1
+    bass.note(192, 2, 28, 0).note(192, 2, 28, 90);            // the same pitch again: no mute
+    bass.note(288, 2, 76, 80).note(384, 2, 16, 80);           // E5 -> E3, E0 -> E1
+    bass.raw(480, {0x82, 16, 0});                             // a real note-off: mute
+    piano.raw(0, {0xC0, 0});
+    for (int i = 0; i < 8; i++) piano.note(i * 96, 0, 60 + i, 80).note(i * 96 + 90, 0, 60 + i, 0);
+    Loaded l(smf(1, 96, {drums(), bass, piano}));
+    check(!l.res.error && l.res.bassChannel == 3, "the GM bass program's channel (3), not the piano", l.res.bassChannel);
+    check(l.hasBass(0, 40, 9) && l.hasBass(12, 0), "  ... a note and its note-off (a mute)", l.song.bassCount);
+    check(l.hasBass(24, 28, 8) && !l.hasBass(24, 35), "  ... a chord: the lowest note (velocity 100 -> 8)", l.song.bassCount);
+    check(l.hasBass(48, 28) && !l.hasBass(48, 0), "  ... the same pitch struck again: no mute", l.song.bassCount);
+    check(l.hasBass(72, 52) && l.hasBass(96, 28) && l.hasBass(120, 0), "  ... folded into B0..G3; a 0x80 off mutes",
+          l.song.bassCount);
+    check(l.song.bassCount == 7 && l.bars[1].firstBass == 5, "  ... 7 events; bar 2 starts at the 6th", l.song.bassCount);
+    bool sorted = true;
+    for (uint32_t i = 1; i < l.song.bassCount; i++) sorted = sorted && l.song.bass[i].tick() >= l.song.bass[i - 1].tick();
+    check(sorted, "  ... in tick order", 0);
+  }
+  {
+    // No bass program: the low channel (4) is the bass, the piano isn't.
+    Track low, piano;
+    for (int i = 0; i < 8; i++) low.note(i * 96, 3, 33 + (i % 3), 90);
+    for (int i = 0; i < 8; i++) piano.note(i * 96, 0, 64, 80);
+    Loaded l(smf(1, 96, {drums(), low, piano}));
+    check(l.res.bassChannel == 4 && l.song.bassCount == 8, "no bass program: the channel mostly below C3", l.res.bassChannel);
+  }
+  {
+    // Only a piano: no bass part.
+    Track piano;
+    for (int i = 0; i < 8; i++) piano.note(i * 96, 0, 64, 80);
+    Loaded l(smf(1, 96, {drums(), piano}));
+    check(!l.res.error && l.res.bassChannel == -1 && !l.song.bass && l.song.bassCount == 0, "no bass part: none, drums load",
+          l.song.eventCount);
+  }
+  {
+    // A bass part too long for its buffer is left out; the drums still load.
+    Track bass;
+    bass.raw(0, {0xC1, 33});
+    for (int i = 0; i < 100; i++) bass.note(i * 24, 1, 40, 90);
+    Loaded l(smf(1, 96, {drums(), bass}), 4096, 50);
+    check(!l.res.error && l.song.bassCount == 0 && l.song.eventCount == 8, "bass buffer too small: no bass, drums load",
+          l.song.bassCount);
+  }
+
   std::printf(failures ? "\n%d FAILURE(S)\n" : "\nALL TESTS PASSED\n", failures);
   return failures ? 1 : 0;
 }

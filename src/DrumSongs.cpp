@@ -18,6 +18,7 @@ static const uint16_t kMaxBars = 512;
 DMAMEM static char g_files[kMaxFiles][kNameMax];
 DMAMEM static irdsp::SongEvent g_events[kMaxEvents];
 DMAMEM static irdsp::SongBar g_bars[kMaxBars];
+DMAMEM static irdsp::BassEvent g_bass[kMaxEvents];
 static irdsp::DrumSong g_sdSong;
 static int g_numFiles = 0;
 static int g_selected = 0;  // 1-based, 0 = none
@@ -103,7 +104,8 @@ FLASHMEM static bool loadSdSong(int file) {
   }
   FileSource src(f);
   const uint32_t t0 = millis();
-  const irdsp::MidiResult r = irdsp::loadMidiDrums(src, g_events, kMaxEvents, g_bars, kMaxBars, g_sdSong);
+  const irdsp::MidiResult r =
+      irdsp::loadMidiDrums(src, g_events, kMaxEvents, g_bars, kMaxBars, g_sdSong, g_bass, kMaxEvents);
   f.close();
   if (r.error) {
     Serial.printf("%s: %s\n", g_files[file], r.error);
@@ -118,6 +120,10 @@ FLASHMEM static bool loadSdSong(int file) {
                 (unsigned long)g_sdSong.eventCount, g_sdSong.bpm, r.ignored ? ", some notes skipped" : "",
                 (unsigned long)(millis() - t0));
   if (r.ignored) Serial.printf("  %lu drum notes have no lane (e.g. cowbell, tambourine)\n", (unsigned long)r.ignored);
+  if (r.bassChannel > 0)
+    Serial.printf("  bass from channel %d, %lu events\n", r.bassChannel, (unsigned long)g_sdSong.bassCount);
+  else
+    Serial.println("  no bass part");
   return true;
 }
 
