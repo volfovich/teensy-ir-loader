@@ -1,6 +1,6 @@
-// Renders 8 bars of every drum style (with a 2-bar count-in and a crash every
-// 4 bars) with every kit to 16-bit stereo WAV files, to listen to the sounds
-// on a computer.
+// Renders 8 bars of every drum style (with a 2-bar count-in, a crash every
+// 4 bars and its bass line in E) with every kit, and every song with its
+// bass, to 16-bit stereo WAV files, to listen to the sounds on a computer.
 //   make -C test/host render_drums && ./test/host/render_drums [out_dir]
 #include <cstdint>
 #include <cstdio>
@@ -36,11 +36,14 @@ int main(int argc, char** argv) {
   const std::string dir = argc > 1 ? argv[1] : "out";
   const int fs = 44100, B = 32;
   int ok = 0;
+  std::vector<float> bassBuf(irdsp::DrumMachine::kBassBufLen);
   for (int k = 0; k < irdsp::drumKitCount(); k++) {
     for (int s = 0; s < irdsp::drumStyleCount(); s++) {
       const irdsp::DrumStyle& st = irdsp::drumStyle(s);
       const float bpm = !std::strcmp(st.name, "ballad") ? 60.0f : (!std::strcmp(st.name, "shuffle") ? 90.0f : 110.0f);
       std::unique_ptr<irdsp::DrumMachine> d(new irdsp::DrumMachine((float)fs));
+      d->setBassBuffer(bassBuf.data());  // the style's bass line in E, at 70 %
+      d->setBassVolume(0.7f);
       d->setKit(&irdsp::drumKit(k));
       d->setCrashEvery(4);
       d->setStyle(s);
@@ -84,7 +87,6 @@ int main(int argc, char** argv) {
 
   // Every built-in song with its bass line (at the default 70 %), once
   // through with a 2-bar count-in (rock kit).
-  std::vector<float> bassBuf(irdsp::DrumMachine::kBassBufLen);
   for (int i = 0; i < irdsp::drumSongCount(); i++) {
     const irdsp::DrumSong& sg = irdsp::drumSong(i);
     std::unique_ptr<irdsp::DrumMachine> d(new irdsp::DrumMachine((float)fs));

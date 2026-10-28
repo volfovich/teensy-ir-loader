@@ -35,9 +35,10 @@
 // count-in, then wraps at its end or at the loop's last bar. Crash accents
 // and the speed trainer apply to styles only.
 //
-// Bass (setBassBuffer, setBassOn): a song's bass line plays on a plucked-
-// string bass (PluckBass.h), on the same tick clock as the drums, not
-// during the count-in, muted when the drums stop. It joins the bus after
+// Bass (setBassBuffer, setBassOn): a song's bass line, or the style's in
+// the bass key (setBassKey), plays on a plucked-string bass (PluckBass.h),
+// on the same clock as the drums, not during count-ins, muted when the
+// drums stop. It joins the bus after
 // the compressor (the kick doesn't pump it) with its own volume, and the
 // limiter keeps the sum below -0.5 dBFS.
 //
@@ -63,12 +64,17 @@ namespace irdsp {
 // A built-in style. Each lane has one character per step:
 //   '.' rest, '1'..'9' velocity (9 = hardest); 'g' 'x' 'X' mean 3, 6, 9.
 // An empty lane is unused. Lanes are beats x stepsPerBeat long.
+// The bass line, one character per step, in degrees of the bass key
+// (setBassKey): 'R' root, '3' minor third, 'M' major third, '4' fourth,
+// '5' fifth, '6' sixth, '7' minor seventh, 'O' octave; '-' hold, '.' mute,
+// 'x' dead note. Empty: no bass.
 struct DrumStyle {
   char name[10];    // command name ("shuffle")
   char title[14];   // display name ("blues shuffle")
   uint8_t beats;    // beats per bar
   uint8_t stepsPerBeat;
   char lanes[kDrumVoices][25];
+  char bass[25];
 };
 
 int drumStyleCount();
@@ -132,6 +138,10 @@ class DrumMachine {
   void setBassOn(bool on) { bassOn_ = on; }
   void setBassVolume(float n);  // 0..1, the same curve as setVolume
   void setBassTone(float t) { bassToneReq_ = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t); }
+  // The styles' key, 0 = C .. 11 = B; the root sounds from E1 to D#2.
+  void setBassKey(int key) { bassKey_ = ((key % 12) + 12) % 12; }
+  // The root note (MIDI) of a key.
+  static int bassRoot(int key) { return 28 + (((key - 4) % 12) + 12) % 12; }
   void start() { stopReq_ = false; startReq_ = true; }
   void stop() { startReq_ = false; stopReq_ = true; }
 
@@ -166,7 +176,9 @@ class DrumMachine {
   struct Pattern {
     uint8_t steps = 16, beats = 4, stepsPerBeat = 4;
     bool drums = false;  // has lanes other than the click (crash accents)
+    bool bass = false;   // has a bass line
     uint8_t vel[kDrumVoices][kMaxSteps] = {};  // 0 = rest, 1..9
+    int8_t bassStep[kMaxSteps] = {};  // semitones above the root, or kBassHold / kBassMute / kBassDead
   };
 
   void init();  // the constructor's work, kept in flash (IRDSP_COLD)
@@ -180,6 +192,8 @@ class DrumMachine {
   void renderVoices(float* outL, float* outR, int n);
   void bus(float* outL, float* outR, int n);
   void playBass(const BassEvent& e, uint64_t sample);
+  void styleBass(int code, uint64_t sample);
+  static constexpr int8_t kBassHold = -1, kBassMute = -2, kBassDead = -3;
   bool render(float* outL, float* outR, int n);
   void startSample(int voice, float vel);
   void fadeLane(int voice, float ms, int keep);
@@ -236,6 +250,8 @@ class DrumMachine {
   volatile float bassVolTarget_ = 0.7f, bassToneReq_ = 0.5f;
   float bassVolCur_ = 0.7f, bassTone_ = -1.0f;
   uint32_t bassIdx_ = 0;
+  volatile int bassKey_ = 4;  // E
+  int bassLast_ = 28;         // the style's last pitch (for dead notes)
 
   // Drum-bus compressor: envelope, gain (with makeup) and its ramp.
   float compAtt_, compRel_, compEnv_ = 0.0f, compGainNow_ = 1.0f, compStep_ = 0.0f;

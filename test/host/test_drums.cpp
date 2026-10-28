@@ -821,6 +821,77 @@ struct BassSong : TestSong {
   }
 };
 
+// The styles' bass lines, in the bass key.
+static void testStyleBass() {
+  std::printf("Style bass\n");
+  const double step = 44100.0 * 60.0 / (120.0 * 4);  // 16ths at 120 BPM
+  auto bassHits = [](const Rig& r) {
+    std::vector<Hit> b;
+    for (auto& h : r.hits)
+      if (h.voice == irdsp::DrumMachine::kBassHookVoice) b.push_back(h);
+    return b;
+  };
+  {
+    // Rock in E: R-R-R-R-R-R-5-O- -> E1 on the 8ths, B1 on step 12, E2 on 14.
+    Rig r("rock", 120, false);
+    r.withBass();
+    r.d->start();
+    r.run(2.05);  // one bar and the next downbeat
+    const auto b = bassHits(r);
+    const int want[] = {28, 28, 28, 28, 28, 28, 35, 40, 28};
+    bool ok = b.size() == 9;
+    for (int i = 0; ok && i < 9; i++) ok = b[i].vel == want[i] && std::fabs((double)b[i].t - 2 * i * step) <= 1.0;
+    check(ok, "rock in E: roots on the 8ths, the fifth and octave", b.size());
+  }
+  {
+    Rig r("rock", 120, false);
+    r.withBass();
+    r.d->setBassKey(9);  // A
+    r.d->start();
+    r.run(0.1);
+    const auto b = bassHits(r);
+    check(!b.empty() && b[0].vel == 33, "key A: the root is A1", b.empty() ? 0 : b[0].vel);
+    check(irdsp::DrumMachine::bassRoot(3) == 39 && irdsp::DrumMachine::bassRoot(5) == 29, "  ... roots from E1 to D#2", 0);
+  }
+  {
+    Rig r("offbeat16", 120, false);
+    r.withBass();
+    r.d->start();
+    r.run(0.5);
+    const auto b = bassHits(r);
+    check(b.size() >= 3 && b[2].vel == 28 + 128, "offbeat16: a dead note on step 3", b.size());
+  }
+  {
+    // A 1-bar count-in: the first bass note on the groove's first step.
+    Rig r("rock", 120, true);
+    r.withBass();
+    r.d->start();
+    r.run(2.1);
+    const auto b = bassHits(r);
+    check(!b.empty() && std::fabs((double)b[0].t - 16 * step) <= 1.0 && b[0].vel == 28, "count-in: no bass until the groove", b.size());
+  }
+  {
+    // Rock, then the metronome: the bass is muted at the next bar.
+    Rig r("rock", 120, false);
+    r.withBass();
+    r.d->start();
+    r.run(1.0);
+    r.d->setStyle(irdsp::findDrumStyle("metronome"));
+    r.run(2.0);
+    const auto b = bassHits(r);
+    check(!b.empty() && b.back().vel == 0 && std::fabs((double)b.back().t - 16 * step) <= 1.0,
+          "to the metronome: muted at the bar line, then nothing", b.size());
+  }
+  // Every style's bass line is as long as its bar (or empty).
+  bool ok = true;
+  for (int i = 0; i < irdsp::drumStyleCount(); i++) {
+    const irdsp::DrumStyle& st = irdsp::drumStyle(i);
+    const size_t n = std::strlen(st.bass);
+    ok = ok && (n == 0 || n == (size_t)st.beats * st.stepsPerBeat) && std::strspn(st.bass, "R3M4567O-.x") == n;
+  }
+  check(ok, "every style's bass line fits its bar", irdsp::drumStyleCount());
+}
+
 static void testBass() {
   std::printf("Bass\n");
   const double tick = 44100.0 * 60.0 / (120.0 * irdsp::kSongPpq);
@@ -979,6 +1050,7 @@ int main() {
   testBusLoudness();
   testSongs();
   testBass();
+  testStyleBass();
   testBeatPos();
   std::printf(failures ? "\n%d FAILURE(S)\n" : "\nALL TESTS PASSED\n", failures);
   return failures ? 1 : 0;

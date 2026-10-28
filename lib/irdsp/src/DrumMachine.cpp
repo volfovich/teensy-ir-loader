@@ -148,6 +148,26 @@ IRDSP_COLD void DrumMachine::setStyle(int idx) {
     }
     if (v != kClick && len > 0) p.drums = true;
   }
+  const int bl = (int)strlen(s.bass);
+  p.bass = bl > 0;
+  for (int i = 0; i < kMaxSteps; i++) {
+    const char c = i < bl && i < p.steps ? s.bass[i] : '-';
+    int8_t code = kBassHold;
+    switch (c) {
+      case 'R': code = 0; break;
+      case '3': code = 3; break;
+      case 'M': code = 4; break;
+      case '4': code = 5; break;
+      case '5': code = 7; break;
+      case '6': code = 9; break;
+      case '7': code = 10; break;
+      case 'O': code = 12; break;
+      case '.': code = kBassMute; break;
+      case 'x': code = kBassDead; break;
+      default: break;
+    }
+    p.bassStep[i] = code;
+  }
   styleReq_ = idx;
   swapReq_ = true;
 }
@@ -262,7 +282,10 @@ void DrumMachine::fireStep(uint64_t sample) {
   const Pattern& p = pat_[cur_];
   if (countIn_) {
     if (step_ % p.stepsPerBeat == 0) trigger(kClick, step_ == 0 ? 9 : 6, sample);
+    if (step_ == 0) styleBass(kBassMute, sample);  // count-ins are clicks alone
   } else {
+    if (p.bass) styleBass(p.bassStep[step_], sample);
+    else if (step_ == 0) styleBass(kBassMute, sample);
     // A crash accent replaces the bar's first hat or ride hit.
     const int every = crashEvery_;
     const bool crash = step_ == 0 && every > 0 && p.drums && phrase_ % every == 0;
@@ -311,6 +334,20 @@ void DrumMachine::fireTick(uint64_t sample) {
     if (e.tick() == tick_) playBass(e, sample);
   }
   tick_++;
+}
+
+// A style's bass step: a degree of the key (the root sounds from E1 to D#2),
+// a dead note on the last pitch, a mute, or nothing (hold). The first step
+// of a bar is accented.
+IRDSP_COLD void DrumMachine::styleBass(int code, uint64_t sample) {
+  if (code == kBassHold) return;
+  if (code == kBassMute) {
+    if (bassLa_ && bass_.active()) playBass(bassEvent(0, 0, 0), sample);
+    return;
+  }
+  if (code != kBassDead) bassLast_ = bassRoot(bassKey_) + code;
+  const int vel = code == kBassDead ? 5 : (step_ == 0 ? 8 : 7);
+  playBass(bassEvent(0, bassLast_, vel, code == kBassDead), sample);
 }
 
 // A bass event: a note (dead or not) or a mute (note 0).
