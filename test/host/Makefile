@@ -5,7 +5,7 @@ INC = -I../../lib/irdsp/src -I../../lib/oledui/src
 UI_SRC = $(wildcard ../../lib/oledui/src/*.cpp)
 UI_DEPS = $(UI_SRC) $(wildcard ../../lib/oledui/src/*.h) ui_fake.h
 
-all: test_convolver test_reverb test_reverb80 render_reverb80 test_midi test_delay test_studio_delay test_drums render_drums test_ui render_ui irtool
+all: test_convolver test_reverb test_reverb80 render_reverb80 test_midi test_delay test_studio_delay test_drums render_drums test_bass render_bass test_ui render_ui irtool
 
 test_convolver: test_convolver.cpp ../../lib/irdsp/src/*.h
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_convolver.cpp
@@ -24,6 +24,15 @@ test_delay: test_delay.cpp ../../lib/irdsp/src/StereoDelay.h ../../lib/irdsp/src
 
 test_studio_delay: test_studio_delay.cpp ../../lib/irdsp/src/StudioDelay.h ../../lib/irdsp/src/irdsp_blocks.h
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_studio_delay.cpp
+
+BASS_SRC = ../../lib/irdsp/src/PluckBass.cpp
+BASS_DEPS = $(BASS_SRC) ../../lib/irdsp/src/PluckBass.h ../../lib/irdsp/src/irdsp_blocks.h
+
+test_bass: test_bass.cpp $(BASS_DEPS)
+	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_bass.cpp $(BASS_SRC)
+
+render_bass: render_bass.cpp $(BASS_DEPS)
+	$(CXX) $(CXXFLAGS) $(INC) -o $@ render_bass.cpp $(BASS_SRC)
 
 DRUM_SRC = ../../lib/irdsp/src/DrumMachine.cpp ../../lib/irdsp/src/DrumPatterns.cpp ../../lib/irdsp/src/DrumKitData.cpp \
            ../../lib/irdsp/src/DrumSongData.cpp
@@ -57,11 +66,12 @@ render_ui: render_ui.cpp $(UI_DEPS)
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ render_ui.cpp $(UI_SRC) -lz
 
 # Renders every OLED screen to out/*.png.
-render: render_ui render_drums render_reverb80
+render: render_ui render_drums render_reverb80 render_bass
 	mkdir -p out
 	./render_ui out
 	./render_drums out
 	./render_reverb80 out
+	./render_bass out
 
 # Regenerates the repo's screenshots/ from the real UI code.
 screenshots: render_ui
@@ -78,12 +88,13 @@ test: all
 	./test_delay
 	./test_studio_delay
 	./test_drums
+	./test_bass
 	./test_midi
 	./test_ui
 	python3 test_loader.py
 
 clean:
-	rm -f test_convolver test_reverb test_reverb80 render_reverb80 test_midi test_delay test_studio_delay test_drums render_drums test_ui render_ui irtool
+	rm -f test_convolver test_reverb test_reverb80 render_reverb80 test_midi test_delay test_studio_delay test_drums render_drums test_bass render_bass test_ui render_ui irtool
 	rm -rf out
 
 .PHONY: all test render screenshots clean
