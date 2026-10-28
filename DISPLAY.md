@@ -333,7 +333,7 @@ src/main.cpp            controlsBegin()/displayBegin() in setup(); service calls
 #define ENC_PUSH_PIN 4
 #define KEY_CONFIRM_PIN 5
 #define KEY_BACK_PIN 9
-#define ENC_COUNTS_PER_DETENT 4  // most EC11 encoders; try 2 if one click moves two steps
+#define ENC_COUNTS_PER_DETENT 2  // 2 on our module (half a cycle per click); 4 if two clicks move one step
 #define ENC_REVERSE 1            // 1 if clockwise moves the wrong way (it does on our module)
 ```
 
@@ -460,7 +460,7 @@ So the display must not be added the "normal" way:
 
 - **Bus:** the OLED answered at 0x3C on the shared bus, and the codec still takes `in` / `out` over serial with the display running.
 - **Picture:** the right way round with the init as written (`A1`, `C8`).
-- **Encoder:** one event per detent both ways with `ENC_COUNTS_PER_DETENT 4`, but clockwise counted down, hence `ENC_REVERSE 1`. `CONTROLS_DEBUG` in `DisplayUI.cpp` prints the events on serial for checking another module.
+- **Encoder:** it moves half a quadrature cycle per click, so with `ENC_COUNTS_PER_DETENT 4` it took two clicks per step; it is 2. Clockwise counted down, hence `ENC_REVERSE 1`. `CONTROLS_DEBUG` in `DisplayUI.cpp` prints the events on serial for checking another module.
 - **Keys:** push, CONFIRM and BACK all fire; push on the IR block opened the list and loaded an IR; CONFIRM started and stopped the drums.
 - **CPU:** unchanged with the meters running (28.7 % average and 31.0 % max with the reverb on, as before). Drums at 240 BPM with crashes and four IR switches: 32.0 % average, 51.8 % max, no clipped samples (the reference is about 52 %).
 

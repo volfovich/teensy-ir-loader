@@ -142,7 +142,7 @@
 #define ENC_PUSH_PIN 4
 #define KEY_CONFIRM_PIN 5
 #define KEY_BACK_PIN 9
-#define ENC_COUNTS_PER_DETENT 4  // most EC11 encoders; try 2 if one click moves two steps
+#define ENC_COUNTS_PER_DETENT 2  // 2 on our module (half a cycle per click); 4 if two clicks move one step
 #define ENC_REVERSE 1            // 1 if clockwise moves the wrong way (it does on our module)
 
 #define AUDIO_MEMORY_BLOCKS 20
