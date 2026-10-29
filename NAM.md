@@ -1,6 +1,6 @@
 # Amp block (NAM A2): plan
 
-**Status (2026-10-29): M0 and M1 done.** The A2-Lite engine is built and measured on the Teensy (32.4 % of the CPU at 48 kHz, see [M0 results](#m0-results)), and the firmware runs at 48 kHz ([M1 results](#m1-results)); the rest is still a plan. This is the research and the build plan for an amp block that plays [Neural Amp Modeler](https://www.neuralampmodeler.com/) **A2** profiles (`.nam` files) on the Teensy 4.0.
+**Status (2026-10-29): M0 to M3 done.** The A2-Lite engine is built and measured on the Teensy (32.4 % of the CPU at 48 kHz, see [M0 results](#m0-results)), the firmware runs at 48 kHz ([M1 results](#m1-results)), the engine matches NeuralAmpModelerCore on a real A2 model, and `.nam` files are read ([M2 and M3 results](#m2-and-m3-results)). The firmware integration (Step 4) is still a plan. This is the research and the build plan for an amp block that plays [Neural Amp Modeler](https://www.neuralampmodeler.com/) **A2** profiles (`.nam` files) on the Teensy 4.0.
 
 ```
 shield LINE IN (L) ──► AMP (NAM A2-Lite) ──► IR (cab) ──► delay ──► reverb ──► LINE OUT L/R + headphones
@@ -172,24 +172,33 @@ What the micro-tests showed about the Cortex-M7:
 
 ## Step 3: reading .nam files
 
-`lib/irdsp/src/NamFile.{h,cpp}`: portable, reading through the same `irdsp::ByteSource` (read and seek) as the WAV loader.
+`lib/irdsp/src/NamFile.{h,cpp}` (built): portable, reading through the same `irdsp::ByteSource` (read and seek) as the WAV loader. `readNamA2Lite(src, weights, &info, &err)` fills the 1,871 weights and a `NamInfo` (name, gear, tone type, sample rate, loudness, input and output level).
 
-An A2 file is about 150–300 KB of JSON, most of it Full's weights. There's no room for a parsed tree, so:
+An A2 file is about 670 KB of JSON (NeuralAmpModelerCore's example), most of it Full's weights. There's no room for a parsed tree, so:
 
-- **A streaming tokenizer** that keeps track of the current key path (`config.submodels[0].model.weights`) and never stores more than one token.
-- **Pass 1** reads the top level (`version`, `architecture`, `sample_rate`, the `metadata` fields used) and notes the file offset of each submodel's `max_value`, `config` and `weights`. JSON doesn't fix the order of keys, so the offsets are collected first.
+- **A pull reader** over a 256-byte buffer, with the file offset of every character, so any value can be read again later. Objects and arrays it doesn't need are skipped character by character, their numbers never converted.
+- **Pass 1** reads the top level (`architecture`, `sample_rate`, the `metadata` fields used) and notes the file offset of each submodel's `model`, then of each model's `config` and `weights`. JSON doesn't fix the order of keys, so the offsets are collected first.
 - **Pass 2** seeks to the Lite submodel's `config` and checks every setting of [the A2 shape](#the-network). It then seeks to its `weights` and reads exactly 1,871 numbers, with `strtod` on each token (it's in flash, and this is background code). Full's weights are skipped without converting them.
+- **The network's own metadata wins:** each network in an A2 file has its own `loudness` (Lite −24.0 dB and Full −26.4 dB in the example); the top-level one belongs to Full. `input_level_dbu` is only at the top level.
 - **Also accepted:** a plain `"WaveNet"` file in the Lite shape (a Lite model exported on its own).
 - **Errors say why**, in the serial log and on the panel:
 
 | Case | Message |
 |---|---|
-| An A1 WaveNet or an LSTM | `A1 model: download the A2 version` |
-| A container without a 3-channel A2 submodel | `no A2-Lite network in this file` |
-| `sample_rate` not 48000 | Load it, with a warning: `model is 44100 Hz: pitch shifted` |
-| Wrong number of weights, bad JSON, a cut-off file | `damaged file (<detail>)` |
+| An A1 WaveNet, an LSTM, or any other setting than A2's (gating, FiLM, kernel sizes …) | `not an A2 model: download the A2 version` |
+| A2-Full only (a container or a plain WaveNet) | `no A2-Lite network in this file` |
+| Wrong number of weights | `damaged file (wrong number of weights)` |
+| Bad JSON, a cut-off file | `damaged file (not valid JSON)` |
+| `sample_rate` not 48000 | The firmware's job (Step 4): load it, with a warning: `model is 44100 Hz: pitch shifted` |
 
 `test/host/namtool file.nam` runs the device's parser on a computer and prints what the Teensy would see: the metadata, the submodel chosen and the weight count. Like `irtool`, it's for checking a file before copying it to the card.
+
+### M2 and M3 results
+
+- **Against NeuralAmpModelerCore** (the official implementation, commit 0b3d3c9, built from source): its example A2 model's Lite network, read with `NamFile.h`, on a 1 s test signal (plucked notes, a sweep, noise bursts up to 0.8). `NamA2` matches Core's output within **4.8e-7**, 130 dB below the signal (output peak 0.36), against both Core's A2 fast path and its generic WaveNet code. The first 6,346 samples differ only because Core warms the network up on reset; the firmware mutes that time anyway.
+- **The test files:** `test/host/nam/A2.nam` (MIT, from Core) and `A2_lite_ref.f32` (Core's output), made again by `test/host/nam/make_reference.sh`.
+- **The reader:** the real file, made-up files with their keys in every order, all the files it must refuse, 400 cut-off files and 300 randomly damaged ones pass (`test_namfile`), also under AddressSanitizer and UBSan.
+- **Still to do on the device:** load time from the SD card (two passes over 670 KB), and a real capture: a boosted JCM800 2203 (scottcorgan's "JCM 800 2203 boosted and unboosted" on TONE3000). Its license (T3K) allows using it but not redistributing it, so it stays out of git.
 
 ## Step 4: the firmware
 
@@ -288,8 +297,8 @@ The worst case is close to the limit. Ways to buy room, in order:
 |---|---|---|
 | **M0** | Benchmark the engine alone on the Teensy: random A2-Lite weights, the cycle counter, a sketch on its own. | **Done:** 32.4 % at 48 kHz ([results](#m0-results)). |
 | **M1** | [Step 1](#step-1-the-whole-system-at-48-khz): the whole system at 48 kHz. | **Done** ([results](#m1-results)). |
-| **M2** | [Step 2](#step-2-the-a2-lite-engine): the engine. | `test_nam` passes, including the golden test. |
-| **M3** | [Step 3](#step-3-reading-nam-files): the loader and `namtool`. | `test_namfile` passes; real A2 files from TONE3000 load. |
+| **M2** | [Step 2](#step-2-the-a2-lite-engine): the engine. | **Done** ([results](#m2-and-m3-results)). |
+| **M3** | [Step 3](#step-3-reading-nam-files): the loader and `namtool`. | **Done** on the PC ([results](#m2-and-m3-results)); a TONE3000 capture and the load time on the device come with M4. |
 | **M4** | [Step 4](#step-4-the-firmware): serial and settings. | Load, switch, on/off and `s` on the device, no dropouts. |
 | **M5** | The panel. | Home block, Amp page, renders. |
 | **M6** | Docs. | README (features, hardware, commands, budgets), DISPLAY.md (menu tree, RAM1 table), this file rewritten from a plan into a description. |
@@ -303,7 +312,7 @@ On the PC (`make -C test/host test`):
   - The same output for every block size from 16 to 128, and for odd chunk lengths.
   - The history copy-back: no step in the output when it happens.
   - 60 s of loud noise stays finite; `reset()` gives exact silence from silence plus the biases' steady output.
-- **The golden test:** a real A2 file, run once through the reference implementation (the Python `neural-amp-modeler` package, v0.13 or later, or NeuralAmpModelerCore) by a script in `test/host`, on a test signal (a sweep, noise bursts and a guitar riff). Its Lite output is committed. Ours must match within 1e-4. The `.nam` file is committed too if its license allows; otherwise the script downloads it.
+- **The golden test** (in `test_nam`): NeuralAmpModelerCore's A2 example model, run once through Core by `nam/make_reference.sh` on a test signal (plucked notes, a sweep, noise bursts). Its Lite output is committed; ours must match within 1e-5 and 100 dB (it does: 4.8e-7, 130 dB).
 - **`test_namfile`, the loader:**
   - The keys in any order; the Lite submodel picked from either position.
   - A plain Lite WaveNet accepted; A1, LSTM and Full-only files refused with the right message.

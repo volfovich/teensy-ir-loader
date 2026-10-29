@@ -1,16 +1,21 @@
-// test_nam.cpp - the A2-Lite engine (NamA2.h) against a plain reference.
+// test_nam.cpp - the A2-Lite engine (NamA2.h) against two references:
 //
-// The reference runs one sample at a time straight from the formulas in
-// NAM.md, reading the weights in .nam file order, with a ring buffer per
-// layer. The engine must match it at every block size, through many history
-// copy-backs, and after reset().
+//   - a plain one here, one sample at a time straight from the formulas in
+//     NAM.md, reading the weights in .nam file order, with a ring buffer per
+//     layer: random weights, every block size, many ring wraps, reset()
+//   - NeuralAmpModelerCore, the official implementation: a real A2 model
+//     (nam/A2.nam, read with NamFile.h) on a test signal, against its output
+//     in nam/A2_lite_ref.f32 (made by nam/make_reference.sh, which runs
+//     `test_nam --write-input <file.wav>` for the signal)
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <vector>
 
 #include "NamA2.h"
+#include "NamFile.h"
 
 using namespace irdsp;
 
@@ -123,6 +128,98 @@ struct Reference {
 
 // ---- Tests ----------------------------------------------------------------------
 
+class FileSource : public ByteSource {
+ public:
+  explicit FileSource(FILE* f) : f_(f) {}
+  int read(void* dst, int n) override { return (int)fread(dst, 1, n, f_); }
+  bool seek(uint32_t pos) override { return fseek(f_, (long)pos, SEEK_SET) == 0; }
+
+ private:
+  FILE* f_;
+};
+
+// The golden test's signal, 1 s at 48 kHz: two plucked notes, a sweep and
+// noise bursts at three levels.
+static std::vector<float> goldenSignal() {
+  const int fs = 48000;
+  std::vector<float> x(fs, 0.0f);
+  const float notes[2][2] = {{0.0f, 82.41f}, {0.25f, 110.0f}};
+  for (const auto& n : notes) {
+    const int s0 = (int)(n[0] * fs);
+    for (int i = 0; s0 + i < fs / 2; i++) {
+      const float t = (float)i / fs;
+      float v = 0.0f;
+      for (int h = 1; h < 8; h++) v += sinf(2.0f * 3.14159265f * n[1] * h * t) / h;
+      x[s0 + i] += 0.35f * v * expf(-6.0f * t);
+    }
+  }
+  for (int i = 0; i < fs / 4; i++) {  // 50 Hz .. 8 kHz
+    const float t = (float)i / (fs / 4);
+    x[fs / 2 + i] += 0.3f * sinf(2.0f * 3.14159265f * 50.0f * (powf(160.0f, t) - 1.0f) / logf(160.0f) * 0.25f);
+  }
+  uint32_t rng = 7;
+  const float levels[3] = {0.02f, 0.2f, 0.8f};
+  for (int b = 0; b < 3; b++)
+    for (int i = 0; i < fs / 12; i++) {
+      rng = rng * 1664525u + 1013904223u;
+      x[3 * fs / 4 + b * fs / 12 + i] += levels[b] * ((float)(rng >> 8) / 8388608.0f - 1.0f);
+    }
+  return x;
+}
+
+static bool writeWav(const char* path, const std::vector<float>& x) {
+  FILE* f = fopen(path, "wb");
+  if (!f) return false;
+  const uint32_t data = (uint32_t)(x.size() * 4), riff = 36 + data, fmtLen = 16, rate = 48000, bytes = rate * 4;
+  const uint16_t fmt = 3, ch = 1, align = 4, bits = 32;
+  fwrite("RIFF", 1, 4, f), fwrite(&riff, 4, 1, f), fwrite("WAVEfmt ", 1, 8, f), fwrite(&fmtLen, 4, 1, f);
+  fwrite(&fmt, 2, 1, f), fwrite(&ch, 2, 1, f), fwrite(&rate, 4, 1, f), fwrite(&bytes, 4, 1, f);
+  fwrite(&align, 2, 1, f), fwrite(&bits, 2, 1, f), fwrite("data", 1, 4, f), fwrite(&data, 4, 1, f);
+  fwrite(x.data(), 4, x.size(), f);
+  return fclose(f) == 0;
+}
+
+// NamA2 with A2.nam's Lite network against NeuralAmpModelerCore's output.
+// Core warms the network up on reset and NamA2 starts from silence, so they
+// agree once the receptive field (6,346 samples) has passed.
+static void testGolden() {
+  printf("  golden: nam/A2.nam (Lite) against NeuralAmpModelerCore\n");
+  FILE* f = fopen("nam/A2.nam", "rb");
+  CHECK(f, "can't open nam/A2.nam (run from test/host)");
+  if (!f) return;
+  FileSource src(f);
+  std::vector<float> w(nama2::kWeightCount);
+  NamInfo info;
+  const char* err = "";
+  const bool ok = readNamA2Lite(src, w.data(), &info, &err);
+  fclose(f);
+  CHECK(ok, "reading A2.nam: %s", err);
+  if (!ok) return;
+
+  std::vector<float> ref(48000);
+  FILE* r = fopen("nam/A2_lite_ref.f32", "rb");
+  CHECK(r && fread(ref.data(), 4, ref.size(), r) == ref.size(), "can't read nam/A2_lite_ref.f32");
+  if (r) fclose(r);
+
+  const std::vector<float> x = goldenSignal();
+  std::vector<float> hist(NamA2<32>::kHistoryFloats), out(x.size());
+  NamA2<32>* nam = new NamA2<32>;
+  nam->begin(hist.data());
+  nam->setWeights(w.data());
+  for (size_t i = 0; i < x.size(); i += 32) nam->process(&x[i], &out[i]);
+  delete nam;
+  double err2 = 0, sig2 = 0, maxErr = 0, peak = 0;
+  for (size_t i = 6400; i < x.size(); i++) {
+    const double d = out[i] - ref[i];
+    err2 += d * d, sig2 += (double)ref[i] * ref[i];
+    maxErr = fmax(maxErr, fabs(d)), peak = fmax(peak, fabs(ref[i]));
+  }
+  const double db = 10.0 * log10(sig2 / (err2 + 1e-30));
+  printf("    max error %.2e (output peak %.3f), error %.0f dB below the signal\n", maxErr, peak, db);
+  CHECK(peak > 0.05, "the reference is silent");
+  CHECK(maxErr < 1e-5 && db > 100.0, "differs from NeuralAmpModelerCore: max %g, %.1f dB", maxErr, db);
+}
+
 // A guitar-like test signal: decaying plucks over a little noise.
 static std::vector<float> testSignal(int n, float level) {
   std::vector<float> s(n);
@@ -164,7 +261,8 @@ static void testBlockSize(const std::vector<float>& w, const std::vector<float>&
   delete nam;
 }
 
-int main() {
+int main(int argc, char** argv) {
+  if (argc == 3 && !strcmp(argv[1], "--write-input")) return writeWav(argv[2], goldenSignal()) ? 0 : 1;
   printf("test_nam\n");
   CHECK(nama2::kWeightCount == 1871, "weight count %d, expected 1871", nama2::kWeightCount);
   printf("  %d weights, %d multiply-adds per sample\n", nama2::kWeightCount, nama2::kMacsPerSample);
@@ -200,6 +298,8 @@ int main() {
     CHECK(finite, "loud noise: output not finite");
     delete nam;
   }
+
+  testGolden();
 
   printf(g_fail ? "test_nam: %d FAILED\n" : "test_nam: all passed\n", g_fail);
   return g_fail ? 1 : 0;

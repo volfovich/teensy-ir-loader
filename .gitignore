@@ -19,3 +19,5 @@ test/host/test_midi
 test/host/test_bass
 test/host/render_bass
 test/host/test_nam
+test/host/test_namfile
+test/host/namtool

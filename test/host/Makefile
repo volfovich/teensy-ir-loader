@@ -5,7 +5,7 @@ INC = -I../../lib/irdsp/src -I../../lib/oledui/src
 UI_SRC = $(wildcard ../../lib/oledui/src/*.cpp)
 UI_DEPS = $(UI_SRC) $(wildcard ../../lib/oledui/src/*.h) ui_fake.h
 
-all: test_convolver test_fxstage test_reverb80 render_reverb80 test_midi test_studio_delay test_drums render_drums test_bass render_bass test_ui render_ui irtool test_nam
+all: test_convolver test_fxstage test_reverb80 render_reverb80 test_midi test_studio_delay test_drums render_drums test_bass render_bass test_ui render_ui irtool test_nam test_namfile namtool
 
 test_convolver: test_convolver.cpp ../../lib/irdsp/src/*.h
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_convolver.cpp
@@ -76,8 +76,17 @@ screenshots: render_ui
 	rm -f ../../screenshots/*.png
 	./render_ui ../../screenshots
 
-test_nam: test_nam.cpp ../../lib/irdsp/src/NamA2.h
-	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_nam.cpp
+NAM_SRC = ../../lib/irdsp/src/NamFile.cpp
+NAM_DEPS = $(NAM_SRC) ../../lib/irdsp/src/NamFile.h ../../lib/irdsp/src/NamA2.h ../../lib/irdsp/src/IRLoader.h
+
+test_nam: test_nam.cpp $(NAM_DEPS)
+	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_nam.cpp $(NAM_SRC)
+
+test_namfile: test_namfile.cpp $(NAM_DEPS)
+	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_namfile.cpp $(NAM_SRC)
+
+namtool: namtool.cpp $(NAM_DEPS)
+	$(CXX) $(CXXFLAGS) $(INC) -o $@ namtool.cpp $(NAM_SRC)
 
 irtool: irtool.cpp ../../lib/irdsp/src/IRLoader.cpp ../../lib/irdsp/src/IRLoader.h
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ irtool.cpp ../../lib/irdsp/src/IRLoader.cpp
@@ -92,10 +101,11 @@ test: all
 	./test_midi
 	./test_ui
 	./test_nam
+	./test_namfile
 	python3 test_loader.py
 
 clean:
-	rm -f test_convolver test_fxstage test_reverb80 render_reverb80 test_midi test_studio_delay test_drums render_drums test_bass render_bass test_ui render_ui irtool test_nam
+	rm -f test_convolver test_fxstage test_reverb80 render_reverb80 test_midi test_studio_delay test_drums render_drums test_bass render_bass test_ui render_ui irtool test_nam test_namfile namtool
 	rm -rf out
 
 .PHONY: all test render screenshots clean

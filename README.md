@@ -204,6 +204,8 @@ lib/irdsp/src/              portable DSP core (no Arduino dependencies)
   DrumKit.h                 the drum kit format (DrumKitData.cpp is generated from kits/)
   Reverb80.{h,cpp}          the 80s reverb (Lexicon-style hall, AMS-style gated)
   FxStage.h, FxSlot.h       per effect: on/off with trails, dry/wet mix, idle detection and clearing
+  NamA2.h                   the Neural Amp Modeler A2-Lite network (the amp block, in progress: NAM.md)
+  NamFile.{h,cpp}           reading the A2-Lite network out of a .nam file
   irdsp_blocks.h            shared shelving filter, biquad filters, Hermite read, LFO and mix law
   irdsp_fft.h               small radix-2 FFT
   IRLoader.{h,cpp}          WAV parser, resampler, IR trimming and normalization
@@ -213,7 +215,8 @@ fonts/spleen/               the panel's fonts (Spleen, BSD-2-Clause; tools/make_
 kits/rock/                  the recorded drum kit (WAVs, kit.txt, credits, our originals)
 songs/                      the built-in drum songs (text, compiled in)
 tools/                      drum kit tools: import_kit.py (build a kit's WAVs), make_kits.py (compile kits in)
-test/host/                  PC tests for the DSP core
+test/host/                  PC tests for the DSP core (nam/: the A2 test model and its reference output)
+test/teensy/                benchmarks run on the Teensy (pio run -e nambench / nammicro)
 ```
 
 ## Testing on a PC
@@ -234,8 +237,11 @@ The tests check:
 - The drum machine: sample-accurate timing, count-in, speed trainer, style and tempo change points, the shuffle grid, stopping, every style's lanes and level, sampled-kit playback (onsets, velocity layers, fades, cymbal voices), crash accents, dynamics, humanize and panning, and the real kits' samples, layers and balance (see [DRUMS.md](DRUMS.md#code-and-tests)).
 - The reverb: the hall's decay time, pre-delay, stereo, chorus, era and level, and the gated reverb's cut-off, burst shapes and level (see [REVERB.md](REVERB.md#code-and-tests)).
 - WAV decoding for every supported format.
-- Resampling accuracy at 22.05, 32, 48, 88.2, 96 and 192 kHz.
+- Resampling accuracy from 22.05, 32, 44.1, 88.2, 96 and 192 kHz to 48 kHz.
 - Anti-aliasing, trimming, truncation and normalization.
+- The NAM amp network against a plain reference and against NeuralAmpModelerCore on a real A2 model, and reading `.nam` files (see [NAM.md](NAM.md#m2-and-m3-results)).
+
+`test/host/namtool model.nam` reads a NAM model the way the Teensy will and prints what it found.
 
 `test/host/irtool file.wav out.f32` runs the exact on-device loading pipeline on a file, which is useful for seeing how the Teensy will interpret an IR before copying it to the card.
 
