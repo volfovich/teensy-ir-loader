@@ -71,13 +71,13 @@ To go back to the shared bus, set `OLED_WIRE` to `Wire` and `OLED_I2C_HZ` to 400
 
 ### Home screen
 
-The home screen shows the chain as blocks, IR › DLY › REV › DRM, then the tempo, with a cursor under one of them.
+The home screen shows the chain as blocks, AMP › IR › DLY › REV › DRM, then the tempo, with a cursor under one of them.
 
 | Input | Action |
 |---|---|
-| Turn encoder | Move the cursor: IR, DLY, REV, DRM, then the tempo |
-| Push encoder | Open the block: the [IR list](#ir-list) for IR, the Delay, Reverb or Drums page of the menu for the others. BACK from there comes back home, with the cursor where it was. On the tempo: edit it in place (below). |
-| Hold encoder (≥ 0.6 s) | The block under the cursor on/off: IR = bypass, DRM and the tempo = drums start/stop |
+| Turn encoder | Move the cursor: AMP, IR, DLY, REV, DRM, then the tempo |
+| Push encoder | Open the block: the [model list](#ir-list-and-amp-list) for AMP, the [IR list](#ir-list-and-amp-list) for IR, the Delay, Reverb or Drums page of the menu for the others. BACK from there comes back home, with the cursor where it was. On the tempo: edit it in place (below). |
+| Hold encoder (≥ 0.6 s) | The block under the cursor on/off: AMP = the amp block ([NAM.md](NAM.md)), IR = bypass, DRM and the tempo = drums start/stop |
 | CONFIRM | Drums start/stop, wherever the cursor is |
 | BACK | Open the menu (Levels, Meter, Status, Bypass …) |
 
@@ -91,12 +91,12 @@ The home screen shows the chain as blocks, IR › DLY › REV › DRM, then the 
 | Push / CONFIRM | Enter the submenu, start editing, or run the action | Keep the value and stop editing |
 | BACK | Up one level (from the top level, back home) | Cancel: restore the value from before editing |
 
-### IR list, Meter, Status
+### IR and amp lists, Meter, Status
 
-| Input | IR list | Meter | Status |
+| Input | IR or amp list | Meter | Status |
 |---|---|---|---|
 | Turn | Move the cursor | Line-in sensitivity | — |
-| Push / CONFIRM | Load the IR under the cursor (or rescan); the list stays open | CONFIRM: reset the clip counter and peak holds | — |
+| Push / CONFIRM | Load the IR or model under the cursor (or rescan); the list stays open | CONFIRM: reset the clip counter and peak holds | — |
 | BACK | Back to where it was opened from (home or the menu) | Back to the menu | Back to the menu |
 
 After 30 s without input, the display returns to the home screen. The meter screen stays, because it is used while playing.
@@ -117,16 +117,18 @@ All text is in the Spleen 8x16 font: 16 characters x 4 rows of 16 px. Big number
 
 ```
 ┌────────────────┐
-│V30 SM57 Mesa 4x│  row 0: the IR (BYPASS + name when bypassed)
-│IR  DLY REV DRM │  row 1: the blocks, filled = on, outlined = off,
-│▀▀              │    a bar under the selected one
-│100   offbeat8  │  rows 2-3: the tempo in the big font; the style's
-│▀▀▀   ■□□□      │    short name and a box per beat (cursor on the tempo)
-└────────────────┘
+│V30 SM57 Mesa 4x│  row 0: the IR (BYPASS + name when bypassed);
+│AMP IR DLY REV D│    the amp model's name with the cursor on AMP
+│   ▀▀           │  row 1: the blocks, filled = on, top and bottom
+│100   offbeat8  │    lines = off, a bar under the selected one
+│▀▀▀   ■□□□      │  rows 2-3: the tempo in the big font; the style's
+└────────────────┘    short name and a box per beat (cursor on the tempo)
 ```
 
-- **The blocks** follow the signal: the IR, then the delay, then the reverb, then the drums (mixed in after the effects, never through them). IR is "on" when not bypassed.
-- **Row 0:** the file name without the folder or the `.wav` extension (16 characters). With no SD card or no IRs: `No SD card` or `No IRs on SD`.
+- **The blocks** follow the signal: the amp, the IR, then the delay, then the reverb, then the drums (mixed in after the effects, never through them). IR is "on" when not bypassed.
+- **Five blocks fit with one pixel to spare each side of the letters,** so an off block has only its box's top and bottom lines: its sides would touch the letters.
+- **Row 0:** the IR's file name without the folder or the `.wav` extension (16 characters). With no SD card or no IRs: `No SD card` or `No IRs on SD`.
+- **Row 0 on AMP:** the amp model's name, with `_` shown as a space (`JCM 800 2203 OD8008 Boosted Amp Gain 5`). A longer name scrolls, as in the lists. `No amps on SD` or `No amp loaded` when there's none. Renders: `02g_home_amp.png`, `02h_home_amp_scrolled.png`.
 - **Rows 2–3:** the tempo now (with the speed trainer, the tempo it has reached), selectable and editable from here. Beside it, the style's short name (at most 9 characters: `metronome`, `offbeat16`, `shuffle` …) or the selected song's, and one box per beat of the bar (up to 7). The beat sounding is filled; all are hollow while stopped, so nothing appears or moves when the drums start. They also count the count-in.
 - Everything else (delay time, mixes, the song's bar, the kit, the meters) is in the menus and on the Meter screen, to keep the home screen readable.
 
@@ -156,20 +158,23 @@ Three items show at a time. A value too long for its row is cut with `~`; the ed
 
 The font is fixed per item, so it never changes while turning (`Menu::bigValue`): numbers are always in the 16x32 font (every value of every item fits, the widest being `-60.0 dB`; a test checks them all), and names (Style, Kit, Song: `Unit::kName`) always in 8x16, wrapped onto two rows at a space when longer than 16 characters.
 
-### IR list
+### IR list and amp list
 
-Opened by pushing the IR block, or from Menu → IR.
+The IR list opens from the IR block or Menu → IR; the amp list (the models in `/AMP`) from the AMP block or Menu → Amp → Model.
 
 ```
-┌────────────────┐
-│IR          3/12│
-│01 Greenback    │
-│02 V30 Room     │
-│03 V30 SM57 Mes*│  cursor row inverted, * = loaded
-└────────────────┘
+┌────────────────┐     ┌────────────────┐
+│IR          3/12│     │AMP          7/8│
+│01 Greenback    │     │06 OD800~ain 39 │
+│02 V30 Room     │     │07 OD8008 Boost*│  cursor row inverted, * = loaded
+│03 V30 SM57 Mes*│     │08 OD800~Gain 7 │
+└────────────────┘     └────────────────┘
 ```
 
-The last entry is `Rescan SD card`. It opens on the loaded IR. Push loads the IR under the cursor and the list stays open, so IRs can be compared one after the other. Long names scroll sideways while selected.
+- The last entry is `Rescan SD card`. A list opens on the loaded file. Push loads the one under the cursor and the list stays open, so IRs or models can be compared one after the other.
+- **Long names:** the cursor row scrolls sideways; the other rows keep both ends with a `~` between, since names often differ only at the end (`… Gain 5`).
+- **Words every name shares are left out** of the rows (`JCM 800 2203` for a set of captures of one amp), so the rows show what differs. Home row 0 shows the whole name.
+- Loading a model takes about 0.9 s (the screen waits); an IR about 15 ms. Render: `23_amp_list.png`.
 
 ### Status (Menu → Status)
 
@@ -215,6 +220,11 @@ Every setting is one row of the parameter table (`lib/oledui/src/ParamDefs.cpp`)
 
 | Menu | Item | Range / step | Serial |
 |---|---|---|---|
+| **Amp** | On | toggle | `amp` |
+| | Model | the model list (push = load) | `amp list`, `amp <n>` |
+| | Input | −24 to +24 dB, 0.5 | `amp in` |
+| | Output | −24 to +24 dB, 0.5 | `amp out` |
+| | Calibrate | toggle | `amp cal` |
 | **IR** | file list (push = load) | — | `l`, `<n>` |
 | | Rescan SD card | action | `r` |
 | **Delay** | On | toggle | `dl` |

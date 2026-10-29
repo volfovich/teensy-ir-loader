@@ -17,6 +17,7 @@ static constexpr uint8_t kAlways = kNoItem;
 #define SETTING_IF(id, cond) {nullptr, K::kSetting, id, 0, cond}
 
 static const MenuItem kTop[] = {
+    {"Amp", K::kSubmenu, kAmpOn, kPageAmp, kAlways},
     {"IR", K::kScreen, kScreenIR, 0, kAlways},
     {"Delay", K::kSubmenu, kDelayOn, kPageDelay, kAlways},
     {"Reverb", K::kSubmenu, kReverbOn, kPageReverb, kAlways},
@@ -68,6 +69,12 @@ static const MenuItem kTrainerItems[] = {
     SETTING(kTrainerOn), SETTING(kTrainerStep), SETTING(kTrainerEvery), SETTING(kTrainerTarget),
 };
 
+// The amp block (NAM.md): on/off first; Model opens the list of /AMP.
+static const MenuItem kAmpItems[] = {
+    SETTING(kAmpOn), {"Model", K::kScreen, kScreenAmp, 0, kAlways}, SETTING(kAmpIn), SETTING(kAmpOut),
+    SETTING(kAmpCal),
+};
+
 // The bass playing with the drums: on/off first, so it is one push away.
 // The key is the styles' (songs have their own).
 static const MenuItem kBassItems[] = {
@@ -87,7 +94,9 @@ static const MenuPage kPages[] = {
     PAGE("DRUMS", kDrumItems),
     PAGE("TRAINER", kTrainerItems),
     PAGE("BASS", kBassItems),
+    PAGE("AMP", kAmpItems),
 };
+static_assert(sizeof(kPages) / sizeof(kPages[0]) == kPageCount, "a page per MenuPageId");
 #undef PAGE
 
 const MenuPage* menuPages() { return kPages; }

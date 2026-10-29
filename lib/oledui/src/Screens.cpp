@@ -16,6 +16,65 @@ void irDisplayName(const char* path, char* out, int n) {
   out[len] = 0;
 }
 
+void ampDisplayName(const char* path, char* out, int n) {
+  irDisplayName(path, out, n);
+  for (char* p = out; *p; p++)
+    if (*p == '_') *p = ' ';
+}
+
+int fileCount(const UiModel& m, FileList list) { return list == FileList::kAmp ? m.ampCount : m.irCount; }
+int fileCurrent(const UiModel& m, FileList list) { return list == FileList::kAmp ? m.ampCurrent : m.irCurrent; }
+
+void fileName(const UiModel& m, FileList list, int i, char* out, int n) {
+  const char* (*path)(int) = list == FileList::kAmp ? m.ampPath : m.irPath;
+  if (!path) out[0] = 0;
+  else if (list == FileList::kAmp) ampDisplayName(path(i), out, n);
+  else irDisplayName(path(i), out, n);
+}
+
+// The length of the whole words (up to and including a space) that every
+// name in the list starts with; 0 for fewer than two names.
+static int commonPrefix(const UiModel& m, FileList list) {
+  const int count = fileCount(m, list);
+  if (count < 2) return 0;
+  char first[64], other[64];
+  fileName(m, list, 0, first, sizeof(first));
+  int len = (int)strlen(first);
+  for (int i = 1; i < count && len > 0; i++) {
+    fileName(m, list, i, other, sizeof(other));
+    int k = 0;
+    while (k < len && first[k] && first[k] == other[k]) k++;
+    len = k;
+  }
+  while (len > 0 && first[len - 1] != ' ') len--;  // whole words only
+  return len;
+}
+
+void listName(const UiModel& m, FileList list, int i, char* out, int n) {
+  char name[64];
+  fileName(m, list, i, name, sizeof(name));
+  const int skip = commonPrefix(m, list);
+  snprintf(out, n, "%s", name[skip] ? name + skip : name);
+}
+
+void homeName(const UiModel& m, int block, char* out, int n) {
+  char name[64];
+  if (block == kBlockAmp) {
+    if (!m.sdOk) snprintf(out, n, "%s", "No SD card");
+    else if (m.ampCount == 0) snprintf(out, n, "%s", "No amps on SD");
+    else if (m.ampCurrent < 0 || !m.ampPath) snprintf(out, n, "%s", "No amp loaded");
+    else fileName(m, FileList::kAmp, m.ampCurrent, out, n);
+    return;
+  }
+  if (!m.sdOk) snprintf(out, n, "%s", "No SD card");
+  else if (m.irCount == 0) snprintf(out, n, "%s", "No IRs on SD");
+  else if (m.irCurrent < 0 || !m.irPath) snprintf(out, n, "%s", "No IR loaded");
+  else {
+    fileName(m, FileList::kIR, m.irCurrent, name, sizeof(name));
+    snprintf(out, n, m.bypass ? "BYPASS %s" : "%s", name);
+  }
+}
+
 static void titleBar(Canvas& c, const char* left, const char* right) {
   c.clearPages(0, Canvas::kRowPages - 1);
   c.text(Canvas::kLeft, 0, left);
@@ -34,42 +93,45 @@ void drawSplash(Canvas& c, const UiModel& m) {
   c.textCenter(5, buf);
 }
 
-// Home row 1: the blocks in signal order, IR > DLY > REV, then the drums
-// mixed in after them. A block is a box around its label, filled when on.
+// Home row 1: the blocks in signal order, AMP > IR > DLY > REV, then the
+// drums mixed in after them. A block is its label in a box, filled when on;
+// when off, only the box's top and bottom lines (its sides would touch the
+// letters: five blocks leave one pixel each side).
 struct HomeBlockPos { const char* label; int x, w; };
 static constexpr int kBlockY = 16, kBlockH = 13, kCursorY = 30;
 static constexpr int kHomeColumnX = 54;  // the style and the beat boxes (9 characters)
+static constexpr HomeBlockPos kBlocks[kBlockTempo] = {
+    {"AMP", 0, 25}, {"IR", 28, 17}, {"DLY", 48, 25}, {"REV", 76, 25}, {"DRM", 103, 25},
+};
 
-void drawHome(Canvas& c, const UiModel& m, int block, bool editingTempo) {
+void drawHome(Canvas& c, const UiModel& m, int block, bool editingTempo, int marquee) {
   char buf[40], name[64];
   c.clear();
 
-  // Row 0: the IR.
-  if (!m.sdOk) snprintf(buf, sizeof(buf), "%s", "No SD card");
-  else if (m.irCount == 0) snprintf(buf, sizeof(buf), "%s", "No IRs on SD");
-  else if (m.irCurrent < 0 || !m.irPath) snprintf(buf, sizeof(buf), "%s", "No IR loaded");
-  else {
-    irDisplayName(m.irPath(m.irCurrent), name, sizeof(name));
-    snprintf(buf, sizeof(buf), m.bypass ? "BYPASS %s" : "%s", name);
-  }
+  // Row 0: the IR, or the amp model with the cursor on AMP.
+  homeName(m, block, name, sizeof(name));
+  const int len = (int)strlen(name);
+  int off = block == kBlockAmp ? marquee : 0;
+  if (off > len - kHomeNameChars) off = len - kHomeNameChars > 0 ? len - kHomeNameChars : 0;
+  snprintf(buf, sizeof(buf), "%.*s", kHomeNameChars, name + off);
   c.text(Canvas::kLeft, 0, buf);
 
   // Row 1: the blocks, the cursor under one.
-  const HomeBlockPos blocks[kBlockTempo] = {
-      {"IR", 0, 22},
-      {"DLY", 27, 30},
-      {"REV", 62, 30},
-      {"DRM", 97, 30},
-  };
-  const bool on[kBlockTempo] = {!m.bypass, m.delayOn, m.reverbOn, m.drumsPlaying};
+  const HomeBlockPos* blocks = kBlocks;
+  const bool on[kBlockTempo] = {m.ampOn, !m.bypass, m.delayOn, m.reverbOn, m.drumsPlaying};
   for (int i = 0; i < kBlockTempo; i++) {
     const HomeBlockPos& b = blocks[i];
-    c.text(b.x + (b.w - Canvas::width(b.label)) / 2, 2, b.label);
+    // Centered by the ink: a glyph's last column is blank.
+    c.text(b.x + (b.w - Canvas::width(b.label) + 1) / 2, 2, b.label);
     // The font's blank rows above and below the capitals are inside the
     // box; clear what the glyph cells put outside it.
     c.fill(b.x, kBlockY + kBlockH, b.w, 32 - kBlockY - kBlockH, false);
-    if (on[i]) c.invert(b.x, kBlockY, b.w, kBlockH);
-    else c.frame(b.x, kBlockY, b.w, kBlockH);
+    if (on[i]) {
+      c.invert(b.x, kBlockY, b.w, kBlockH);
+    } else {
+      c.hline(b.x, b.x + b.w - 1, kBlockY);
+      c.hline(b.x, b.x + b.w - 1, kBlockY + kBlockH - 1);
+    }
   }
   if (block >= 0 && block < kBlockTempo) c.fill(blocks[block].x, kCursorY, blocks[block].w, 2, true);
 
@@ -90,27 +152,37 @@ void drawHome(Canvas& c, const UiModel& m, int block, bool editingTempo) {
   }
 }
 
-void drawIrBrowser(Canvas& c, const UiModel& m, int cursor, int top, int marquee) {
+void drawFileList(Canvas& c, const UiModel& m, FileList list, int cursor, int top, int marquee) {
   char buf[40], name[64];
   c.clear();
-  if (m.irCurrent >= 0) snprintf(buf, sizeof(buf), "%d/%d", m.irCurrent + 1, m.irCount);
-  else snprintf(buf, sizeof(buf), "-/%d", m.irCount);
-  titleBar(c, "IR", buf);
+  const int count = fileCount(m, list), current = fileCurrent(m, list);
+  if (current >= 0) snprintf(buf, sizeof(buf), "%d/%d", current + 1, count);
+  else snprintf(buf, sizeof(buf), "-/%d", count);
+  titleBar(c, list == FileList::kAmp ? "AMP" : "IR", buf);
+  const int skip = commonPrefix(m, list);
   for (int row = 0; row < kIrBrowserRows; row++) {
     const int n = top + row, page = (row + 1) * Canvas::kRowPages;
-    if (n > m.irCount) break;
-    if (n == m.irCount) {
+    if (n > count) break;
+    if (n == count) {
       c.text(Canvas::kLeft, page, "Rescan SD card");
     } else {
-      irDisplayName(m.irPath ? m.irPath(n) : "", name, sizeof(name));
-      // "NN " then as much of the name as fits before the loaded mark.
+      fileName(m, list, n, name, sizeof(name));
+      if (name[skip]) memmove(name, name + skip, strlen(name + skip) + 1);
+      // "NN " then the name, as much as fits before the loaded mark: the
+      // cursor row scrolls it (marquee); the others keep both ends, joined
+      // by '~', since names often differ only at the end ("... Gain 5").
       const int room = kIrBrowserNameChars;
       const int len = (int)strlen(name);
-      int off = n == cursor ? marquee : 0;
-      if (off > len - room) off = len - room > 0 ? len - room : 0;
-      snprintf(buf, sizeof(buf), "%02d %.*s", n + 1, room, name + off);
+      if (n == cursor || len <= room) {
+        int off = n == cursor ? marquee : 0;
+        if (off > len - room) off = len - room > 0 ? len - room : 0;
+        snprintf(buf, sizeof(buf), "%02d %.*s", n + 1, room, name + off);
+      } else {
+        const int tail = room / 2, head = room - 1 - tail;
+        snprintf(buf, sizeof(buf), "%02d %.*s~%s", n + 1, head, name, name + len - tail);
+      }
       c.text(Canvas::kLeft, page, buf);
-      if (n == m.irCurrent) c.textRight(Canvas::kW, page, "*");
+      if (n == current) c.textRight(Canvas::kW, page, "*");
     }
     if (n == cursor) c.invertRow(page);
   }

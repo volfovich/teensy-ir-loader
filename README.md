@@ -42,7 +42,7 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► amp ──────�
   - A plucked-string bass playing along: the songs' bass lines, the bass part of MIDI files, and a line for each style in a key you choose.
   - Mixed into the outputs in stereo after the effects, with their own volumes, so the drums and bass never go through your guitar effects.
 - **Remembers settings:** the last IR and amp model, your levels and the amp, delay, reverb and drum settings are stored in EEPROM.
-- **Controls:** a 0.96" OLED with a rotary encoder and two keys (every setting, the IR list, a level meter and a status page; see [DISPLAY.md](DISPLAY.md)), and USB serial commands. Both work at the same time.
+- **Controls:** a 0.96" OLED with a rotary encoder and two keys (every setting, the IR and amp model lists, a level meter and a status page; see [DISPLAY.md](DISPLAY.md)), and USB serial commands. Both work at the same time.
 
 ## Hardware
 
@@ -255,7 +255,6 @@ The tests check:
 
 ## Ideas for next steps
 
-- **Amp block on the panel:** an AMP block on the home screen and an Amp page (NAM.md, milestone M5).
 - **Tone controls:** low-cut, high-cut and a presence biquad after the convolver.
 - **Two-IR blending:** the engine already evaluates two IRs during crossfades.
 - **USB audio:** build with `-D USB_MIDI_AUDIO_SERIAL` and add `AudioOutputUSB` to record directly into a computer (verify it with your chosen block size).

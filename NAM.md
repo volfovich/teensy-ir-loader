@@ -1,6 +1,6 @@
 # Amp block (NAM A2): plan
 
-**Status (2026-10-29): M0 to M4 done: the amp block works over serial** (`amp`, `amp list`, `amp <n>`, see [Serial commands](#serial-commands)), measured on the Teensy at 33 % CPU ([M4 results](#m4-results)). Still to do: the panel (M5). This is the research and the build plan for an amp block that plays [Neural Amp Modeler](https://www.neuralampmodeler.com/) **A2** profiles (`.nam` files) on the Teensy 4.0.
+**Status (2026-10-29): M0 to M5 done: the amp block works over serial and on the panel** (`amp`, `amp list`, `amp <n>`, see [Serial commands](#serial-commands)), measured on the Teensy at 33 % CPU ([M4 results](#m4-results)), with its own home block and menu page ([Panel](#panel-m5)). This is the research and the build plan for an amp block that plays [Neural Amp Modeler](https://www.neuralampmodeler.com/) **A2** profiles (`.nam` files) on the Teensy 4.0.
 
 ```
 shield LINE IN (L) ──► AMP (NAM A2-Lite) ──► IR (cab) ──► delay ──► reverb ──► LINE OUT L/R + headphones
@@ -202,7 +202,7 @@ An A2 file is about 670 KB of JSON (NeuralAmpModelerCore's example), most of it 
 
 ## Step 4: the firmware
 
-**Built** (except the panel, M5).
+**Built.**
 
 **Files**
 
@@ -268,9 +268,13 @@ Measured on 2026-10-29 with the user's eight captures of a JCM800 2203, plain an
 
 ### Panel (M5)
 
-- The home blocks become **AMP › IR › DLY › REV › DRM**. Push opens the model list, hold switches the amp on/off.
-- An **Amp** page in the menu: On, Model (the list; push loads, as in the IR list), In, Out, Cal.
-- Renders for `screenshots/` from `render_ui`, and DISPLAY.md's menu tree.
+**Built** (2026-10-29; details in [DISPLAY.md](DISPLAY.md#home)):
+
+- The home blocks are **AMP › IR › DLY › REV › DRM**. Push on AMP opens the model list, hold switches the amp on/off. Five blocks fit with a pixel to spare each side of the letters, so an off block shows only its box's top and bottom lines.
+- **Row 0** shows the model's name while the cursor is on AMP (`_` as spaces), scrolling when it's long; elsewhere the IR's, as before.
+- **The model list** works like the IR list (push loads, the list stays, the last row rescans). It leaves out the words every name shares, and rows off the cursor keep both ends of a long name: `06 OD800~ain 39`.
+- **The Amp page**, first in the menu: On, Model (`7/8`, opens the list), Input, Output, Calibrate.
+- Tested in `test_ui` (the AMP block, the list, the page, the names), with renders `02g`, `02h`, `23`–`25` in `screenshots/`.
 
 ## Input level and calibration
 
@@ -323,7 +327,7 @@ The worst case is close to the limit. Ways to buy room, in order:
 | **M2** | [Step 2](#step-2-the-a2-lite-engine): the engine. | **Done** ([results](#m2-and-m3-results)). |
 | **M3** | [Step 3](#step-3-reading-nam-files): the loader and `namtool`. | **Done** on the PC ([results](#m2-and-m3-results)); a TONE3000 capture and the load time on the device come with M4. |
 | **M4** | [Step 4](#step-4-the-firmware): serial and settings. | **Done** ([results](#m4-results)). |
-| **M5** | The panel. | Home block, Amp page, renders. |
+| **M5** | The panel. | **Done** ([Panel](#panel-m5)). |
 | **M6** | Docs. | README (features, hardware, commands, budgets), DISPLAY.md (menu tree, RAM1 table), this file rewritten from a plan into a description. |
 
 ## Tests

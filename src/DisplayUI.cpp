@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <Audio.h>
 
+#include "AmpLibrary.h"
 #include "AudioGraph.h"
 #include "Canvas.h"
 #include "Controls.h"
@@ -55,9 +56,11 @@ class FirmwareHost final : public ui::MenuHost {
 void FirmwareHost::set(uint8_t id, int v) {
   switch (id) {
     case ui::kIrLoad: loadIRIndex(v); break;
+    case ui::kAmpLoad: loadAmpIndex(v); break;
     case ui::kIrRescan:
       scanCard();
       loadStartupIR();
+      loadStartupAmp();
       break;
     case ui::kMeterReset:
       g_model.in.reset();
@@ -69,13 +72,18 @@ void FirmwareHost::set(uint8_t id, int v) {
   }
 }
 
-// Names the table can't know (styles, kits, songs), and the IR screen's row.
+// Names the table can't know (styles, kits, songs), and the IR and amp rows.
 bool FirmwareHost::valueText(uint8_t id, char* buf, int n) {
   switch (id) {
     case ui::kScreenIR:
       if (!irSdOk()) snprintf(buf, n, "no SD");
       else if (irCurrent() < 0) snprintf(buf, n, "-/%d", irCount());
       else snprintf(buf, n, "%d/%d", irCurrent() + 1, irCount());
+      return true;
+    case ui::kScreenAmp:
+      if (!irSdOk()) snprintf(buf, n, "no SD");
+      else if (ampCurrent() < 0) snprintf(buf, n, "-/%d", ampCount());
+      else snprintf(buf, n, "%d/%d", ampCurrent() + 1, ampCount());
       return true;
     case ui::kDrumStyle:
     case ui::kDrumKit:
@@ -103,7 +111,11 @@ static void fillModel(uint32_t now) {
   m.irCount = irCount();
   m.irCurrent = irCurrent();
   m.irPath = irPath;
+  m.ampCount = ampCount();
+  m.ampCurrent = ampCurrent();
+  m.ampPath = ampPath;
 
+  m.ampOn = getParam(ui::kAmpOn);
   m.bypass = getParam(ui::kBypass);
   m.delayOn = getParam(ui::kDelayOn);
   m.reverbOn = getParam(ui::kReverbOn);
