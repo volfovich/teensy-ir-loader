@@ -117,6 +117,7 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `drum vol 0..100` | Drum volume |
 | `drum count [0-4]` | Count-in bars (0 = off; alone: the next), also played at each trainer tempo step |
 | `drum train [step every target]` | Toggle / set the speed trainer (+step BPM every `every` bars, up to `target`) |
+| `train step 1..20` / `train every 1..16` / `train target 40..240` | Set one trainer setting, on or off |
 | `bass [on\|off]` | The bass with the drums on/off (alone toggles) |
 | `bass vol 0..100` / `bass tone 0..100` | Bass volume; brightness (0 = dark, 100 = bright) |
 | `bass key C..B` | The styles' key (`E`, `F#`, `Bb` …); songs keep their own notes |
@@ -191,7 +192,7 @@ src/DrumSongs.{h,cpp}       drum songs: the built-in ones and MIDI files in /DRU
 src/Settings.{h,cpp}        the settings saved in EEPROM
 src/SerialUI.{h,cpp}        serial commands and level meter
 src/Controls.{h,cpp}        the panel's encoder (interrupt-driven) and keys
-src/Oled.{h,cpp}            minimal SH1106 / SSD1306 driver on the codec's I2C bus
+src/Oled.{h,cpp}            minimal SH1106 / SSD1306 driver on its own I2C bus (Wire1)
 src/DisplayUI.{h,cpp}       the OLED panel: settings and model for lib/oledui, sending changed pages
 src/AudioConvolverIR.h      Teensy Audio Library object (IR, gain, bypass, delay, reverb, meters, CPU stats)
 lib/irdsp/src/              portable DSP core (no Arduino dependencies)

@@ -77,7 +77,7 @@ Playing is never saved, so the drums are always stopped after power-up. Everythi
 `s` shows the drums' state and settings, the current tempo (which rises with the trainer), the bar number and the drums' share of the CPU, for example:
 
 ```
-Drums:     playing blues shuffle, 105 BPM, bar 9, kit rock, crash every 4 bars, vol 60%, count-in 2 bars, trainer +5 every 4 bars to 140
+Drums:     playing blues shuffle, 105 BPM, bar 9, kit rock, crash 4 bars, volume 60%, comp 40%, count-in 2 bars, trainer +5 BPM every 4 bars to 140, bass in E, volume 70%
 ```
 
 **On the OLED**, the menu has a **Drums** page:

@@ -109,6 +109,10 @@ Short presses act on release, so a short press and a hold on the same button can
 
 All text is in the Spleen 8x16 font: 16 characters x 4 rows of 16 px. Big numbers (the tempo, the value being edited) are in Spleen 16x32. The mockups are character grids; `screenshots/` has the real screens, rendered from the UI code (`make -C test/host screenshots`).
 
+### Splash
+
+`IR LOADER` and a rule while `setup()` runs, then the IR count (`12 IRs on SD`, or `No SD card`) once the card has been read. It stays up 1.5 s; see [DisplayUI](#displayui). Renders: `01_splash_boot.png`, `01_splash.png`.
+
 ### Home
 
 ```
@@ -232,6 +236,7 @@ Every setting is one row of the parameter table (`lib/oledui/src/ParamDefs.cpp`)
 | | Era | 0–100 %, 1 | `rera` |
 | | Gate (gated) | 100–600 ms, 10 | `rgate` |
 | **Drums** | Play | toggle | `drum` |
+| | Bass | page (shows ON/OFF) | |
 | | Style | 1–8, shown by name | `drum style` |
 | | Song | off or 1–n, shown by name | `drum song` |
 | | Loop from / Loop to (with a song) | off or 1–bars / 1–bars | `drum loop` |
@@ -242,12 +247,11 @@ Every setting is one row of the parameter table (`lib/oledui/src/ParamDefs.cpp`)
 | | Comp | 0–100 %, 1 | `drum comp` |
 | | Count-in | push steps off / 1 / 2 / 3 / 4 bars | `drum count` |
 | | Trainer | page (shows ON/OFF) | |
-| | Bass (after Play) | page (shows ON/OFF) | |
 | **Drums > Bass** | On | toggle | `bass` |
 | | Volume / Tone | 0–100 %, 1 | `bass vol` / `bass tone` |
 | | Key | C..B, shown by name | `bass key` |
 | **Drums > Trainer** | On | toggle | `drum train` |
-| | Step / Every / Target | 1–20 BPM / 1–16 bars / 40–240 BPM | `drum train s e t` |
+| | Step / Every / Target | 1–20 BPM / 1–16 bars / 40–240 BPM | `train step` / `train every` / `train target`, or all three: `drum train s e t` |
 | **Levels** | Output gain | −60 to +24 dB, 0.5 | `g` |
 | | Line-in sens | 0–15 | `in` |
 | | Line-out | 13–31 (13 = loudest) | `out` |
@@ -280,7 +284,9 @@ src/main.cpp            controlsBegin()/displayBegin() in setup(); service calls
 
 ```cpp
 // OLED + encoder module (see DISPLAY.md). OLED_I2C_ADDR -1 disables the display.
-#define OLED_I2C_ADDR 0x3C
+#define OLED_WIRE Wire1          // Wire to share the codec's bus (pins 18/19)
+#define OLED_I2C_HZ 1000000      // 400000 if the picture glitches (the SH1106 is rated for 400 kHz)
+#define OLED_I2C_ADDR 0x3C       // 0x3D on some modules (tried too)
 #define OLED_SH1106 1            // 1 = SH1106 (1.3" modules), 0 = SSD1306 (0.96")
 #define OLED_COL_OFFSET 0        // SH1106: first visible RAM column (2 on many modules, 0 on ours)
 #define ENC_A_PIN 2
@@ -351,7 +357,7 @@ void setup() {
   loadSettings();
   displayBegin();      // the splash at once (the display's own bus)
   audioBegin();        // codec, effects, the saved settings
-  Serial.begin(115200);  // no waiting for a monitor
+  // no Serial.begin(): it waits up to 2 s for a serial monitor
   ...                  // SD scan, startup IR, drum song
   displayBootDone();   // the splash shows the IR count
 }

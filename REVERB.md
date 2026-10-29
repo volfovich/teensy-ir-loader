@@ -35,7 +35,7 @@ Every control is a serial command and a row on the panel's Reverb page, which sh
 `s` prints the reverb's state and settings, and its share of the CPU, for example:
 
 ```
-Reverb:    on, hall, mix 25%, size 50%, tone 50%, pre 40 ms, era 40%, mod 40%
+Reverb:    on, mode hall, mix 25%, size 50%, tone 50%, pre-delay 40ms, era 40%, mod 40%
 ```
 
 Each mode ignores the other's setting (Mod, Gate), but keeps its value for when you switch back.
