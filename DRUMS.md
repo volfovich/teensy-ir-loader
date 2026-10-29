@@ -29,7 +29,7 @@ A small drum machine to practice along with. It plays one of eight built-in one-
 - [Adding a kit](#adding-a-kit)
 - [Drum bus](#drum-bus)
 - [Timing, levels, CPU and memory](#timing-levels-cpu-and-memory)
-- [Defaults (`config.h`)](#defaults-configh)
+- [Defaults](#defaults)
 - [Code and tests](#code-and-tests)
 - [Ideas for later](#ideas-for-later)
 
@@ -62,12 +62,13 @@ Playing is never saved, so the drums are always stopped after power-up. Everythi
 | `drum loop <a> <b>` / `drum loop off` | bars | off | Loops bars a–b of the song, from the next bar line. |
 | `drum kit` | — | — | Lists the kits; `>` marks the current one. |
 | `drum kit <n\|name>` | 1–2 or a name | rock | Changes the kit at once. Hits still ringing fade out over 5 ms. |
-| `drum crash <0\|2\|4\|8\|16>` | off, 2, 4, 8, 16 bars | 4 | A crash on beat 1 of every N bars (see [Crash accents](#crash-accents)). `drum crash` alone shows the setting. |
+| `drum crash <0\|2\|4\|8\|16>` | off, 2, 4, 8, 16 bars | 4 | A crash on beat 1 of every N bars (see [Crash accents](#crash-accents)). `drum crash` alone steps to the next. |
 | `drum vol` | 0–100 | 60 | Drum volume: 100 = 0 dB, 60 ≈ −8 dB, 0 = silent. |
 | `drum comp` | 0–100 | 40 | Drum-bus compression: 0 = natural, 100 = squashed (see [Drum bus](#drum-bus)). `drum comp` alone shows it. |
-| `drum count [0-4]` | off, 1–4 bars | 2 bars | Bars of count-in clicks before the groove starts, and after every speed-trainer tempo step. `drum count` alone toggles between off and 2 bars. |
+| `drum count [0-4]` | off, 1–4 bars | 2 bars | Bars of count-in clicks before the groove starts, and after every speed-trainer tempo step. `drum count` alone steps to the next (off, 1 … 4, off). |
 | `drum train` | toggle | off | Speed trainer on/off. |
 | `drum train <step> <every> <target>` | 1–20 BPM, 1–16 bars, 40–240 BPM | 5, 4, 140 | Turns the trainer on with these settings. |
+| `train step` / `train every` / `train target` | as above | 5, 4, 140 | Sets one of them, on or off. |
 | `bass` / `bass on` / `bass off` | toggle | on | The bass with the drums (see [Bass](#bass)). |
 | `bass vol` | 0–100 | 70 | Bass volume, on the drum volume's curve (100 = 0 dB). |
 | `bass key <C..B>` | a note name: `E`, `F#`, `Bb` … | E | The styles' key. Songs keep their own notes. |
@@ -504,25 +505,9 @@ The compressor settings are fixed voicing (constants in `DrumMachine.cpp`), like
   - The bass's real-time code is about 1 KB of RAM1; the drum machine's once-per-hit work (starting a hit, a bar line, a bass note) runs from flash to make room for it.
   - Flash: the rock kit's samples (613 KB), the built-in songs (about 9 KB), setup, the MIDI reader, and the style and kit tables.
 
-## Defaults (`config.h`)
+## Defaults
 
-| Define | Default | Meaning |
-|---|---|---|
-| `DEFAULT_DRUM_STYLE` | 2 | Style number, 1-based (2 = rock) |
-| `DEFAULT_DRUM_TEMPO` | 100 | BPM |
-| `DEFAULT_DRUM_VOLUME` | 60 | 0–100 |
-| `DEFAULT_DRUM_COUNT_IN` | 2 | Count-in bars (0 = off, up to 4) |
-| `DEFAULT_DRUM_KIT` | 2 | Kit number, 1-based (1 = synth, 2 = rock) |
-| `DEFAULT_DRUM_CRASH` | 4 | Crash every 4 bars (0 = off, or 2, 4, 8, 16) |
-| `DEFAULT_DRUM_COMP` | 40 | Drum-bus compression, 0 = natural .. 100 |
-| `DEFAULT_TRAINER_ON` | 0 | Trainer off |
-| `DEFAULT_TRAINER_STEP` / `_EVERY` / `_TARGET` | 5 / 4 / 140 | +5 BPM every 4 bars, up to 140 BPM |
-| `DEFAULT_BASS_ON` | 1 | Bass on |
-| `DEFAULT_BASS_VOLUME` | 70 | 0–100 |
-| `DEFAULT_BASS_KEY` | 4 | The styles' key, 0 = C .. 11 = B (4 = E) |
-| `DEFAULT_BASS_TONE` | 50 | 0 = dark .. 100 = bright |
-
-These are used when the EEPROM is blank, and when settings saved by older firmware are upgraded (the kit and crash settings arrived with `"IRL6"`, the bass with `"IRLB"`).
+The defaults a blank EEPROM starts with are the `def` column of the parameter table, `lib/oledui/src/ParamDefs.cpp`: style rock, 100 BPM, volume 60, count-in 2 bars, kit rock, a crash every 4 bars, compression 40, trainer off (+5 BPM every 4 bars, up to 140), bass on, volume 70, key E, tone 50. A setting that firmware before it didn't store (or an invalid one) gets its default without resetting the others.
 
 ## Code and tests
 
@@ -540,7 +525,7 @@ These are used when the EEPROM is blank, and when settings saved by older firmwa
 | `src/DrumSongs.{h,cpp}` | The song list (built-in + `/DRUMS`), loading from the SD card, selecting, the loop. |
 | `tools/import_kit.py`, `tools/make_kits.py`, `tools/pio_kits.py` | Build a kit's WAVs from its sources; compile the kits in (run by PlatformIO and the host Makefile). |
 | `src/AudioConvolverIR.h` | Runs the drums each block and adds them to both outputs. |
-| `src/AudioGraph.cpp`, `src/SerialUI.cpp`, `src/Settings.cpp` | Setters, the `drum` and `bpm` commands, EEPROM. |
+| `src/Params.cpp`, `src/SerialUI.cpp`, `src/Settings.cpp` | What each drum setting does, the `drum` and `bpm` commands, EEPROM. |
 | `lib/oledui/src/Menu.cpp`, `Screens.cpp` | The Drums menu page and the home-screen row. |
 
 `make -C test/host test` runs `test_drums`, `test_bass` and `test_midi`. They check:

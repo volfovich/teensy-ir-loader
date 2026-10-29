@@ -139,7 +139,7 @@ For dotted eighths at another tempo, use `dtime` = 45000 / BPM. For the classic 
 | `lib/irdsp/src/irdsp_blocks.h` | Shared building blocks: Hermite read, biquad lowpass, shelving filter, LFO, mix law. |
 | `lib/irdsp/src/FxStage.h`, `FxSlot.h` | On/off with trails, dry/wet mix, idle detection and clearing. |
 | `src/AudioConvolverIR.h` | Runs the delay stage each block. |
-| `src/AudioGraph.cpp`, `src/SerialUI.cpp`, `src/Settings.cpp` | Setters, serial commands, EEPROM. |
+| `lib/oledui/src/ParamDefs.cpp`, `src/Params.cpp` | The delay's settings: ranges and defaults, and what each one does. |
 | `test/host/test_studio_delay.cpp`, `test_fxstage.cpp` | PC tests. |
 
 Run the tests on a PC with `make -C test/host test`.

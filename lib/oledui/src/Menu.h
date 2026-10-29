@@ -17,67 +17,47 @@
 #include <stdint.h>
 
 #include "Canvas.h"
+#include "ParamDefs.h"
 
 namespace ui {
 
+// What a menu row can name: a setting (Param, 0 .. kValueCount-1), or one of
+// these.
 enum ItemId : uint8_t {
-  kNoItem = 0,
-  // Settings.
-  kDelayOn, kDelayMix, kDelayTime, kDelayRepeats, kDelayTone, kDelayMod,
-  kDelayDuck, kDelayDrive, kDelayEra,
-  kReverbOn, kReverbMix, kReverbSize, kReverbTone,
-  kReverbMode,   // 0 hall, 1 gated
-  kReverbPreDelay, kReverbMod, kReverbEra, kReverbGate,
-  kOutGain,  // half-dB steps
-  kLineIn, kLineOut, kHeadphones,
-  kBypass,
-  kDrumsPlay, kDrumStyle, kDrumKit,
-  kDrumSong,                 // 0 = off (the style), else 1-based
-  kDrumLoopFrom, kDrumLoopTo,  // bars of the song; from 0 = no loop
-  kDrumCrash,  // 0 off, 1..4 = every 2, 4, 8, 16 bars
-  kDrumTempo, kDrumVolume, kDrumComp, kDrumCountIn,
-  kTrainerOn, kTrainerStep, kTrainerEvery, kTrainerTarget,
-  kBassOn, kBassVolume,
-  kBassKey,   // the styles' key, 0 = C .. 11 = B
-  kBassTone,
   // Read-only, for visibility.
-  kIsReverbHall,   // 1 when the reverb is the hall
-  kIsReverbGated,  // 1 when it is the gated reverb
-  kIsDrumSong,     // 1 when a drum song is selected
+  kIsReverbHall = kValueCount,  // 1 when the reverb is the hall
+  kIsReverbGated,               // 1 when it is the gated reverb
+  kIsDrumSong,                  // 1 when a drum song is selected
   // Screens opened from the menu (their row shows MenuHost::valueText).
   kScreenIR, kScreenMeter, kScreenStatus,
   // Actions of the panel's screens, sent with MenuHost::set.
   kIrLoad,      // load IR number `value` (0-based)
   kIrRescan,    // rescan the SD card
   kMeterReset,  // reset the clip counter and the peak holds
+  kNoItem = 0xFF,
 };
 
 // The pages of menuPages().
 enum MenuPageId : uint8_t { kPageTop, kPageDelay, kPageReverb, kPageLevels, kPageDrums, kPageTrainer, kPageBass };
 
 enum class Kind : uint8_t {
+  kSetting,  // a Param: a toggle flips on push, a choice steps through its
+             // names, a value opens the editor (min..max in steps); see editOf
   kSubmenu,  // push enters page `sub`; shows `id` (if any) as ON/OFF
-  kToggle,   // push flips 0/1
-  kChoice,   // push steps through `choices`
-  kValue,    // push starts editing min..max in `step`s
   kScreen,   // push asks the caller to open screen `id`
 };
 
-enum class Unit : uint8_t {
-  kNone, kPercent, kMs, kHalfDb, kBpm, kBars,
-  kName,  // an index shown by name (MenuHost::valueText); the number from 1 without one
+struct MenuItem {
+  const char* label;  // nullptr: the setting's label
+  Kind kind;
+  uint8_t id;         // Param or ItemId
+  uint8_t sub;        // kSubmenu: page index
+  uint8_t visibleIf;  // ItemId that must read nonzero; kNoItem = always
 };
 
-struct MenuItem {
-  const char* label;
-  Kind kind;
-  uint8_t id;         // ItemId
-  uint8_t sub;        // kSubmenu: page index
-  int16_t min, max, step;
-  Unit unit;
-  uint8_t visibleIf;  // ItemId that must read nonzero; kNoItem = always
-  const char* const* choices;  // kChoice: max + 1 names (list, editor)
-};
+// How a setting row behaves on push.
+enum class Edit : uint8_t { kToggle, kChoice, kValue };
+Edit editOf(const ParamDef& d);
 
 struct MenuPage {
   const char* title;
@@ -103,10 +83,6 @@ class MenuHost {
   ~MenuHost() = default;
 };
 
-// Formats v in an item's unit: compact for lists ("380ms"), spaced for the
-// editor ("380 ms").
-void formatValue(const MenuItem& it, int v, bool spaced, char* buf, int n);
-
 class Menu {
  public:
   enum Result : uint8_t {
@@ -130,7 +106,7 @@ class Menu {
   bool editing() const { return editing_; }
   // The editor's font is fixed per item, so it never changes while turning:
   // the 16x32 font for numbers (every one fits), 8x16 for names.
-  static bool bigValue(const MenuItem& it) { return it.unit != Unit::kName; }
+  static bool bigValue(const MenuItem& it) { return paramDef(it.id).unit != Unit::kName; }
   uint8_t screen() const { return screen_; }
   void draw(Canvas& c);
 
@@ -143,6 +119,7 @@ class Menu {
   int visibleCount();
   const MenuItem* visibleItem(int n);  // n-th visible item of the page
   bool visible(const MenuItem& it);
+  static const char* label(const MenuItem& it) { return it.label ? it.label : paramDef(it.id).label; }
   void range(const MenuItem& it, int* lo, int* hi);
   void drawList(Canvas& c);
   void drawEditor(Canvas& c);

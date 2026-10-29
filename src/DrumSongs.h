@@ -23,7 +23,8 @@ int findDrumSongIndex(const char* s);
 // Selects song n (0 = off, the style plays). Loads an SD file first; stops
 // the drums while it does and starts them again (with the count-in) if they
 // were playing. The tempo becomes the song's (unless keepTempo, used when
-// restoring the saved song at startup). Saved in the settings.
+// restoring the saved song at startup). False (and no song) if it fails.
+// Use setParam(ui::kDrumSong, n), which also saves it.
 bool selectDrumSong(int n, bool keepTempo = false);
 // Loop bars first..last (1-based) of the song; 0 = the whole song.
 void setDrumLoop(int first, int last);

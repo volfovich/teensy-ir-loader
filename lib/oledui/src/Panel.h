@@ -48,8 +48,6 @@ class Panel {
   // The whole screen.
   void draw(Canvas& c, const UiModel& m);
 
-  static constexpr int kTempoMin = 40, kTempoMax = 240;  // setDrumTempo's range
-
   Screen screen() const { return screen_; }
   bool tempoEditing() const { return tempoEdit_; }
   int block() const { return block_; }

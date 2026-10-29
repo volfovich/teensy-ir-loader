@@ -233,9 +233,9 @@ static void testDrumsPage() {
   m.push();
   m.push();
   char b2[16];
-  ui::formatValue(*m.current(), h.v[ui::kDrumCountIn], false, b2, sizeof(b2));
+  ui::formatValue(ui::paramDef(m.current()->id), h.v[ui::kDrumCountIn], false, b2, sizeof(b2));
   check(h.v[ui::kDrumCountIn] == 0 && !std::strcmp(b2, "off"), "  ... 4 bars, then off", h.v[ui::kDrumCountIn]);
-  const ui::MenuItem bars{"e", ui::Kind::kValue, ui::kTrainerEvery, 0, 1, 16, 1, ui::Unit::kBars, 0, nullptr};
+  const ui::ParamDef& bars = ui::paramDef(ui::kTrainerEvery);
   char b[16], b1[16];
   ui::formatValue(bars, 4, false, b, sizeof(b));
   ui::formatValue(bars, 1, false, b1, sizeof(b1));
@@ -244,8 +244,8 @@ static void testDrumsPage() {
 
 static void testFormat() {
   std::printf("Value formatting\n");
-  const ui::MenuItem gain{"g", ui::Kind::kValue, ui::kOutGain, 0, -120, 48, 1, ui::Unit::kHalfDb, 0, nullptr};
-  const ui::MenuItem time{"t", ui::Kind::kValue, ui::kDelayTime, 0, 20, 750, 5, ui::Unit::kMs, 0, nullptr};
+  const ui::ParamDef& gain = ui::paramDef(ui::kOutGain);
+  const ui::ParamDef& time = ui::paramDef(ui::kDelayTime);
   char b[32];
   bool ok = true;
   ui::formatValue(gain, -12, false, b, sizeof(b)); ok = ok && !std::strcmp(b, "-6.0dB");
@@ -254,9 +254,43 @@ static void testFormat() {
   ui::formatValue(gain, 0, false, b, sizeof(b)); ok = ok && !std::strcmp(b, "0.0dB");
   ui::formatValue(time, 380, true, b, sizeof(b)); ok = ok && !std::strcmp(b, "380 ms");
   check(ok, "half dB and ms (-6.0dB, +3.5 dB, -0.5dB, 0.0dB, 380 ms)", ok);
+  ui::formatValue(ui::paramDef(ui::kBassKey), 6, true, b, sizeof(b));
+  check(!std::strcmp(b, "F#"), "a name from the table's choices (key 6: F#)", 0);
   char n[32];
   ui::irDisplayName("/IR/OH Mdrn-Prog.wav", n, sizeof(n));
   check(!std::strcmp(n, "OH Mdrn-Prog"), "IR name without folder and .wav", 0);
+}
+
+// The parameter table: defaults in range, serial keys unique, and typed
+// values parsed per unit.
+static void testParams() {
+  std::printf("Parameter table\n");
+  bool inRange = true, unique = true;
+  for (int i = 0; i < ui::kValueCount; i++) {
+    const ui::ParamDef& d = ui::paramDef(i);
+    inRange = inRange && d.min <= d.def && d.def <= d.max && d.step > 0 && d.name && d.label;
+    for (int j = 0; j < i; j++)
+      if (d.key && ui::paramDef(j).key && !std::strcmp(d.key, ui::paramDef(j).key)) unique = false;
+  }
+  check(inRange, "every default within its range", inRange);
+  check(unique, "serial keys unique", unique);
+  int v = -99;
+  bool ok = true;
+  ok = ok && ui::parseValue(ui::paramDef(ui::kDelayOn), "on", &v) && v == 1;
+  ok = ok && ui::parseValue(ui::paramDef(ui::kDelayOn), "OFF", &v) && v == 0;
+  ok = ok && ui::parseValue(ui::paramDef(ui::kDelayTime), "450", &v) && v == 450;
+  ok = ok && !ui::parseValue(ui::paramDef(ui::kDelayTime), "45x", &v);
+  ok = ok && ui::parseValue(ui::paramDef(ui::kOutGain), "-6", &v) && v == -12;
+  ok = ok && ui::parseValue(ui::paramDef(ui::kOutGain), "3.5", &v) && v == 7;
+  check(ok, "on/off, integers, dB in half steps", ok);
+  ok = true;
+  ok = ok && ui::parseValue(ui::paramDef(ui::kReverbMode), "gated", &v) && v == 1;
+  ok = ok && ui::parseValue(ui::paramDef(ui::kReverbMode), "0", &v) && v == 0;
+  ok = ok && ui::parseValue(ui::paramDef(ui::kDrumCrash), "8", &v) && v == 3;    // "8 bars"
+  ok = ok && ui::parseValue(ui::paramDef(ui::kDrumCrash), "0", &v) && v == 0;    // index: off
+  ok = ok && ui::parseValue(ui::paramDef(ui::kDrumCountIn), "2", &v) && v == 2;  // "2 bars"
+  ok = ok && ui::parseValue(ui::paramDef(ui::kBassKey), "f#", &v) && v == 6;
+  check(ok, "choices by name, first word or index (crash 8 -> 8 bars)", ok);
 }
 
 static void testMeter() {
@@ -360,18 +394,19 @@ static void testEditorFonts() {
   for (int pg = 0; pg <= ui::kPageTrainer; pg++) {
     for (int i = 0; i < pages[pg].count; i++) {
       const ui::MenuItem& it = pages[pg].items[i];
-      if (it.kind != ui::Kind::kValue) continue;
+      if (it.kind != ui::Kind::kSetting || ui::editOf(ui::paramDef(it.id)) != ui::Edit::kValue) continue;
       if (!ui::Menu::bigValue(it)) {
-        names = names && (it.id == ui::kDrumStyle || it.id == ui::kDrumKit || it.id == ui::kDrumSong);
+        names = names && (it.id == ui::kDrumStyle || it.id == ui::kDrumKit || it.id == ui::kDrumSong ||
+                          it.id == ui::kBassKey);
         continue;
       }
-      int lo = it.min, hi = it.max;
+      int lo = ui::paramDef(it.id).min, hi = ui::paramDef(it.id).max;
       h.limits(it.id, &lo, &hi);
       for (int v : {lo, hi, 0}) {
         char buf[32];
         if (v < lo || v > hi) continue;
         if (!(it.id == ui::kDrumLoopFrom && v == 0 && h.valueText(it.id, buf, sizeof(buf))))
-          ui::formatValue(it, v, true, buf, sizeof(buf));
+          ui::formatValue(ui::paramDef(it.id), v, true, buf, sizeof(buf));
         if (ui::Canvas::width(buf, ui::Font::kBig) > ui::Canvas::kW) {
           std::printf("    too wide for 16x32: %s\n", buf);
           fits = false;
@@ -412,9 +447,9 @@ static void testPanel() {
         h.v[ui::kDrumTempo]);
   p.push(t);
   p.turn(-500, t + 2000);
-  check(h.v[ui::kDrumTempo] == P::kTempoMin, "  ... clamped at 40 BPM", h.v[ui::kDrumTempo]);
+  check(h.v[ui::kDrumTempo] == 40, "  ... clamped at 40 BPM", h.v[ui::kDrumTempo]);
   p.push(t);
-  check(!p.tempoEditing() && h.v[ui::kDrumTempo] == P::kTempoMin, "  ... push keeps it", h.v[ui::kDrumTempo]);
+  check(!p.tempoEditing() && h.v[ui::kDrumTempo] == 40, "  ... push keeps it", h.v[ui::kDrumTempo]);
   p.push(t);
   check(p.tick(t + P::kTimeoutMs) && !p.tempoEditing(), "  ... 30 s idle ends editing", p.tempoEditing());
   h.v[ui::kDrumTempo] = bpm;
@@ -520,6 +555,7 @@ int main() {
   testDrumsPage();
   testSongRows();
   testFormat();
+  testParams();
   testMeter();
   testCanvas();
   testHome();

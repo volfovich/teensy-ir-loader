@@ -126,7 +126,7 @@ RAM1 holds only the reverb's state and the real-time code. Setup, clearing and t
 | `lib/irdsp/src/Reverb80.h`, `Reverb80.cpp` | The reverb (hall and gated, and the switch between them). Portable C++, no Arduino. The real-time code is in the header; setup, clearing and coefficients are in the .cpp, in flash. |
 | `lib/irdsp/src/FxStage.h`, `FxSlot.h` | On/off with trails, dry/wet mix, idle detection and clearing. |
 | `src/AudioConvolverIR.h` | Runs the reverb stage each block. |
-| `src/AudioGraph.cpp`, `src/SerialUI.cpp`, `src/Settings.cpp` | Setters, the `r*` commands, EEPROM. |
+| `lib/oledui/src/ParamDefs.cpp`, `src/Params.cpp` | The reverb's settings: ranges and defaults, and what each one does. |
 
 `make -C test/host test` runs `test_reverb80`. It checks:
 

@@ -11,7 +11,7 @@ The UI is written and tested on the PC: `lib/oledui` draws every screen and runs
 - **Software:**
   - A small SH1106 / SSD1306 driver of our own, running from flash. It sends only the 128-byte pages that changed.
   - An interrupt-driven encoder.
-  - A table-driven menu that calls the existing setters in `AudioGraph`.
+  - A menu driven by the settings table (`ParamDefs.cpp`), changing settings through the same `setParam()` as the serial commands.
 - **Memory:** the panel's code and fonts run from flash. It costs about 0.8 KB of RAM1 (the encoder interrupt and the core's pin-interrupt code) and 2 KB of RAM2. See [RAM1 strategy](#ram1-strategy).
 
 ## Hardware
@@ -204,54 +204,54 @@ This screen is for setting the input level (the procedure in the README's *Level
 
 ## Menu tree
 
-Every serial command has a place:
+Every setting is one row of the parameter table (`lib/oledui/src/ParamDefs.cpp`), which gives its menu row the label, range, step and unit, and its serial command the key. So every serial command has a place:
 
-| Menu | Item | Range / step | Setter (`AudioGraph.h`) | Serial |
-|---|---|---|---|---|
-| **IR** | file list (push = load) | — | `loadIRIndex` | `l`, `<n>` |
-| | Rescan SD card | action | `scanCard` + `loadStartupIR` | `r` |
-| **Delay** | On | toggle | `setDelayOn` | `dl` |
-| | Mix | 0–100 %, 1 | `setDelayMix` | `dmix` |
-| | Time | 20–750 ms, 5 | `setDelayTimeMs` | `dtime` |
-| | Repeats | 0–100 %, 1 | `setDelayFeedback` | `dfb` |
-| | Tone | 0–100 %, 1 | `setDelayTone` | `dtone` |
-| | Mod | 0–100 %, 1 | `setDelayMod` | `dmod` |
-| | Duck | 0–100 %, 1 | `setDelayDuck` | `dduck` |
-| | Drive | 0–100 %, 1 | `setDelayDrive` | `ddrive` |
-| | Era | 0–100 %, 1 | `setDelayEra` | `dera` |
-| **Reverb** | On | toggle | `setReverbOn` | `rv` |
-| | Mode | choice: hall / gated | `setReverbMode` | `rmode` |
-| | Mix | 0–100 %, 1 | `setReverbMix` | `mix` |
-| | Size | 0–100 %, 1 | `setReverbSize` | `size` |
-| | Tone | 0–100 %, 1 | `setReverbTone` | `tone` |
-| | Pre-delay | 0–150 ms, 1 | `setReverbPreDelay` | `rpre` |
-| | Mod (hall) | 0–100 %, 1 | `setReverbMod` | `rmod` |
-| | Era | 0–100 %, 1 | `setReverbEra` | `rera` |
-| | Gate (gated) | 100–600 ms, 10 | `setReverbGate` | `rgate` |
-| **Drums** | Play | toggle | `setDrumsPlaying` | `drum` |
-| | Style | 1–8, shown by name | `setDrumStyle` | `drum style` |
-| | Song | off or 1–n, shown by name | `selectDrumSong` | `drum song` |
-| | Loop from / Loop to (with a song) | off or 1–bars / 1–bars | `setDrumLoop` | `drum loop` |
-| | Kit | 1–2, shown by name | `setDrumKit` | `drum kit` |
-| | Crash | push steps off / 2 / 4 / 8 / 16 bars | `setDrumCrash` | `drum crash` |
-| | Tempo | 40–240 BPM, 1 | `setDrumTempo` | `bpm` |
-| | Volume | 0–100 %, 1 | `setDrumVolume` | `drum vol` |
-| | Comp | 0–100 %, 1 | `setDrumComp` | `drum comp` |
-| | Count-in | push steps off / 1 / 2 / 3 / 4 bars | `setDrumCountIn` | `drum count` |
-| | Trainer | page (shows ON/OFF) | | |
-| | Bass (after Play) | page (shows ON/OFF) | | |
-| **Drums > Bass** | On | toggle | `setBassOn` | `bass` |
-| | Volume / Tone | 0–100 %, 1 | `setBassVolume` / `setBassTone` | `bass vol` / `bass tone` |
-| | Key | C..B, shown by name | `setBassKey` | `bass key` |
-| **Drums > Trainer** | On | toggle | `setDrumTrainer` | `drum train` |
-| | Step / Every / Target | 1–20 BPM / 1–16 bars / 40–240 BPM | `setDrumTrainer` | `drum train s e t` |
-| **Levels** | Output gain | −60 to +24 dB, 0.5 | `setOutputGainDb` | `g` |
-| | Line-in sens | 0–15 | `setLineInLevel` | `in` |
-| | Line-out | 13–31 (13 = loudest) | `setLineOutLevel` | `out` |
-| | Headphones | 0–100 %, 1 | `setHeadphoneVolume` | `hp` |
-| **Bypass** | toggle | | `setBypass` | `b` |
-| **Meter** | full-screen meter | | — | `m` |
-| **Status** | status page | | — | `s` |
+| Menu | Item | Range / step | Serial |
+|---|---|---|---|
+| **IR** | file list (push = load) | — | `l`, `<n>` |
+| | Rescan SD card | action | `r` |
+| **Delay** | On | toggle | `dl` |
+| | Mix | 0–100 %, 1 | `dmix` |
+| | Time | 20–750 ms, 5 | `dtime` |
+| | Repeats | 0–100 %, 1 | `dfb` |
+| | Tone | 0–100 %, 1 | `dtone` |
+| | Mod | 0–100 %, 1 | `dmod` |
+| | Duck | 0–100 %, 1 | `dduck` |
+| | Drive | 0–100 %, 1 | `ddrive` |
+| | Era | 0–100 %, 1 | `dera` |
+| **Reverb** | On | toggle | `rv` |
+| | Mode | choice: hall / gated | `rmode` |
+| | Mix | 0–100 %, 1 | `mix` |
+| | Size | 0–100 %, 1 | `size` |
+| | Tone | 0–100 %, 1 | `tone` |
+| | Pre-delay | 0–150 ms, 1 | `rpre` |
+| | Mod (hall) | 0–100 %, 1 | `rmod` |
+| | Era | 0–100 %, 1 | `rera` |
+| | Gate (gated) | 100–600 ms, 10 | `rgate` |
+| **Drums** | Play | toggle | `drum` |
+| | Style | 1–8, shown by name | `drum style` |
+| | Song | off or 1–n, shown by name | `drum song` |
+| | Loop from / Loop to (with a song) | off or 1–bars / 1–bars | `drum loop` |
+| | Kit | 1–2, shown by name | `drum kit` |
+| | Crash | push steps off / 2 / 4 / 8 / 16 bars | `drum crash` |
+| | Tempo | 40–240 BPM, 1 | `bpm` |
+| | Volume | 0–100 %, 1 | `drum vol` |
+| | Comp | 0–100 %, 1 | `drum comp` |
+| | Count-in | push steps off / 1 / 2 / 3 / 4 bars | `drum count` |
+| | Trainer | page (shows ON/OFF) | |
+| | Bass (after Play) | page (shows ON/OFF) | |
+| **Drums > Bass** | On | toggle | `bass` |
+| | Volume / Tone | 0–100 %, 1 | `bass vol` / `bass tone` |
+| | Key | C..B, shown by name | `bass key` |
+| **Drums > Trainer** | On | toggle | `drum train` |
+| | Step / Every / Target | 1–20 BPM / 1–16 bars / 40–240 BPM | `drum train s e t` |
+| **Levels** | Output gain | −60 to +24 dB, 0.5 | `g` |
+| | Line-in sens | 0–15 | `in` |
+| | Line-out | 13–31 (13 = loudest) | `out` |
+| | Headphones | 0–100 %, 1 | `hp` |
+| **Bypass** | toggle | | `b` |
+| **Meter** | full-screen meter | | `m` |
+| **Status** | status page | | `s` |
 
 `n` / `p` are covered by the IR list (push on the IR block).
 
@@ -262,11 +262,13 @@ Every serial command has a place:
 ```
 src/Controls.{h,cpp}    replaced Buttons.{h,cpp}: encoder ISR, 3 debounced keys (ui::Key), events
 src/Oled.{h,cpp}        minimal SH1106 / SSD1306 driver: init, send one page
-src/DisplayUI.{h,cpp}   fills the UiModel and implements MenuHost (g_settings + the setters); feeds
+src/DisplayUI.{h,cpp}   fills the UiModel and implements MenuHost (getParam / setParam); feeds
                         the control events to ui::Panel and sends the pages that changed
-lib/oledui/             the UI, Arduino-free (done): Canvas, font, Menu (the table and its engine),
-                        Screens (drawing from a UiModel), Meter, Key, Panel (screens and controls)
-include/config.h        pin/address defines (replace BUTTON_*)
+src/Params.{h,cpp}      reading and changing any setting by number, shared with the serial UI
+lib/oledui/             the UI, Arduino-free: ParamDefs (the settings table), Canvas, font, Menu
+                        (the tree and its engine), Screens (drawing from a UiModel), Meter, Key,
+                        Panel (screens and controls)
+include/config.h        pin/address defines
 src/AudioConvolverIR.h  + display peak pair
 src/main.cpp            controlsBegin()/displayBegin() in setup(); service calls in loop()
 ```
@@ -311,28 +313,30 @@ Why our own driver: see [RAM1 strategy](#ram1-strategy). It is about 70 lines.
 ### DisplayUI
 
 - **Panel:** `ui::Panel` (`lib/oledui/src/Panel.h`) owns which screen is showing and what the controls do on it. `DisplayUI` only passes it the events and calls `draw()` when it returns true. It reads the IR count and the loaded IR from the `UiModel`, and sends everything else through `MenuHost::set`, including its actions (`kIrLoad`, `kIrRescan`, `kMeterReset`).
-- **Beat dots:** the model's beat comes from `DrumMachine::beatPos()`, which `AudioConvolverIR` passes through.
-- **Table-driven menu.** Each item is one row:
+- **Beat dots:** the model's beat comes from `convolver.drums().beatPos()`.
+- **Table-driven settings.** Every setting is one row of `ParamDefs.cpp`:
 
   ```cpp
-  struct MenuItem {
-    const char* label;          // PSTR(): in flash
-    uint8_t kind;               // kSubmenu, kToggle, kValue, kAction, kScreen
-    int16_t min, max, step;
-    int (*get)();               // reads g_settings
-    void (*set)(int);           // calls the AudioGraph setter
-    const char* unit;
+  struct ParamDef {
+    const char* key;    // serial command ("dmix")
+    const char* name;   // in messages and the help ("Delay mix")
+    const char* label;  // the menu row ("Mix")
+    int16_t min, max, def;
+    uint8_t step;       // per detent in the editor
+    Unit unit;          // on/off, %, ms, half-dB, BPM, bars, name
+    const char* const* choices;
   };
   ```
 
-  - The table itself is `PROGMEM`.
-  - Output gain is stored as half-dB steps (`get` returns `lroundf(g * 2)`, `set` calls `setOutputGainDb(v * 0.5f)`), so every item is an `int`.
-- **Setters:** all changes go through the existing setters. They already clamp, apply, and call `scheduleSave()`, which is debounced, so turning the knob doesn't wear the EEPROM.
+  - Every value is an `int16_t`: the output gain is in half-dB steps and the headphone volume in percent.
+  - A menu row is just `{label, kind, id, page, visibleIf}`. A setting's row (`Kind::kSetting`) takes everything else from the table, and how it edits follows from the unit: a toggle flips on push, a choice steps through its names, a value opens the editor.
+  - The ranges that depend on the firmware (the delay's longest time, how many styles, kits, songs and bars) come from `MenuHost::limits`; the names of styles, kits and songs from `MenuHost::valueText`.
+- **Changing a setting:** `setParam()` (`src/Params.cpp`) clamps, applies (one `switch` in `applyParam()` knows what each setting does), and calls `scheduleSave()`, which is debounced, so turning the knob doesn't wear the EEPROM. The serial commands use the same function.
 - **Redraw and send:**
   - The current screen is drawn into the canvas right after any control event, and otherwise every 40 ms (25 Hz), from a model filled fresh each time. The meters take their readings there.
   - A second 1 KB buffer (`DMAMEM`) holds what the OLED shows. `serviceDisplay()` sends **at most one page per call, and only a page whose bytes differ** from it, round-robin so busy rows (the Meter screen's bars) can't starve the others.
   - So a still home screen sends nothing (only the beat row while the drums play), and changes made over serial show on the screen within a frame, with no coupling between the two UIs.
-- **Serial echo:** the setters print a confirmation on Serial at every encoder step, for example `Delay time 385 ms`. That is harmless. If it gets noisy, add a `quiet` flag later.
+- **Serial echo:** `setParam()` prints a confirmation on Serial at every encoder step, for example `Delay time 385ms`. That is harmless. If it gets noisy, add a `quiet` flag later.
 - **Loop budget:** `serviceDisplay()` sends at most one page (about 3.3 ms) per call. Drawing a screen runs from flash and takes much less.
 - **Splash:** shown for 1.5 s at the end of `setup()`, after the SD scan, so it can show the IR count. Input is ignored meanwhile.
 

@@ -1,4 +1,7 @@
-// config.h - all user-tunable settings in one place.
+// config.h - compile-time settings: IR handling, memory sizes, the delay's
+// fixed voicing and the hardware. The settings changeable over USB serial and
+// the panel (levels, delay, reverb, drums, bass), with their ranges and the
+// defaults a blank EEPROM starts with, are in lib/oledui/src/ParamDefs.cpp.
 #pragma once
 
 // ---------------------------------------------------------------------------
@@ -39,37 +42,13 @@
 #define IR_TRIM_TAIL_DB -80.0f
 
 // ---------------------------------------------------------------------------
-// Levels (defaults; changeable over USB serial and saved to EEPROM)
-// ---------------------------------------------------------------------------
-// Output gain applied after the convolution, in dB.
-#define DEFAULT_OUTPUT_GAIN_DB -6.0f
-// SGTL5000 line-in sensitivity: 0 = 3.12 Vpp (least sensitive, best for a
-// hot tube-amp line out) ... 5 = 1.33 Vpp ... 15 = 0.24 Vpp.
-#define DEFAULT_LINE_IN_LEVEL 0
-// SGTL5000 line-out level: 13 = 3.16 Vpp (loudest) ... 29 = 1.29 Vpp ... 31 = 1.16 Vpp.
-#define DEFAULT_LINE_OUT_LEVEL 29
-// Headphone volume 0.0 .. 1.0 (0.8 is already loud).
-#define DEFAULT_HP_VOLUME 0.5f
-
-// ---------------------------------------------------------------------------
 // Delay (between the IR and the reverb): the studio 80s wet/dry/wet dual
 // delay, after the digital racks of the era (see DELAY.md).
 // ---------------------------------------------------------------------------
 // Longest delay time. The two float delay lines need 2 x 4 bytes per sample
-// of delay (750 ms = 265 KB), split between RAM1 and RAM2; with the IR and the
-// reverb that leaves about 40 KB free in RAM1 and 145 KB in RAM2. RAM1 is the
-// limit: every 100 ms takes about 17.6 KB from each. Lower it to free memory.
+// of delay (750 ms = 265 KB), one in RAM1 and one in RAM2: every 100 ms takes
+// about 17.6 KB from each.
 #define DELAY_MAX_MS 750
-// Defaults, changeable over USB serial and saved to EEPROM.
-#define DEFAULT_DELAY_ON 0
-#define DEFAULT_DELAY_MIX 30        // 0 = dry only, 100 = wet only
-#define DEFAULT_DELAY_TIME_MS 380   // 20 .. DELAY_MAX_MS
-#define DEFAULT_DELAY_FEEDBACK 35   // repeats, 0 .. 100
-#define DEFAULT_DELAY_TONE 60       // brightness of the repeats, 100 = no treble loss
-#define DEFAULT_DELAY_MOD 15        // modulation depth (tape-like wobble), 0 .. 100
-#define DEFAULT_DELAY_DUCK 40       // repeats duck while you play (0 = off, 100 = -24 dB)
-#define DEFAULT_DELAY_DRIVE 20      // rack input preamp grit
-#define DEFAULT_DELAY_ERA 40        // 0 = late-80s 16-bit / 16 kHz, 100 = early 10-bit / 6 kHz
 // Fixed voicing.
 #define DELAY80_RIGHT_RATIO 0.75f        // right time = left time x this (0.1 .. 1)
 #define DELAY80_CROSS 0.2f               // share of each side's repeats fed to the other (0 .. 0.5)
@@ -77,47 +56,6 @@
 #define DELAY80_MOD_RATE_HZ 0.8f         // chorus rate of the tail
 #define DELAY80_DUCK_THRESHOLD_DB -36.0f // input level where ducking starts (full 12 dB above)
 #define DELAY80_DUCK_RELEASE_MS 200.0f   // how fast the repeats swell back after you stop
-
-// ---------------------------------------------------------------------------
-// Reverb (after the delay): the 80s studio reverb, a Lexicon-style hall or
-// an AMS-style gated reverb (see REVERB.md).
-// ---------------------------------------------------------------------------
-// Defaults, changeable over USB serial and saved to EEPROM (all 0 .. 100
-// unless noted).
-#define DEFAULT_REVERB_ON 0
-#define DEFAULT_REVERB_MODE 0       // 0 = hall, 1 = gated
-#define DEFAULT_REVERB_PREDELAY 40  // ms, 0 .. 150
-#define DEFAULT_REVERB_MOD 40       // hall: chorus in the tail
-#define DEFAULT_REVERB_ERA 40       // converters, 0 = 16-bit/16 kHz, 100 = 10-bit/6 kHz
-#define DEFAULT_REVERB_GATE 300     // gated: burst length, ms, 100 .. 600
-#define DEFAULT_REVERB_MIX 25   // 0 = dry only, 100 = wet only
-#define DEFAULT_REVERB_SIZE 50  // hall: 0.8 .. 8 s; gated: the burst's shape
-#define DEFAULT_REVERB_TONE 50  // treble in the tail, 100 = brightest
-
-// ---------------------------------------------------------------------------
-// Drum machine (sampled or synthesized kits, mixed into both outputs after
-// the effects; see DRUMS.md). Defaults, changeable over USB serial and saved
-// to EEPROM. The drums always start stopped.
-// ---------------------------------------------------------------------------
-#define DEFAULT_DRUM_STYLE 2        // 1-based: 1 metronome, 2 rock, ... (see `drum style`)
-#define DEFAULT_DRUM_TEMPO 100      // BPM, 40 .. 240
-#define DEFAULT_DRUM_VOLUME 60      // 0 .. 100 (100 = 0 dB)
-#define DEFAULT_DRUM_COUNT_IN 2     // bars of clicks before the groove (0 = off, up to 4);
-                                    // also after each speed-trainer tempo step
-#define DEFAULT_DRUM_KIT 2          // 1-based: 1 synth, 2 rock (see `drum kit`)
-#define DEFAULT_DRUM_CRASH 4        // crash on beat 1 of every 2/4/8/16 bars, 0 = off
-#define DEFAULT_DRUM_COMP 40        // drum-bus parallel compression: 0 = natural, 100 = squashed
-// Speed trainer: +STEP BPM every EVERY bars, up to TARGET.
-#define DEFAULT_TRAINER_ON 0
-#define DEFAULT_TRAINER_STEP 5      // 1 .. 20 BPM
-#define DEFAULT_TRAINER_EVERY 4     // 1 .. 16 bars
-#define DEFAULT_TRAINER_TARGET 140  // 40 .. 240 BPM
-// Bass: a plucked-string bass playing the songs' and styles' bass lines with
-// the drums (see DRUMS.md).
-#define DEFAULT_BASS_ON 1
-#define DEFAULT_BASS_VOLUME 70      // 0 .. 100 (the same curve as the drum volume)
-#define DEFAULT_BASS_KEY 4          // the styles' key: 0 = C .. 11 = B (4 = E; songs have their own)
-#define DEFAULT_BASS_TONE 50        // 0 = dark (flatwound) .. 100 = bright
 
 // ---------------------------------------------------------------------------
 // Hardware

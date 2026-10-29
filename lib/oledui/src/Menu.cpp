@@ -3,210 +3,99 @@
 #include <stdio.h>
 #include <string.h>
 
-
 namespace ui {
 
 // ---- The menu tree (DISPLAY.md, "Menu tree") --------------------------------
-
-#define UI_LABEL(name, text) static const char name[] = text
-UI_LABEL(kMenu, "MENU");
-UI_LABEL(kDelay, "DELAY");
-UI_LABEL(kReverb, "REVERB");
-UI_LABEL(kLevels, "LEVELS");
-UI_LABEL(kDrums, "DRUMS");
-UI_LABEL(kTrainerTitle, "TRAINER");
-UI_LABEL(kBassTitle, "BASS");
-UI_LABEL(kLBass, "Bass");
-UI_LABEL(kLKey, "Key");
-UI_LABEL(kLDrums, "Drums");
-UI_LABEL(kLPlay, "Play");
-UI_LABEL(kLStyle, "Style");
-UI_LABEL(kLKit, "Kit");
-UI_LABEL(kLSong, "Song");
-UI_LABEL(kLLoopFrom, "Loop from");
-UI_LABEL(kLLoopTo, "Loop to");
-UI_LABEL(kLCrash, "Crash");
-UI_LABEL(kLComp, "Comp");
-UI_LABEL(kLTempo, "Tempo");
-UI_LABEL(kLVolume, "Volume");
-UI_LABEL(kLCountIn, "Count-in");
-UI_LABEL(kLTrainer, "Trainer");
-UI_LABEL(kLStep, "Step");
-UI_LABEL(kLEvery, "Every");
-UI_LABEL(kLTarget, "Target");
-UI_LABEL(kLIr, "IR");
-UI_LABEL(kLDelay, "Delay");
-UI_LABEL(kLReverb, "Reverb");
-UI_LABEL(kLLevels, "Levels");
-UI_LABEL(kLBypass, "Bypass");
-UI_LABEL(kLMeter, "Meter");
-UI_LABEL(kLStatus, "Status");
-UI_LABEL(kLOn, "On");
-UI_LABEL(kLMix, "Mix");
-UI_LABEL(kLTime, "Time");
-UI_LABEL(kLRepeats, "Repeats");
-UI_LABEL(kLTone, "Tone");
-UI_LABEL(kLMod, "Mod");
-UI_LABEL(kLDuck, "Duck");
-UI_LABEL(kLDrive, "Drive");
-UI_LABEL(kLEra, "Era");
-UI_LABEL(kLSize, "Size");
-UI_LABEL(kLMode, "Mode");
-UI_LABEL(kLPreDelay, "Pre-delay");
-UI_LABEL(kLGate, "Gate");
-UI_LABEL(kLGain, "Out gain");
-UI_LABEL(kLLineIn, "Line-in sens");
-UI_LABEL(kLLineOut, "Line-out");
-UI_LABEL(kLPhones, "Headphones");
-UI_LABEL(kCHall, "hall");
-UI_LABEL(kCGated, "gated");
-UI_LABEL(kCOff, "off");
-UI_LABEL(kC2Bars, "2 bars");
-UI_LABEL(kC4Bars, "4 bars");
-UI_LABEL(kC8Bars, "8 bars");
-UI_LABEL(kC16Bars, "16 bars");
-UI_LABEL(kC1Bar, "1 bar");
-UI_LABEL(kC3Bars, "3 bars");
-#undef UI_LABEL
-
-static const char* const kReverbModeNames[] = {kCHall, kCGated};
-static const char* const kCrashNames[] = {kCOff, kC2Bars, kC4Bars, kC8Bars, kC16Bars};
-static const char* const kCountNames[] = {kCOff, kC1Bar, kC2Bars, kC3Bars, kC4Bars};
+//
+// A setting's row takes its label, range, step, unit and names from the
+// parameter table (ParamDefs.cpp); only submenus and screens name themselves.
 
 using K = Kind;
-using U = Unit;
+static constexpr uint8_t kAlways = kNoItem;
+
+#define SETTING(id) {nullptr, K::kSetting, id, 0, kAlways}
+#define SETTING_IF(id, cond) {nullptr, K::kSetting, id, 0, cond}
 
 static const MenuItem kTop[] = {
-    {kLIr, K::kScreen, kScreenIR, 0, 0, 0, 0, U::kNone, kNoItem, nullptr},
-    {kLDelay, K::kSubmenu, kDelayOn, kPageDelay, 0, 0, 0, U::kNone, kNoItem, nullptr},
-    {kLReverb, K::kSubmenu, kReverbOn, kPageReverb, 0, 0, 0, U::kNone, kNoItem, nullptr},
-    {kLDrums, K::kSubmenu, kDrumsPlay, kPageDrums, 0, 0, 0, U::kNone, kNoItem, nullptr},
-    {kLLevels, K::kSubmenu, kNoItem, kPageLevels, 0, 0, 0, U::kNone, kNoItem, nullptr},
-    {kLBypass, K::kToggle, kBypass, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
-    {kLMeter, K::kScreen, kScreenMeter, 0, 0, 0, 0, U::kNone, kNoItem, nullptr},
-    {kLStatus, K::kScreen, kScreenStatus, 0, 0, 0, 0, U::kNone, kNoItem, nullptr},
+    {"IR", K::kScreen, kScreenIR, 0, kAlways},
+    {"Delay", K::kSubmenu, kDelayOn, kPageDelay, kAlways},
+    {"Reverb", K::kSubmenu, kReverbOn, kPageReverb, kAlways},
+    {"Drums", K::kSubmenu, kDrumsPlay, kPageDrums, kAlways},
+    {"Levels", K::kSubmenu, kNoItem, kPageLevels, kAlways},
+    SETTING(kBypass),
+    {"Meter", K::kScreen, kScreenMeter, 0, kAlways},
+    {"Status", K::kScreen, kScreenStatus, 0, kAlways},
 };
 
 static const MenuItem kDelayItems[] = {
-    {kLOn, K::kToggle, kDelayOn, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
-    {kLMix, K::kValue, kDelayMix, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
-    {kLTime, K::kValue, kDelayTime, 0, 20, 750, 5, U::kMs, kNoItem, nullptr},
-    {kLRepeats, K::kValue, kDelayRepeats, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
-    {kLTone, K::kValue, kDelayTone, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
-    {kLMod, K::kValue, kDelayMod, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
-    {kLDuck, K::kValue, kDelayDuck, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
-    {kLDrive, K::kValue, kDelayDrive, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
-    {kLEra, K::kValue, kDelayEra, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
+    SETTING(kDelayOn), SETTING(kDelayMix), SETTING(kDelayTime), SETTING(kDelayRepeats), SETTING(kDelayTone),
+    SETTING(kDelayMod), SETTING(kDelayDuck), SETTING(kDelayDrive), SETTING(kDelayEra),
 };
 
-// Mode: hall or gated; Mod shows for the hall, Gate for the gated mode.
+// Mod shows for the hall, Gate for the gated mode.
 static const MenuItem kReverbItems[] = {
-    {kLOn, K::kToggle, kReverbOn, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
-    {kLMode, K::kChoice, kReverbMode, 0, 0, 1, 1, U::kNone, kNoItem, kReverbModeNames},
-    {kLMix, K::kValue, kReverbMix, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
-    {kLSize, K::kValue, kReverbSize, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
-    {kLTone, K::kValue, kReverbTone, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
-    {kLPreDelay, K::kValue, kReverbPreDelay, 0, 0, 150, 1, U::kMs, kNoItem, nullptr},
-    {kLMod, K::kValue, kReverbMod, 0, 0, 100, 1, U::kPercent, kIsReverbHall, nullptr},
-    {kLEra, K::kValue, kReverbEra, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
-    {kLGate, K::kValue, kReverbGate, 0, 100, 600, 10, U::kMs, kIsReverbGated, nullptr},
+    SETTING(kReverbOn), SETTING(kReverbMode), SETTING(kReverbMix), SETTING(kReverbSize), SETTING(kReverbTone),
+    SETTING(kReverbPreDelay), SETTING_IF(kReverbMod, kIsReverbHall), SETTING(kReverbEra),
+    SETTING_IF(kReverbGate, kIsReverbGated),
 };
 
 static const MenuItem kLevelItems[] = {
-    {kLGain, K::kValue, kOutGain, 0, -120, 48, 1, U::kHalfDb, kNoItem, nullptr},
-    {kLLineIn, K::kValue, kLineIn, 0, 0, 15, 1, U::kNone, kNoItem, nullptr},
-    {kLLineOut, K::kValue, kLineOut, 0, 13, 31, 1, U::kNone, kNoItem, nullptr},
-    {kLPhones, K::kValue, kHeadphones, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
+    SETTING(kOutGain), SETTING(kLineIn), SETTING(kLineOut), SETTING(kHeadphones),
 };
 
 // The style's, kit's and song's range ends come from MenuHost::limits (how
 // many there are), their names from MenuHost::valueText; so do the loop's
 // bars (the song's length; "off" for from = 0).
 static const MenuItem kDrumItems[] = {
-    {kLPlay, K::kToggle, kDrumsPlay, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
-    {kLBass, K::kSubmenu, kBassOn, kPageBass, 0, 0, 0, U::kNone, kNoItem, nullptr},
-    {kLStyle, K::kValue, kDrumStyle, 0, 0, 7, 1, U::kName, kNoItem, nullptr},
-    {kLSong, K::kValue, kDrumSong, 0, 0, 5, 1, U::kName, kNoItem, nullptr},
-    {kLLoopFrom, K::kValue, kDrumLoopFrom, 0, 0, 32, 1, U::kNone, kIsDrumSong, nullptr},
-    {kLLoopTo, K::kValue, kDrumLoopTo, 0, 1, 32, 1, U::kNone, kIsDrumSong, nullptr},
-    {kLKit, K::kValue, kDrumKit, 0, 0, 1, 1, U::kName, kNoItem, nullptr},
-    {kLCrash, K::kChoice, kDrumCrash, 0, 0, 4, 1, U::kNone, kNoItem, kCrashNames},
-    {kLTempo, K::kValue, kDrumTempo, 0, 40, 240, 1, U::kBpm, kNoItem, nullptr},
-    {kLVolume, K::kValue, kDrumVolume, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
-    {kLComp, K::kValue, kDrumComp, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
-    {kLCountIn, K::kChoice, kDrumCountIn, 0, 0, 4, 1, U::kNone, kNoItem, kCountNames},
-    {kLTrainer, K::kSubmenu, kTrainerOn, kPageTrainer, 0, 0, 0, U::kNone, kNoItem, nullptr},
+    SETTING(kDrumsPlay),
+    {"Bass", K::kSubmenu, kBassOn, kPageBass, kAlways},
+    SETTING(kDrumStyle),
+    SETTING(kDrumSong),
+    SETTING_IF(kDrumLoopFrom, kIsDrumSong),
+    SETTING_IF(kDrumLoopTo, kIsDrumSong),
+    SETTING(kDrumKit),
+    SETTING(kDrumCrash),
+    SETTING(kDrumTempo),
+    SETTING(kDrumVolume),
+    SETTING(kDrumComp),
+    SETTING(kDrumCountIn),
+    {"Trainer", K::kSubmenu, kTrainerOn, kPageTrainer, kAlways},
 };
 
 // Speed trainer: all settings on one screen, so they can be set up before
 // switching it on.
 static const MenuItem kTrainerItems[] = {
-    {kLOn, K::kToggle, kTrainerOn, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
-    {kLStep, K::kValue, kTrainerStep, 0, 1, 20, 1, U::kBpm, kNoItem, nullptr},
-    {kLEvery, K::kValue, kTrainerEvery, 0, 1, 16, 1, U::kBars, kNoItem, nullptr},
-    {kLTarget, K::kValue, kTrainerTarget, 0, 40, 240, 1, U::kBpm, kNoItem, nullptr},
+    SETTING(kTrainerOn), SETTING(kTrainerStep), SETTING(kTrainerEvery), SETTING(kTrainerTarget),
 };
 
 // The bass playing with the drums: on/off first, so it is one push away.
-// The key is the styles' (songs have their own); named by MenuHost.
+// The key is the styles' (songs have their own).
 static const MenuItem kBassItems[] = {
-    {kLOn, K::kToggle, kBassOn, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
-    {kLVolume, K::kValue, kBassVolume, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
-    {kLKey, K::kValue, kBassKey, 0, 0, 11, 1, U::kName, kNoItem, nullptr},
-    {kLTone, K::kValue, kBassTone, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
+    SETTING(kBassOn), SETTING(kBassVolume), SETTING(kBassKey), SETTING(kBassTone),
 };
 
-#define UI_PAGE(title, items) {title, items, sizeof(items) / sizeof(items[0])}
+#undef SETTING
+#undef SETTING_IF
+
+#define PAGE(title, items) {title, items, sizeof(items) / sizeof(items[0])}
 // In MenuPageId order.
 static const MenuPage kPages[] = {
-    UI_PAGE(kMenu, kTop),
-    UI_PAGE(kDelay, kDelayItems),
-    UI_PAGE(kReverb, kReverbItems),
-    UI_PAGE(kLevels, kLevelItems),
-    UI_PAGE(kDrums, kDrumItems),
-    UI_PAGE(kTrainerTitle, kTrainerItems),
-    UI_PAGE(kBassTitle, kBassItems),
+    PAGE("MENU", kTop),
+    PAGE("DELAY", kDelayItems),
+    PAGE("REVERB", kReverbItems),
+    PAGE("LEVELS", kLevelItems),
+    PAGE("DRUMS", kDrumItems),
+    PAGE("TRAINER", kTrainerItems),
+    PAGE("BASS", kBassItems),
 };
-#undef UI_PAGE
+#undef PAGE
 
 const MenuPage* menuPages() { return kPages; }
 
-// ---- Formatting ----------------------------------------------------------------
-
-// Half-dB steps as "-6.0", "+3.5", "0.0".
-static void halfDb(int v, char* buf, int n) {
-  const int a = v < 0 ? -v : v;
-  snprintf(buf, n, "%s%d.%d", v < 0 ? "-" : (v > 0 ? "+" : ""),
-           a / 2, (a & 1) * 5);
-}
-
-void formatValue(const MenuItem& it, int v, bool spaced, char* buf, int n) {
-  const char* sp = spaced ? " " : "";
-  switch (it.kind) {
-    case Kind::kToggle:
-    case Kind::kSubmenu:
-      snprintf(buf, n, "%s", v ? "ON" : "OFF");
-      return;
-    case Kind::kChoice:
-      snprintf(buf, n, "%s", (v >= it.min && v <= it.max) ? it.choices[v] : "?");
-      return;
-    default:
-      break;
-  }
-  switch (it.unit) {
-    case Unit::kPercent: snprintf(buf, n, "%d%s%%", v, sp); break;
-    case Unit::kMs: snprintf(buf, n, "%d%sms", v, sp); break;
-    case Unit::kBpm: snprintf(buf, n, "%d BPM", v); break;
-    case Unit::kBars: snprintf(buf, n, "%d bar%s", v, v == 1 ? "" : "s"); break;
-    case Unit::kName: snprintf(buf, n, "%d", v + 1); break;
-    case Unit::kHalfDb: {
-      char num[16];
-      halfDb(v, num, sizeof(num));
-      snprintf(buf, n, "%s%sdB", num, sp);
-      break;
-    }
-    default: snprintf(buf, n, "%d", v); break;
-  }
+Edit editOf(const ParamDef& d) {
+  if (d.unit == Unit::kOnOff) return Edit::kToggle;
+  if (d.choices && d.unit != Unit::kName) return Edit::kChoice;
+  return Edit::kValue;
 }
 
 // ---- Engine --------------------------------------------------------------------
@@ -239,8 +128,9 @@ const MenuItem* Menu::current() {
 }
 
 void Menu::range(const MenuItem& it, int* lo, int* hi) {
-  *lo = it.min;
-  *hi = it.max;
+  const ParamDef& d = paramDef(it.id);
+  *lo = d.min;
+  *hi = d.max;
   host_.limits(it.id, lo, hi);
 }
 
@@ -260,7 +150,7 @@ Menu::Result Menu::turn(int detents, uint32_t now) {
     lastTurnMs_ = now ? now : 1;
     int lo, hi;
     range(*it, &lo, &hi);
-    int v = host_.get(it->id) + detents * it->step * factor;
+    int v = host_.get(it->id) + detents * paramDef(it->id).step * factor;
     v = v < lo ? lo : (v > hi ? hi : v);
     host_.set(it->id, v);
     return kRedraw;
@@ -290,24 +180,28 @@ Menu::Result Menu::push() {
         return kRedraw;
       }
       return kNothing;
-    case Kind::kToggle:
+    case Kind::kScreen:
+      screen_ = it->id;
+      return kOpenScreen;
+    case Kind::kSetting:
+      break;
+  }
+  switch (editOf(paramDef(it->id))) {
+    case Edit::kToggle:
       host_.set(it->id, host_.get(it->id) ? 0 : 1);
       return kRedraw;
-    case Kind::kChoice: {
+    case Edit::kChoice: {
       int lo, hi;
       range(*it, &lo, &hi);
       const int v = host_.get(it->id) + 1;
       host_.set(it->id, v > hi ? lo : v);
       return kRedraw;
     }
-    case Kind::kValue:
+    case Edit::kValue:
       editing_ = true;
       original_ = host_.get(it->id);
       lastTurnMs_ = 0;
       return kRedraw;
-    case Kind::kScreen:
-      screen_ = it->id;
-      return kOpenScreen;
   }
   return kNothing;
 }
@@ -356,19 +250,19 @@ void Menu::drawList(Canvas& c) {
     const MenuItem* it = visibleItem(n);
     if (!it) break;
     const int page = (row + 1) * Canvas::kRowPages;
-    c.text(Canvas::kLeft, page, it->label);
+    c.text(Canvas::kLeft, page, label(*it));
     char val[24] = "";
     if (host_.valueText(it->id, val, sizeof(val))) {
       // named value or screen row
     } else if (it->kind != Kind::kScreen && it->id != kNoItem) {
-      formatValue(*it, host_.get(it->id), false, val, sizeof(val));
+      formatValue(paramDef(it->id), host_.get(it->id), false, val, sizeof(val));
     } else {
       val[0] = 0;
     }
     if (val[0]) {
       // A value too long for the space after the label is cut short with a
       // '~' (the editor shows it in full).
-      const int room = (Canvas::kW - Canvas::kLeft - Canvas::width(it->label) - Canvas::kCharW) / Canvas::kCharW;
+      const int room = (Canvas::kW - Canvas::kLeft - Canvas::width(label(*it)) - Canvas::kCharW) / Canvas::kCharW;
       if (room > 1 && (int)strlen(val) > room) {
         val[room - 1] = '~';
         val[room] = 0;
@@ -407,12 +301,12 @@ void Menu::drawEditor(Canvas& c) {
   c.clear();
   const MenuItem* it = current();
   if (!it) return;
-  titleBar(c, it->label, nullptr);
+  titleBar(c, label(*it), nullptr);
 
   // The value: numbers big, names in the normal font (bigValue).
   char buf[32];
   const int v = host_.get(it->id);
-  if (!host_.valueText(it->id, buf, sizeof(buf))) formatValue(*it, v, true, buf, sizeof(buf));
+  if (!host_.valueText(it->id, buf, sizeof(buf))) formatValue(paramDef(it->id), v, true, buf, sizeof(buf));
   if (bigValue(*it)) c.textCenter(2, buf, Font::kBig);
   else drawName(c, buf);
 

@@ -25,6 +25,7 @@
 #include "DisplayUI.h"
 #include "DrumSongs.h"
 #include "IRLibrary.h"
+#include "Params.h"
 #include "SerialUI.h"
 #include "Settings.h"
 #include "config.h"
@@ -45,7 +46,7 @@ void setup() {
   scanCard();
   loadStartupIR();
   // The drum song saved last time (an SD file may have gone: then none).
-  if (g_settings.drumSong && !selectDrumSong(g_settings.drumSong, true)) selectDrumSong(0);
+  if (getParam(ui::kDrumSong) && !selectDrumSong(getParam(ui::kDrumSong), true)) setParam(ui::kDrumSong, 0);
   printHelp();
   displayBegin();
 }

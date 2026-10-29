@@ -53,8 +53,9 @@ bool Panel::turn(int detents, uint32_t now) {
       if (tempoEdit_) {
         const int factor = (tempoTurnMs_ != 0 && now - tempoTurnMs_ < Menu::kFastMs) ? Menu::kFastFactor : 1;
         tempoTurnMs_ = now ? now : 1;
+        const ParamDef& d = paramDef(kDrumTempo);
         int v = host_.get(kDrumTempo) + detents * factor;
-        v = v < kTempoMin ? kTempoMin : (v > kTempoMax ? kTempoMax : v);
+        v = v < d.min ? d.min : (v > d.max ? d.max : v);
         host_.set(kDrumTempo, v);
         return true;
       }
@@ -78,9 +79,10 @@ bool Panel::turn(int detents, uint32_t now) {
       return true;
     }
     case kMeter: {
-      // The line-in sensitivity, 0..15 (Levels > Line-in sens).
+      // The line-in sensitivity (Levels > Line-in sens).
+      const ParamDef& d = paramDef(kLineIn);
       int v = host_.get(kLineIn) + detents;
-      v = v < 0 ? 0 : (v > 15 ? 15 : v);
+      v = v < d.min ? d.min : (v > d.max ? d.max : v);
       host_.set(kLineIn, v);
       return true;
     }

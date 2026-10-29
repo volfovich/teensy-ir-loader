@@ -6,7 +6,7 @@
 #include "AudioGraph.h"
 #include "IRLibrary.h"
 #include "MidiDrums.h"
-#include "Settings.h"
+#include "Params.h"
 #include "config.h"
 
 static const int kMaxFiles = 64, kNameMax = 48;
@@ -132,7 +132,7 @@ bool selectDrumSong(int n, bool keepTempo) {
   irdsp::DrumMachine& dm = convolver.drums();
   const bool wasPlaying = dm.playing();
   if (wasPlaying) {
-    setDrumsPlaying(false);
+    setParam(ui::kDrumsPlay, 0);
     // Wait for the interrupt to let go of the song before replacing it.
     const uint32_t t0 = millis();
     while (dm.running() && millis() - t0 < 100) delay(1);
@@ -154,17 +154,13 @@ bool selectDrumSong(int n, bool keepTempo) {
   g_loopA = g_loopB = 0;
   dm.setLoop(0, 0);
   dm.setSong(song);
-  if (g_settings.drumSong != n) {
-    g_settings.drumSong = n;
-    scheduleSave();
-  }
   if (song) {
     Serial.printf("Drum song %d: %s, %u bars\n", n, song->title, song->barCount);
-    if (!keepTempo) setDrumTempo(song->bpm);
+    if (!keepTempo) setParam(ui::kDrumTempo, song->bpm);
   } else {
     Serial.println("Drum song off (the style plays)");
   }
-  if (wasPlaying) setDrumsPlaying(true);
+  if (wasPlaying) setParam(ui::kDrumsPlay, 1);
   return true;
 }
 

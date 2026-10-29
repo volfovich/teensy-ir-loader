@@ -58,6 +58,7 @@ SECTIONS
 		*src/IRLibrary.cpp.o(.text*)
 		*src/DrumSongs.cpp.o(.text*)
 		*src/Oled.cpp.o(.text*)
+		*src/Params.cpp.o(.text*)
 		. = ALIGN(4);
 		KEEP(*(.init))
 		__preinit_array_start = .;
@@ -85,6 +86,7 @@ SECTIONS
 		*src/IRLibrary.cpp.o(.rodata*)
 		*src/DrumSongs.cpp.o(.rodata*)
 		*src/Oled.cpp.o(.rodata*)
+		*src/Params.cpp.o(.rodata*)
 		. = ALIGN(4);
 	} > FLASH
 

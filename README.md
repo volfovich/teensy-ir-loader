@@ -89,6 +89,8 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 
 ## Serial commands
 
+`?` prints them all with their current values; the settings' part of that list is generated from the settings table (`lib/oledui/src/ParamDefs.cpp`). A setting's command with no value prints it, flips it (a toggle) or steps to the next choice; `on` / `off` work for every toggle.
+
 | Command | Action |
 |---|---|
 | `l` | List IR files (`>` marks the current one) |
@@ -111,9 +113,9 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `drum song [n\|name\|off]` | List the songs (built-in + `/DRUMS/*.mid`) / play one instead of the style |
 | `drum loop <a> <b>` / `drum loop off` | Loop bars a–b of the song |
 | `drum comp 0..100` | Drum-bus compression: 0 = natural, 100 = squashed |
-| `drum crash 0\|2\|4\|8\|16` | Crash on beat 1 of every N bars, 0 = off |
+| `drum crash 0\|2\|4\|8\|16` | Crash on beat 1 of every N bars, 0 = off (alone: the next) |
 | `drum vol 0..100` | Drum volume |
-| `drum count [0-4]` | Count-in bars (0 = off; alone toggles off / 2), also played at each trainer tempo step |
+| `drum count [0-4]` | Count-in bars (0 = off; alone: the next), also played at each trainer tempo step |
 | `drum train [step every target]` | Toggle / set the speed trainer (+step BPM every `every` bars, up to `target`) |
 | `bass [on\|off]` | The bass with the drums on/off (alone toggles) |
 | `bass vol 0..100` / `bass tone 0..100` | Bass volume; brightness (0 = dark, 100 = bright) |
@@ -134,6 +136,7 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `m` | Live input/output meter |
 | `s` | Status: CPU load (including the delay's and reverb's shares), effect settings, peak levels, clip count, latency |
 | `r` | Rescan the SD card (after swapping cards) |
+| `?` | This list, with the current values |
 
 ## Latency and CPU
 
@@ -178,13 +181,14 @@ The delay and how it works is described in [DELAY.md](DELAY.md), the reverb (hal
 
 ```
 platformio.ini              build settings (block size here)
-include/config.h            all tunable settings (IR length, pins, levels, normalization)
+include/config.h            compile-time settings (IR length, pins, memory sizes, the delay's voicing)
 tools/imxrt1062_cold.ld     linker script: which code stays in flash, out of RAM1
 src/main.cpp                setup() and loop()
-src/AudioGraph.{h,cpp}      audio objects, codec, level, bypass, delay and reverb controls
+src/AudioGraph.{h,cpp}      audio objects and the codec
+src/Params.{h,cpp}          reading and changing any setting by number (what each one does)
 src/IRLibrary.{h,cpp}       SD card scanning and IR loading
 src/DrumSongs.{h,cpp}       drum songs: the built-in ones and MIDI files in /DRUMS
-src/Settings.{h,cpp}        settings saved in EEPROM
+src/Settings.{h,cpp}        the settings saved in EEPROM
 src/SerialUI.{h,cpp}        serial commands and level meter
 src/Controls.{h,cpp}        the panel's encoder (interrupt-driven) and keys
 src/Oled.{h,cpp}            minimal SH1106 / SSD1306 driver on the codec's I2C bus
@@ -202,7 +206,8 @@ lib/irdsp/src/              portable DSP core (no Arduino dependencies)
   irdsp_blocks.h            shared shelving filter, biquad filters, Hermite read, LFO and mix law
   irdsp_fft.h               small radix-2 FFT
   IRLoader.{h,cpp}          WAV parser, resampler, IR trimming and normalization
-lib/oledui/src/             the panel UI, Arduino-free: canvas, fonts, menu tree, screens, meters, keys
+lib/oledui/src/             the panel UI, Arduino-free: the settings table (ParamDefs), canvas, fonts,
+                            menu tree, screens, meters, keys
 fonts/spleen/               the panel's fonts (Spleen, BSD-2-Clause; tools/make_font.py compiles them in)
 kits/rock/                  the recorded drum kit (WAVs, kit.txt, credits, our originals)
 songs/                      the built-in drum songs (text, compiled in)
