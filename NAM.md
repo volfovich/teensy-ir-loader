@@ -1,6 +1,6 @@
 # Amp block (NAM A2): plan
 
-**Status: plan, nothing built yet (2026-10-29).** This is the research and the build plan for an amp block that plays [Neural Amp Modeler](https://www.neuralampmodeler.com/) **A2** profiles (`.nam` files) on the Teensy 4.0.
+**Status (2026-10-29): M0 done.** The A2-Lite engine is built and measured on the Teensy (32.4 % of the CPU at 48 kHz, see [M0 results](#m0-results)); the rest is still a plan. This is the research and the build plan for an amp block that plays [Neural Amp Modeler](https://www.neuralampmodeler.com/) **A2** profiles (`.nam` files) on the Teensy 4.0.
 
 ```
 shield LINE IN (L) ──► AMP (NAM A2-Lite) ──► IR (cab) ──► delay ──► reverb ──► LINE OUT L/R + headphones
@@ -96,7 +96,7 @@ For Lite that is **1,871 floats** (7.5 KB): 72 per 6-tap layer, 153 per 15-tap l
 | History (the dilated taps' memory) | 74 KB | 198 KB |
 
 - **Full is out of reach.** 565 M multiply-adds a second is about a whole 600 MHz Cortex-M7 at one cycle each, before anything else runs.
-- **Lite fits.** TONE3000 quotes it at "50 % CPU on an ARM Cortex M7 600MHz" (the Teensy 4's chip), with general code. Our engine is specialized for this one shape and processes a block at a time, so the goal is **about 20 %** (1.5 cycles per multiply-add). [Milestone M0](#milestones) measures that before anything else is built.
+- **Lite fits.** TONE3000 quotes it at "50 % CPU on an ARM Cortex M7 600MHz" (the Teensy 4's chip), with general code. Our engine is specialized for this one shape and processes a block at a time, so the goal was **about 20 %** (1.5 cycles per multiply-add). [M0](#m0-results) measured **32.4 %** (2.34 cycles): the M7 doesn't overlap the float loads with the arithmetic, so moving the data costs as much as the math.
 - **LeakyReLU is cheap** (a compare and a multiply), unlike A1's tanh.
 
 ## Step 1: the whole system at 48 kHz
@@ -121,30 +121,48 @@ Its own commit, before any NAM code. Everything still sounds the same afterwards
 
 ## Step 2: the A2-Lite engine
 
-`lib/irdsp/src/NamA2.{h,cpp}`: portable C++ with no Arduino, like the rest of `irdsp`, and tested on the PC.
+`lib/irdsp/src/NamA2.h` (built): portable C++ with no Arduino, like the rest of `irdsp`, tested on the PC by `test/host/test_nam.cpp`.
 
 ```cpp
-struct NamA2Weights { /* fixed-size arrays for C = 3, filled by the loader */ };
-
-class NamA2 {
+template <int B> class NamA2 {
  public:
-  void begin(float* history);                // kHistoryFloats, in DTCM
-  void setWeights(const NamA2Weights& w);    // the audio side copies them in
-  void reset();                              // clears the history
-  void process(const float* in, float* out, int n);  // n = the block size
+  static constexpr int kHistoryFloats;     // 22,176 at B = 32 (87 KB)
+  void begin(float* history);              // kHistoryFloats, in DTCM
+  void setWeights(const float* w);         // a .nam file's 1,871 Lite weights, in file order
+  void reset();                            // clears the history
+  void process(const float* in, float* out);  // one block of B samples
 };
 ```
 
 **How it runs**
 
-- **A layer at a time over the whole block**, not a sample at a time through all layers. A layer's weights stay in registers for all 32 frames, and its taps are read as runs of consecutive frames.
-- **Per output channel**, the 18 conv weights of a 6-tap layer (45 for the 15-tap pair) are loaded once into registers. Then the mixin, LeakyReLU, the head sum and the 1x1 residual are done in the same pass.
-- **Templates** on the channel count and the kernel size, fully unrolled. C = 3 is too narrow for any SIMD, so the speed comes from keeping the FPU fed: dual-issued loads from DTCM next to single-cycle multiply-adds.
-- **The history:** one buffer per layer, channel-interleaved, holding the (K−1)·D frames the taps reach back plus some slack. When the write position reaches the end, the last (K−1)·D frames are copied back to the start (NeuralAmpModelerCore's `RingBuffer` does the same). The inner loops never wrap or use a modulo. The slack is tuned on the device: more slack means fewer copies.
-- **The head** keeps its own 15-frame history of the layer sum.
-- **Placement:** the history and the weights in DTCM, the real-time code in ITCM. Setup and clearing are `IRDSP_COLD` (flash). Denormals are already flushed to zero on the Teensy.
+- **A layer at a time over the whole block**, not a sample at a time through all layers. Its taps are read as runs of consecutive frames.
+- **Two taps per pass** over the block: their 18 weights stay in registers, and the running sums `z` are loaded and stored once per pair. The first pass starts from the bias and the mixin.
+- **One more pass** does LeakyReLU, the head sum and the 1x1 residual (18 constants in registers). It writes the next layer's input straight into that layer's history, so nothing is copied between layers.
+- **Fusing more into one pass is slower:** with more than about 20 constants they no longer fit in the 32 float registers and are reloaded every frame (measured: 41 % instead of 32 %).
+- **The history:** a ring buffer per layer, channel-interleaved, as long as the taps reach back plus a block, rounded up to whole blocks. A block is written without wrapping; a tap's run that crosses the end is read in two pieces. So every block costs the same (no copy-back spikes), and the history is 87 KB.
+- **The head** keeps its own 15-frame history of the layer sum and runs two taps per pass.
 
 **Warm-up:** a fresh or cleared network needs its receptive field (132 ms) of input before its output is right. The firmware handles this by keeping the output muted that long after a load ([Step 4](#step-4-the-firmware)).
+
+### M0 results
+
+Measured on 2026-10-29 on the Teensy 4.0 at 600 MHz, 32-sample blocks, random weights (`pio run -e nambench -t upload`; the loop shapes in `test/teensy/nam_micro.cpp`, `-e nammicro`):
+
+| Version | Cycles per block | Cycles per multiply-add | CPU at 48 kHz | Max |
+|---|---|---|---|---|
+| First: one tap per pass, separate activation pass, copied histories | 175,000 | 3.16 | 43.8 % | 49 % |
+| Everything after the taps fused into the last pass | 164,700 | 2.97 | 41.2 % | 47 % |
+| Two taps per pass, lean activation pass, copy-back histories | 130,200 | 2.35 | 32.6 % | 38 % |
+| **Ring buffers (now)** | **129,400** | **2.34** | **32.4 %** | **32.8 %** |
+| The same with the history in OCRAM | 144,400 | 2.61 | 36.1 % | 37.5 % |
+
+What the micro-tests showed about the Cortex-M7:
+- A float multiply-add has a 3-cycle latency and issues every cycle: three independent sums are enough (1.02 cycles each), one alone costs 3.
+- Float loads and stores don't overlap with the arithmetic in these loops: each costs about a cycle. So the floor of this design is about one cycle per float moved plus one per multiply-add.
+- Hand-written assembly with VLDM/VSTM (three floats and the pointer step in one instruction) makes the tap passes 13 % faster (1.78 instead of 2.04 cycles per multiply-add). For the whole engine that would be about 29 %.
+
+**Verdict:** 32.4 % misses the 30 % mark, but the per-block maximum is now steady (32.8 %), and the newer measurements of the rest of the firmware are lower than the plan assumed (see [CPU and memory budget](#cpu-and-memory-budget)). The ways down: assembly for the tap passes (about −3 %), 720 MHz (−17 % of everything), and the IR capped at 2048 samples while the amp is on (about −6 %).
 
 ## Step 3: reading .nam files
 
@@ -231,12 +249,15 @@ in → × input gain → NamA2 → × level (−18 − loudness) → × output l
 
 ## CPU and memory budget
 
-**CPU** (32-sample blocks; estimates until M0 and M1 measure them)
+**CPU** (32-sample blocks; the amp measured in M0; the 48 kHz column estimated, +9 %, until M1)
 
 | | Today (44.1 kHz) | At 48 kHz | + amp |
 |---|---|---|---|
-| Worst case: drums, bass, reverb, delay, an IR switch | 55–58 % | 60–63 % | **80–93 %** |
-| Typical playing | about 30 % | about 33 % | 53–63 % |
+| Worst case: drums, IR switches, delay, reverb (measured 2026-10-29) | 41–47 % | 45–51 % | **78–84 %** |
+| Older worst case: drums and bass at 240 BPM, IR switches (2026-10-28, longer IRs, before the 4096-sample cap) | 55–58 % | 60–63 % | 93–96 % |
+| Typical playing: IR, delay and reverb | about 25 % | about 28 % | about 60 % |
+
+The amp is counted at its measured 32.4 %.
 
 The worst case is close to the limit. Ways to buy room, in order:
 1. **Cap the IR at 2048 samples while the amp is on.** A cab IR has nothing audible after 43 ms. That saves about 6 %.
@@ -247,11 +268,11 @@ The worst case is close to the limit. Ways to buy room, in order:
 
 | | Free today | After 48 kHz | After the amp |
 |---|---|---|---|
-| RAM1 (stack) | 205 KB | about 193 KB | about 85 KB |
+| RAM1 (stack) | 205 KB | about 193 KB | about 98 KB |
 | RAM2 (heap) | 88 KB | about 64 KB | about 50 KB |
 | ITCM | 4 KB left in 2 banks | same | must fit in it |
 
-- **RAM1** takes the history (74 KB plus slack, about 100 KB in total), the weights (7.5 KB) and the per-layer pointers.
+- **RAM1** takes the history (87 KB, measured), the weights (7.5 KB) and the per-layer pointers.
 - **ITCM** has about 4 KB left in its two 32 KB banks. If the engine's code doesn't fit, a third bank takes 32 KB from the stack. Then the fallback is to move the three dilation-239 layers' history (43 KB) to OCRAM, or shorten `DELAY_MAX_MS` from 750 to 600 ms (29 KB from each RAM).
 - **RAM2** takes the file list (6 KB) and the staging weights (7.5 KB).
 - **Flash:** about 20 KB of code and the 55 KB the kit grows.
@@ -260,7 +281,7 @@ The worst case is close to the limit. Ways to buy room, in order:
 
 | | What | Done when |
 |---|---|---|
-| **M0** | Benchmark the engine alone on the Teensy: random A2-Lite weights, the cycle counter, a sketch on its own. | Measured at 48 kHz. **Over 30 %: stop and rethink before going further.** |
+| **M0** | Benchmark the engine alone on the Teensy: random A2-Lite weights, the cycle counter, a sketch on its own. | **Done:** 32.4 % at 48 kHz ([results](#m0-results)). |
 | **M1** | [Step 1](#step-1-the-whole-system-at-48-khz): the whole system at 48 kHz. | Host tests pass, the device checks pass, the CPU and memory tables updated. |
 | **M2** | [Step 2](#step-2-the-a2-lite-engine): the engine. | `test_nam` passes, including the golden test. |
 | **M3** | [Step 3](#step-3-reading-nam-files): the loader and `namtool`. | `test_namfile` passes; real A2 files from TONE3000 load. |
