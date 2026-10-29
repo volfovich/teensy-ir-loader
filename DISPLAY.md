@@ -127,8 +127,8 @@ All text is in the Spleen 8x16 font: 16 characters x 4 rows of 16 px. Big number
 
 ```
 ┌────────────────┐
-│DELAY       4/10│  title, inverted; the cursor's place when the page scrolls
-│Type  studio 80s│
+│DELAY        3/9│  title, inverted; the cursor's place when the page scrolls
+│On            ON│
 │Mix          30%│
 │Time       380ms│  cursor row, inverted
 └────────────────┘
@@ -216,20 +216,18 @@ Every serial command has a place:
 | | Repeats | 0–100 %, 1 | `setDelayFeedback` | `dfb` |
 | | Tone | 0–100 %, 1 | `setDelayTone` | `dtone` |
 | | Mod | 0–100 %, 1 | `setDelayMod` | `dmod` |
-| | Type | ping-pong / studio 80s | `setDelayType` | `dtype` |
-| | Duck | 0–100 %, 1 (studio 80s) | `setDelayDuck` | `dduck` |
-| | Drive | 0–100 %, 1 (studio 80s) | `setDelayDrive` | `ddrive` |
-| | Era | 0–100 %, 1 (studio 80s) | `setDelayEra` | `dera` |
+| | Duck | 0–100 %, 1 | `setDelayDuck` | `dduck` |
+| | Drive | 0–100 %, 1 | `setDelayDrive` | `ddrive` |
+| | Era | 0–100 %, 1 | `setDelayEra` | `dera` |
 | **Reverb** | On | toggle | `setReverbOn` | `rv` |
-| | Type | choice: plate / 80s | `setReverbType` | `rtype` |
-| | Mode (80s) | choice: hall / gated | `setReverbMode` | `rmode` |
+| | Mode | choice: hall / gated | `setReverbMode` | `rmode` |
 | | Mix | 0–100 %, 1 | `setReverbMix` | `mix` |
 | | Size | 0–100 %, 1 | `setReverbSize` | `size` |
 | | Tone | 0–100 %, 1 | `setReverbTone` | `tone` |
-| | Pre-delay (80s) | 0–150 ms, 1 | `setReverbPreDelay` | `rpre` |
-| | Mod (80s hall) | 0–100 %, 1 | `setReverbMod` | `rmod` |
-| | Era (80s) | 0–100 %, 1 | `setReverbEra` | `rera` |
-| | Gate (80s gated) | 100–600 ms, 10 | `setReverbGate` | `rgate` |
+| | Pre-delay | 0–150 ms, 1 | `setReverbPreDelay` | `rpre` |
+| | Mod (hall) | 0–100 %, 1 | `setReverbMod` | `rmod` |
+| | Era | 0–100 %, 1 | `setReverbEra` | `rera` |
+| | Gate (gated) | 100–600 ms, 10 | `setReverbGate` | `rgate` |
 | **Drums** | Play | toggle | `setDrumsPlaying` | `drum` |
 | | Style | 1–8, shown by name | `setDrumStyle` | `drum style` |
 | | Song | off or 1–n, shown by name | `selectDrumSong` | `drum song` |

@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
   menu.draw(c);
   snap("05_menu");
 
-  menu.push(); menu.turn(3, 0);
+  menu.push(); menu.turn(2, 0);  // Time
   menu.draw(c);
   snap("06_menu_delay");
 
@@ -185,9 +185,9 @@ int main(int argc, char** argv) {
   snap("22_edit_bass_key");
   menu.back();
 
-  menu.open(); menu.turn(2, 0); menu.push(); menu.turn(1, 0);  // Reverb > Type (80s hall)
+  menu.open(); menu.turn(2, 0); menu.push(); menu.turn(1, 0);  // Reverb > Mode (hall)
   menu.draw(c);
-  snap("17_menu_reverb_80s");
+  snap("17_menu_reverb_hall");
 
   host.v[ui::kReverbMode] = 1;
   menu.turn(100, 0);  // last row: Gate

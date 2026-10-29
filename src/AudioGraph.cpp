@@ -16,9 +16,8 @@ AudioConnection patchL(convolver, 0, i2sOut, 0);
 AudioConnection patchR(convolver, 1, i2sOut, 1);
 static AudioControlSGTL5000 codec;
 
-// Reverb delay lines live in the 512 KB OCRAM (DMAMEM); the DTCM is mostly
-// taken by the convolver.
-// Shared by both reverb types (only one runs at a time).
+// Reverb lines live in the 512 KB OCRAM (DMAMEM): random access, but moving
+// them to DTCM only saved 0.3 % CPU.
 DMAMEM static float g_reverbMem[AudioConvolverIR::kReverbMemFloats];
 // The two delay lines are too big for either RAM bank alone: one goes in
 // DTCM, the other in OCRAM.
@@ -34,51 +33,60 @@ FLASHMEM static void applyLevels() {
   codec.volume(g_settings.hpVolume);
   convolver.setOutputGainDb(g_settings.outGainDb);
   convolver.setBypass(g_settings.bypass);
-  convolver.setDelayShape(DELAY_BASS_CUT, DELAY_TREBLE, DELAY_BASS, DELAY_MOD_RATE, DELAY_INERTIA);
-  convolver.setDelayTimeMs(g_settings.delayTimeMs);
-  convolver.setDelayFeedback(g_settings.delayFeedback / 100.0f);
-  convolver.setDelayTone(g_settings.delayTone / 100.0f);
-  convolver.setDelayMod(g_settings.delayMod / 100.0f);
-  convolver.setDelayStudioShape(DELAY80_RIGHT_RATIO, DELAY80_CROSS, DELAY80_BASS_CUT,
-                                DELAY80_MOD_RATE_HZ, DELAY80_DUCK_THRESHOLD_DB,
-                                DELAY80_DUCK_RELEASE_MS);
-  convolver.setDelayType(g_settings.delayType);
-  convolver.setDelayDuck(g_settings.delayDuck / 100.0f);
-  convolver.setDelayDrive(g_settings.delayDrive / 100.0f);
-  convolver.setDelayEra(g_settings.delayEra / 100.0f);
+  irdsp::StudioDelay& d = convolver.delay();
+  d.setRightRatio(DELAY80_RIGHT_RATIO);
+  d.setCross(DELAY80_CROSS);
+  d.setBassCut(DELAY80_BASS_CUT);
+  d.setModRate(DELAY80_MOD_RATE_HZ);
+  d.setDuckThresholdDb(DELAY80_DUCK_THRESHOLD_DB);
+  d.setDuckReleaseMs(DELAY80_DUCK_RELEASE_MS);
+  d.setDelaySamples(g_settings.delayTimeMs * (AUDIO_SAMPLE_RATE_EXACT / 1000.0f), true);
+  d.setFeedback(g_settings.delayFeedback / 100.0f);
+  d.setTone(g_settings.delayTone / 100.0f);
+  d.setModDepth(g_settings.delayMod / 100.0f);
+  d.setDuck(g_settings.delayDuck / 100.0f);
+  d.setDrive(g_settings.delayDrive / 100.0f);
+  d.setEra(g_settings.delayEra / 100.0f);
   convolver.setDelayMix(g_settings.delayMix / 100.0f);
   convolver.setDelayOn(g_settings.delayOn);
-  convolver.setReverbShape(REVERB_DIFFUSION, REVERB_LODAMP, REVERB_LOWPASS, REVERB_HIPASS);
-  convolver.setReverbSize(g_settings.reverbSize / 100.0f);
-  convolver.setReverbTone(g_settings.reverbTone / 100.0f);
-  convolver.setReverbType(g_settings.reverbType, g_settings.reverbMode);
-  convolver.setReverbPreDelayMs(g_settings.reverbPreDelay);
-  convolver.setReverbMod(g_settings.reverbMod / 100.0f);
-  convolver.setReverbEra(g_settings.reverbEra / 100.0f);
-  convolver.setReverbGateMs(g_settings.reverbGateMs);
+  irdsp::Reverb80& r = convolver.reverb();
+  r.setSize(g_settings.reverbSize / 100.0f);
+  r.setTone(g_settings.reverbTone / 100.0f);
+  r.setMode(g_settings.reverbMode);
+  r.setPreDelayMs(g_settings.reverbPreDelay);
+  r.setMod(g_settings.reverbMod / 100.0f);
+  r.setEra(g_settings.reverbEra / 100.0f);
+  r.setGateMs(g_settings.reverbGateMs);
   convolver.setReverbMix(g_settings.reverbMix / 100.0f);
   convolver.setReverbOn(g_settings.reverbOn);
-  convolver.setDrumStyle(g_settings.drumStyle);
-  convolver.setDrumTempo(g_settings.drumTempo);
-  convolver.setDrumVolume(g_settings.drumVolume / 100.0f);
-  convolver.setDrumCountIn(g_settings.drumCountIn);
-  convolver.setDrumKit(g_settings.drumKit);
-  convolver.setDrumComp(g_settings.drumComp / 100.0f);
-  convolver.setDrumCrash(g_settings.drumCrash);
-  convolver.setDrumTrainer(g_settings.trainerOn, g_settings.trainerStep, g_settings.trainerEvery,
-                           g_settings.trainerTarget);
-  convolver.setBassOn(g_settings.bassOn);
-  convolver.setBassVolume(g_settings.bassVolume / 100.0f);
-  convolver.setBassKey(g_settings.bassKey);
-  convolver.setBassTone(g_settings.bassTone / 100.0f);
+  irdsp::DrumMachine& dm = convolver.drums();
+  dm.setStyle(g_settings.drumStyle);
+  dm.setTempo(g_settings.drumTempo);
+  dm.setVolume(g_settings.drumVolume / 100.0f);
+  dm.setCountIn(g_settings.drumCountIn);
+  dm.setKit(&irdsp::drumKit(g_settings.drumKit));
+  dm.setBusComp(g_settings.drumComp / 100.0f);
+  dm.setCrashEvery(g_settings.drumCrash);
+  dm.setTrainer(g_settings.trainerOn, g_settings.trainerStep, g_settings.trainerEvery, g_settings.trainerTarget);
+  dm.setBassOn(g_settings.bassOn);
+  dm.setBassVolume(g_settings.bassVolume / 100.0f);
+  dm.setBassKey(g_settings.bassKey);
+  dm.setBassTone(g_settings.bassTone / 100.0f);
+}
+
+FLASHMEM void AudioConvolverIR::begin(float* reverbMem, float* delayA, float* delayB, int delayLen,
+                                      float* bassBuf) {
+  engine_.setFadeLength((int)(AUDIO_SAMPLE_RATE_EXACT * IR_FADE_MS / 1000.0f));
+  __disable_irq();
+  reverb_.fx().init(reverbMem);
+  delay_.fx().init(delayA, delayB, delayLen);
+  __enable_irq();
+  drums_.setBassBuffer(bassBuf);
 }
 
 FLASHMEM void audioBegin() {
   AudioMemory(AUDIO_MEMORY_BLOCKS);
-  convolver.engine().setFadeLength((int)(AUDIO_SAMPLE_RATE_EXACT * IR_FADE_MS / 1000.0f));
-  convolver.beginReverb(g_reverbMem);
-  convolver.beginDelay(g_delayA, g_delayB, kDelayLen);
-  convolver.setBassBuffer(g_bassMem);
+  convolver.begin(g_reverbMem, g_delayA, g_delayB, kDelayLen, g_bassMem);
   codec.enable();
   codec.inputSelect(AUDIO_INPUT_LINEIN);
   applyLevels();
@@ -128,58 +136,49 @@ FLASHMEM void setDelayMix(int percent) {
 
 FLASHMEM void setDelayTimeMs(int ms) {
   g_settings.delayTimeMs = constrain(ms, 20, DELAY_MAX_MS);
-  convolver.setDelayTimeMs(g_settings.delayTimeMs);
+  convolver.delay().setDelaySamples(g_settings.delayTimeMs * (AUDIO_SAMPLE_RATE_EXACT / 1000.0f));
   scheduleSave();
   Serial.printf("Delay time %u ms\n", g_settings.delayTimeMs);
 }
 
 FLASHMEM void setDelayFeedback(int percent) {
   g_settings.delayFeedback = constrain(percent, 0, 100);
-  convolver.setDelayFeedback(g_settings.delayFeedback / 100.0f);
+  convolver.delay().setFeedback(g_settings.delayFeedback / 100.0f);
   scheduleSave();
   Serial.printf("Delay repeats %u%%\n", g_settings.delayFeedback);
 }
 
 FLASHMEM void setDelayTone(int percent) {
   g_settings.delayTone = constrain(percent, 0, 100);
-  convolver.setDelayTone(g_settings.delayTone / 100.0f);
+  convolver.delay().setTone(g_settings.delayTone / 100.0f);
   scheduleSave();
   Serial.printf("Delay tone %u%%\n", g_settings.delayTone);
 }
 
 FLASHMEM void setDelayMod(int percent) {
   g_settings.delayMod = constrain(percent, 0, 100);
-  convolver.setDelayMod(g_settings.delayMod / 100.0f);
+  convolver.delay().setModDepth(g_settings.delayMod / 100.0f);
   scheduleSave();
   Serial.printf("Delay modulation %u%%\n", g_settings.delayMod);
 }
 
-const char* delayTypeName(int type) { return type ? "studio 80s" : "ping-pong"; }
-
-FLASHMEM void setDelayType(int type) {
-  g_settings.delayType = constrain(type, 0, 1);
-  convolver.setDelayType(g_settings.delayType);
-  scheduleSave();
-  Serial.printf("Delay type %s\n", delayTypeName(g_settings.delayType));
-}
-
 FLASHMEM void setDelayDuck(int percent) {
   g_settings.delayDuck = constrain(percent, 0, 100);
-  convolver.setDelayDuck(g_settings.delayDuck / 100.0f);
+  convolver.delay().setDuck(g_settings.delayDuck / 100.0f);
   scheduleSave();
   Serial.printf("Delay ducking %u%%\n", g_settings.delayDuck);
 }
 
 FLASHMEM void setDelayDrive(int percent) {
   g_settings.delayDrive = constrain(percent, 0, 100);
-  convolver.setDelayDrive(g_settings.delayDrive / 100.0f);
+  convolver.delay().setDrive(g_settings.delayDrive / 100.0f);
   scheduleSave();
   Serial.printf("Delay drive %u%%\n", g_settings.delayDrive);
 }
 
 FLASHMEM void setDelayEra(int percent) {
   g_settings.delayEra = constrain(percent, 0, 100);
-  convolver.setDelayEra(g_settings.delayEra / 100.0f);
+  convolver.delay().setEra(g_settings.delayEra / 100.0f);
   scheduleSave();
   Serial.printf("Delay era %u%%\n", g_settings.delayEra);
 }
@@ -200,67 +199,58 @@ FLASHMEM void setReverbMix(int percent) {
 
 FLASHMEM void setReverbSize(int percent) {
   g_settings.reverbSize = constrain(percent, 0, 100);
-  convolver.setReverbSize(g_settings.reverbSize / 100.0f);
+  convolver.reverb().setSize(g_settings.reverbSize / 100.0f);
   scheduleSave();
   Serial.printf("Reverb size %u%%\n", g_settings.reverbSize);
 }
 
 FLASHMEM void setReverbTone(int percent) {
   g_settings.reverbTone = constrain(percent, 0, 100);
-  convolver.setReverbTone(g_settings.reverbTone / 100.0f);
+  convolver.reverb().setTone(g_settings.reverbTone / 100.0f);
   scheduleSave();
   Serial.printf("Reverb tone %u%%\n", g_settings.reverbTone);
 }
 
-const char* reverbTypeName() {
-  return !g_settings.reverbType ? "plate" : (g_settings.reverbMode ? "80s gated" : "80s hall");
-}
-
-FLASHMEM void setReverbType(int type) {
-  g_settings.reverbType = constrain(type, 0, 1);
-  convolver.setReverbType(g_settings.reverbType, g_settings.reverbMode);
-  scheduleSave();
-  Serial.printf("Reverb type %s\n", reverbTypeName());
-}
+const char* reverbModeName() { return g_settings.reverbMode ? "gated" : "hall"; }
 
 FLASHMEM void setReverbMode(int mode) {
   g_settings.reverbMode = constrain(mode, 0, 1);
-  convolver.setReverbType(g_settings.reverbType, g_settings.reverbMode);
+  convolver.reverb().setMode(g_settings.reverbMode);
   scheduleSave();
-  Serial.printf("Reverb 80s mode %s%s\n", g_settings.reverbMode ? "gated" : "hall",
-                g_settings.reverbType ? "" : " (used when the type is 80s)");
+  Serial.printf("Reverb mode %s\n", reverbModeName());
 }
 
 FLASHMEM void setReverbPreDelay(int ms) {
   g_settings.reverbPreDelay = constrain(ms, 0, 150);
-  convolver.setReverbPreDelayMs(g_settings.reverbPreDelay);
+  convolver.reverb().setPreDelayMs(g_settings.reverbPreDelay);
   scheduleSave();
   Serial.printf("Reverb pre-delay %u ms\n", g_settings.reverbPreDelay);
 }
 
 FLASHMEM void setReverbMod(int percent) {
   g_settings.reverbMod = constrain(percent, 0, 100);
-  convolver.setReverbMod(g_settings.reverbMod / 100.0f);
+  convolver.reverb().setMod(g_settings.reverbMod / 100.0f);
   scheduleSave();
   Serial.printf("Reverb modulation %u%%\n", g_settings.reverbMod);
 }
 
 FLASHMEM void setReverbEra(int percent) {
   g_settings.reverbEra = constrain(percent, 0, 100);
-  convolver.setReverbEra(g_settings.reverbEra / 100.0f);
+  convolver.reverb().setEra(g_settings.reverbEra / 100.0f);
   scheduleSave();
   Serial.printf("Reverb era %u%%\n", g_settings.reverbEra);
 }
 
 FLASHMEM void setReverbGate(int ms) {
   g_settings.reverbGateMs = constrain(ms, 100, 600);
-  convolver.setReverbGateMs(g_settings.reverbGateMs);
+  convolver.reverb().setGateMs(g_settings.reverbGateMs);
   scheduleSave();
   Serial.printf("Reverb gate %u ms\n", g_settings.reverbGateMs);
 }
 
 FLASHMEM void setDrumsPlaying(bool on) {
-  convolver.setDrumsPlaying(on);
+  if (on) convolver.drums().start();
+  else convolver.drums().stop();
   if (!on) {
     Serial.println("DRUMS STOP");
     return;
@@ -272,29 +262,29 @@ FLASHMEM void setDrumsPlaying(bool on) {
 
 FLASHMEM void setDrumStyle(int idx) {
   g_settings.drumStyle = constrain(idx, 0, irdsp::drumStyleCount() - 1);
-  convolver.setDrumStyle(g_settings.drumStyle);
+  convolver.drums().setStyle(g_settings.drumStyle);
   scheduleSave();
   Serial.printf("Drum style %s%s\n", irdsp::drumStyle(g_settings.drumStyle).title,
-                convolver.drumsPlaying() ? " (from the next bar)" : "");
+                convolver.drums().playing() ? " (from the next bar)" : "");
 }
 
 FLASHMEM void setDrumTempo(int bpm) {
   g_settings.drumTempo = constrain(bpm, 40, 240);
-  convolver.setDrumTempo(g_settings.drumTempo);
+  convolver.drums().setTempo(g_settings.drumTempo);
   scheduleSave();
   Serial.printf("Tempo %u BPM\n", g_settings.drumTempo);
 }
 
 FLASHMEM void setDrumVolume(int percent) {
   g_settings.drumVolume = constrain(percent, 0, 100);
-  convolver.setDrumVolume(g_settings.drumVolume / 100.0f);
+  convolver.drums().setVolume(g_settings.drumVolume / 100.0f);
   scheduleSave();
   Serial.printf("Drum volume %u%%\n", g_settings.drumVolume);
 }
 
 FLASHMEM void setDrumCountIn(int bars) {
   g_settings.drumCountIn = constrain(bars, 0, 4);
-  convolver.setDrumCountIn(g_settings.drumCountIn);
+  convolver.drums().setCountIn(g_settings.drumCountIn);
   scheduleSave();
   if (g_settings.drumCountIn)
     Serial.printf("Count-in %u bar%s\n", g_settings.drumCountIn, g_settings.drumCountIn == 1 ? "" : "s");
@@ -304,14 +294,14 @@ FLASHMEM void setDrumCountIn(int bars) {
 
 FLASHMEM void setDrumKit(int idx) {
   g_settings.drumKit = constrain(idx, 0, irdsp::drumKitCount() - 1);
-  convolver.setDrumKit(g_settings.drumKit);
+  convolver.drums().setKit(&irdsp::drumKit(g_settings.drumKit));
   scheduleSave();
   Serial.printf("Drum kit %s\n", irdsp::drumKit(g_settings.drumKit).title);
 }
 
 FLASHMEM void setDrumComp(int percent) {
   g_settings.drumComp = constrain(percent, 0, 100);
-  convolver.setDrumComp(g_settings.drumComp / 100.0f);
+  convolver.drums().setBusComp(g_settings.drumComp / 100.0f);
   scheduleSave();
   Serial.printf("Drum compression %u%%\n", g_settings.drumComp);
 }
@@ -319,10 +309,10 @@ FLASHMEM void setDrumComp(int percent) {
 FLASHMEM void setDrumCrash(int bars) {
   // The nearest of off / 2 / 4 / 8 / 16 bars.
   g_settings.drumCrash = bars <= 0 ? 0 : (bars <= 2 ? 2 : (bars <= 5 ? 4 : (bars <= 11 ? 8 : 16)));
-  convolver.setDrumCrash(g_settings.drumCrash);
+  convolver.drums().setCrashEvery(g_settings.drumCrash);
   scheduleSave();
   if (g_settings.drumCrash)
-    Serial.printf("Crash every %u bars%s\n", g_settings.drumCrash, convolver.drumsPlaying() ? " (from the next bar)" : "");
+    Serial.printf("Crash every %u bars%s\n", g_settings.drumCrash, convolver.drums().playing() ? " (from the next bar)" : "");
   else
     Serial.println("Crash accents off");
 }
@@ -332,7 +322,7 @@ FLASHMEM void setDrumTrainer(bool on, int step, int every, int target) {
   g_settings.trainerStep = constrain(step, 1, 20);
   g_settings.trainerEvery = constrain(every, 1, 16);
   g_settings.trainerTarget = constrain(target, 40, 240);
-  convolver.setDrumTrainer(on, g_settings.trainerStep, g_settings.trainerEvery, g_settings.trainerTarget);
+  convolver.drums().setTrainer(on, g_settings.trainerStep, g_settings.trainerEvery, g_settings.trainerTarget);
   scheduleSave();
   if (on)
     Serial.printf("Speed trainer on: +%u BPM every %u bar%s, up to %u BPM\n", g_settings.trainerStep,
@@ -348,28 +338,28 @@ FLASHMEM const char* bassKeyName(int key) {
 
 FLASHMEM void setBassOn(bool on) {
   g_settings.bassOn = on;
-  convolver.setBassOn(on);
+  convolver.drums().setBassOn(on);
   scheduleSave();
   Serial.println(on ? PSTR("BASS ON") : PSTR("BASS OFF"));
 }
 
 FLASHMEM void setBassVolume(int percent) {
   g_settings.bassVolume = constrain(percent, 0, 100);
-  convolver.setBassVolume(g_settings.bassVolume / 100.0f);
+  convolver.drums().setBassVolume(g_settings.bassVolume / 100.0f);
   scheduleSave();
   Serial.printf(PSTR("Bass volume %u%%\n"), g_settings.bassVolume);
 }
 
 FLASHMEM void setBassKey(int key) {
   g_settings.bassKey = ((key % 12) + 12) % 12;
-  convolver.setBassKey(g_settings.bassKey);
+  convolver.drums().setBassKey(g_settings.bassKey);
   scheduleSave();
   Serial.printf(PSTR("Bass key %s (styles; songs keep their own)\n"), bassKeyName(g_settings.bassKey));
 }
 
 FLASHMEM void setBassTone(int percent) {
   g_settings.bassTone = constrain(percent, 0, 100);
-  convolver.setBassTone(g_settings.bassTone / 100.0f);
+  convolver.drums().setBassTone(g_settings.bassTone / 100.0f);
   scheduleSave();
   Serial.printf(PSTR("Bass tone %u%%\n"), g_settings.bassTone);
 }

@@ -42,7 +42,6 @@ UI_LABEL(kLBypass, "Bypass");
 UI_LABEL(kLMeter, "Meter");
 UI_LABEL(kLStatus, "Status");
 UI_LABEL(kLOn, "On");
-UI_LABEL(kLType, "Type");
 UI_LABEL(kLMix, "Mix");
 UI_LABEL(kLTime, "Time");
 UI_LABEL(kLRepeats, "Repeats");
@@ -59,10 +58,6 @@ UI_LABEL(kLGain, "Out gain");
 UI_LABEL(kLLineIn, "Line-in sens");
 UI_LABEL(kLLineOut, "Line-out");
 UI_LABEL(kLPhones, "Headphones");
-UI_LABEL(kCPing, "ping-pong");
-UI_LABEL(kC80s, "studio 80s");
-UI_LABEL(kCPlate, "plate");
-UI_LABEL(kC80sReverb, "80s");
 UI_LABEL(kCHall, "hall");
 UI_LABEL(kCGated, "gated");
 UI_LABEL(kCOff, "off");
@@ -74,8 +69,6 @@ UI_LABEL(kC1Bar, "1 bar");
 UI_LABEL(kC3Bars, "3 bars");
 #undef UI_LABEL
 
-static const char* const kTypeNames[] = {kCPing, kC80s};
-static const char* const kReverbTypeNames[] = {kCPlate, kC80sReverb};
 static const char* const kReverbModeNames[] = {kCHall, kCGated};
 static const char* const kCrashNames[] = {kCOff, kC2Bars, kC4Bars, kC8Bars, kC16Bars};
 static const char* const kCountNames[] = {kCOff, kC1Bar, kC2Bars, kC3Bars, kC4Bars};
@@ -96,29 +89,26 @@ static const MenuItem kTop[] = {
 
 static const MenuItem kDelayItems[] = {
     {kLOn, K::kToggle, kDelayOn, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
-    {kLType, K::kChoice, kDelayType, 0, 0, 1, 1, U::kNone, kNoItem, kTypeNames},
     {kLMix, K::kValue, kDelayMix, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
     {kLTime, K::kValue, kDelayTime, 0, 20, 750, 5, U::kMs, kNoItem, nullptr},
     {kLRepeats, K::kValue, kDelayRepeats, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
     {kLTone, K::kValue, kDelayTone, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
     {kLMod, K::kValue, kDelayMod, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
-    {kLDuck, K::kValue, kDelayDuck, 0, 0, 100, 1, U::kPercent, kIsStudioDelay, nullptr},
-    {kLDrive, K::kValue, kDelayDrive, 0, 0, 100, 1, U::kPercent, kIsStudioDelay, nullptr},
-    {kLEra, K::kValue, kDelayEra, 0, 0, 100, 1, U::kPercent, kIsStudioDelay, nullptr},
+    {kLDuck, K::kValue, kDelayDuck, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
+    {kLDrive, K::kValue, kDelayDrive, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
+    {kLEra, K::kValue, kDelayEra, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
 };
 
-// Type: plate or 80s; the 80s rows show only for the 80s reverb (Mod for
-// the hall, Gate for the gated mode).
+// Mode: hall or gated; Mod shows for the hall, Gate for the gated mode.
 static const MenuItem kReverbItems[] = {
     {kLOn, K::kToggle, kReverbOn, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
-    {kLType, K::kChoice, kReverbType, 0, 0, 1, 1, U::kNone, kNoItem, kReverbTypeNames},
-    {kLMode, K::kChoice, kReverbMode, 0, 0, 1, 1, U::kNone, kIsReverb80, kReverbModeNames},
+    {kLMode, K::kChoice, kReverbMode, 0, 0, 1, 1, U::kNone, kNoItem, kReverbModeNames},
     {kLMix, K::kValue, kReverbMix, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
     {kLSize, K::kValue, kReverbSize, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
     {kLTone, K::kValue, kReverbTone, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
-    {kLPreDelay, K::kValue, kReverbPreDelay, 0, 0, 150, 1, U::kMs, kIsReverb80, nullptr},
+    {kLPreDelay, K::kValue, kReverbPreDelay, 0, 0, 150, 1, U::kMs, kNoItem, nullptr},
     {kLMod, K::kValue, kReverbMod, 0, 0, 100, 1, U::kPercent, kIsReverbHall, nullptr},
-    {kLEra, K::kValue, kReverbEra, 0, 0, 100, 1, U::kPercent, kIsReverb80, nullptr},
+    {kLEra, K::kValue, kReverbEra, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
     {kLGate, K::kValue, kReverbGate, 0, 100, 600, 10, U::kMs, kIsReverbGated, nullptr},
 };
 

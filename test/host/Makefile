@@ -5,13 +5,11 @@ INC = -I../../lib/irdsp/src -I../../lib/oledui/src
 UI_SRC = $(wildcard ../../lib/oledui/src/*.cpp)
 UI_DEPS = $(UI_SRC) $(wildcard ../../lib/oledui/src/*.h) ui_fake.h
 
-all: test_convolver test_reverb test_reverb80 render_reverb80 test_midi test_delay test_studio_delay test_drums render_drums test_bass render_bass test_ui render_ui irtool
+all: test_convolver test_fxstage test_reverb80 render_reverb80 test_midi test_studio_delay test_drums render_drums test_bass render_bass test_ui render_ui irtool
 
 test_convolver: test_convolver.cpp ../../lib/irdsp/src/*.h
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_convolver.cpp
 
-test_reverb: test_reverb.cpp ../../lib/irdsp/src/PlateReverb.h ../../lib/irdsp/src/irdsp_blocks.h
-	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_reverb.cpp
 
 REVERB80_SRC = ../../lib/irdsp/src/Reverb80.cpp
 REVERB80_DEPS = $(REVERB80_SRC) ../../lib/irdsp/src/Reverb80.h ../../lib/irdsp/src/irdsp_blocks.h
@@ -19,8 +17,8 @@ REVERB80_DEPS = $(REVERB80_SRC) ../../lib/irdsp/src/Reverb80.h ../../lib/irdsp/s
 test_reverb80: test_reverb80.cpp $(REVERB80_DEPS)
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_reverb80.cpp $(REVERB80_SRC)
 
-test_delay: test_delay.cpp ../../lib/irdsp/src/StereoDelay.h ../../lib/irdsp/src/irdsp_blocks.h
-	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_delay.cpp
+test_fxstage: test_fxstage.cpp ../../lib/irdsp/src/FxStage.h ../../lib/irdsp/src/FxSlot.h $(REVERB80_DEPS)
+	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_fxstage.cpp $(REVERB80_SRC)
 
 test_studio_delay: test_studio_delay.cpp ../../lib/irdsp/src/StudioDelay.h ../../lib/irdsp/src/irdsp_blocks.h
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_studio_delay.cpp
@@ -83,9 +81,8 @@ irtool: irtool.cpp ../../lib/irdsp/src/IRLoader.cpp ../../lib/irdsp/src/IRLoader
 
 test: all
 	./test_convolver
-	./test_reverb
+	./test_fxstage
 	./test_reverb80
-	./test_delay
 	./test_studio_delay
 	./test_drums
 	./test_bass
@@ -94,7 +91,7 @@ test: all
 	python3 test_loader.py
 
 clean:
-	rm -f test_convolver test_reverb test_reverb80 render_reverb80 test_midi test_delay test_studio_delay test_drums render_drums test_bass render_bass test_ui render_ui irtool
+	rm -f test_convolver test_fxstage test_reverb80 render_reverb80 test_midi test_studio_delay test_drums render_drums test_bass render_bass test_ui render_ui irtool
 	rm -rf out
 
 .PHONY: all test render screenshots clean

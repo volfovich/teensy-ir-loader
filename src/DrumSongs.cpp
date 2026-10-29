@@ -129,17 +129,18 @@ static bool loadSdSong(int file) {
 
 bool selectDrumSong(int n, bool keepTempo) {
   if (n < 0 || n > drumSongTotal()) return false;
-  const bool wasPlaying = convolver.drumsPlaying();
+  irdsp::DrumMachine& dm = convolver.drums();
+  const bool wasPlaying = dm.playing();
   if (wasPlaying) {
     setDrumsPlaying(false);
     // Wait for the interrupt to let go of the song before replacing it.
     const uint32_t t0 = millis();
-    while (convolver.drumsRunning() && millis() - t0 < 100) delay(1);
+    while (dm.running() && millis() - t0 < 100) delay(1);
   }
   const irdsp::DrumSong* song = nullptr;
   if (n >= 1) {
     if (drumSongFromSd(n)) {
-      convolver.setDrumSong(nullptr);
+      dm.setSong(nullptr);
       if (!loadSdSong(n - 1 - irdsp::drumSongCount())) {
         g_selected = 0;
         return false;
@@ -151,8 +152,8 @@ bool selectDrumSong(int n, bool keepTempo) {
   }
   g_selected = n;
   g_loopA = g_loopB = 0;
-  convolver.setDrumLoop(0, 0);
-  convolver.setDrumSong(song);
+  dm.setLoop(0, 0);
+  dm.setSong(song);
   if (g_settings.drumSong != n) {
     g_settings.drumSong = n;
     scheduleSave();
@@ -175,7 +176,7 @@ void setDrumLoop(int first, int last) {
     g_loopA = constrain(first, 1, (int)s->barCount);
     g_loopB = constrain(last, g_loopA, (int)s->barCount);
   }
-  convolver.setDrumLoop(g_loopA, g_loopB);
+  convolver.drums().setLoop(g_loopA, g_loopB);
   if (g_loopA) Serial.printf("Loop bars %d-%d\n", g_loopA, g_loopB);
   else Serial.println("Loop off (the whole song)");
 }

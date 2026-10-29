@@ -38,7 +38,7 @@ static void defaultDelaySettings() {
 }
 
 static void defaultDelayTypeSettings() {
-  g_settings.delayType = DEFAULT_DELAY_TYPE;
+  g_settings.delayType = 1;  // unused: studio 80s is the only type
   g_settings.delayDuck = DEFAULT_DELAY_DUCK;
   g_settings.delayDrive = DEFAULT_DELAY_DRIVE;
   g_settings.delayEra = DEFAULT_DELAY_ERA;
@@ -61,7 +61,7 @@ static void defaultKitSettings() {
 }
 
 static void defaultReverb80Settings() {
-  g_settings.reverbType = DEFAULT_REVERB_TYPE;
+  g_settings.reverbType = 1;  // unused: the 80s reverb is the only type
   g_settings.reverbMode = DEFAULT_REVERB_MODE;
   g_settings.reverbPreDelay = DEFAULT_REVERB_PREDELAY;
   g_settings.reverbMod = DEFAULT_REVERB_MOD;

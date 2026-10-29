@@ -23,11 +23,10 @@ namespace ui {
 enum ItemId : uint8_t {
   kNoItem = 0,
   // Settings.
-  kDelayOn, kDelayType, kDelayMix, kDelayTime, kDelayRepeats, kDelayTone, kDelayMod,
+  kDelayOn, kDelayMix, kDelayTime, kDelayRepeats, kDelayTone, kDelayMod,
   kDelayDuck, kDelayDrive, kDelayEra,
   kReverbOn, kReverbMix, kReverbSize, kReverbTone,
-  kReverbType,   // 0 plate, 1 80s
-  kReverbMode,   // 80s: 0 hall, 1 gated
+  kReverbMode,   // 0 hall, 1 gated
   kReverbPreDelay, kReverbMod, kReverbEra, kReverbGate,
   kOutGain,  // half-dB steps
   kLineIn, kLineOut, kHeadphones,
@@ -42,10 +41,8 @@ enum ItemId : uint8_t {
   kBassKey,   // the styles' key, 0 = C .. 11 = B
   kBassTone,
   // Read-only, for visibility.
-  kIsStudioDelay,  // 1 when the delay type is studio 80s
-  kIsReverb80,     // 1 when the reverb type is 80s
-  kIsReverbHall,   // 1 when it is the 80s hall
-  kIsReverbGated,  // 1 when it is the 80s gated reverb
+  kIsReverbHall,   // 1 when the reverb is the hall
+  kIsReverbGated,  // 1 when it is the gated reverb
   kIsDrumSong,     // 1 when a drum song is selected
   // Screens opened from the menu (their row shows MenuHost::valueText).
   kScreenIR, kScreenMeter, kScreenStatus,

@@ -93,6 +93,7 @@ class StudioDelay {
     }
     if (clearPos_ < 2 * len_) return false;
     clearPos_ = 0;
+    setDelaySamples(dSet_, true);  // silent lines: jump to the set time, no crossfade
     return true;
   }
 

@@ -72,10 +72,9 @@ void printHelp() {
       "  dfb <0-100>  delay repeats (now %u)\n"
       "  dtone <0-100> delay brightness (now %u)\n"
       "  dmod <0-100> delay modulation depth (now %u)\n"
-      "  dtype [0|1]  delay type, 0 = ping-pong, 1 = studio 80s (now %s)\n"
-      "  dduck <0-100> studio 80s: repeats duck while you play (now %u)\n"
-      "  ddrive <0-100> studio 80s: input grit (now %u)\n"
-      "  dera <0-100> studio 80s: 0 = 16-bit/16 kHz, 100 = 10-bit/6 kHz (now %u)\n"
+      "  dduck <0-100> repeats duck while you play (now %u)\n"
+      "  ddrive <0-100> input grit (now %u)\n"
+      "  dera <0-100> 0 = 16-bit/16 kHz, 100 = 10-bit/6 kHz (now %u)\n"
       "  drum         start / stop the drums (now %s)\n"
       "  bpm <40-240> drum tempo (now %u)\n"
       "  drum style [n|name]  list the styles / choose one (now %s)\n"
@@ -92,14 +91,13 @@ void printHelp() {
       "  bass key <C..B>  the styles' key, e.g. E, F#, Bb; songs keep their own (now %s)\n"
       "  rv           toggle reverb (now %s)\n"
       "  mix <0-100>  reverb dry/wet, 0 = dry only (now %u)\n"
-      "  size <0-100> reverb time; 80s gated: decaying .. flat (50) .. rising (now %u)\n"
+      "  size <0-100> reverb time; gated: decaying .. flat (50) .. rising (now %u)\n"
       "  tone <0-100> reverb brightness (now %u)\n"
-      "  rtype [0|1]  reverb type, 0 = plate, 1 = 80s (now %s)\n"
-      "  rmode [hall|gated]  80s: hall or gated reverb (now %s)\n"
-      "  rpre <0-150> 80s: pre-delay, ms (now %u)\n"
-      "  rmod <0-100> 80s hall: chorus in the tail (now %u)\n"
-      "  rera <0-100> 80s: 0 = 16-bit/16 kHz, 100 = 10-bit/6 kHz (now %u)\n"
-      "  rgate <100-600>  80s gated: burst length, ms (now %u)\n"
+      "  rmode [hall|gated]  hall or gated reverb (now %s)\n"
+      "  rpre <0-150> pre-delay, ms (now %u)\n"
+      "  rmod <0-100> hall: chorus in the tail (now %u)\n"
+      "  rera <0-100> 0 = 16-bit/16 kHz, 100 = 10-bit/6 kHz (now %u)\n"
+      "  rgate <100-600>  gated: burst length, ms (now %u)\n"
       "  in <0-15>    line-in sensitivity, 0 = 3.12 Vpp, least sensitive (now %u)\n"
       "  out <13-31>  line-out level, 13 = loudest (now %u)\n"
       "  hp <0-100>   headphone volume (now %d%%)\n"
@@ -108,15 +106,14 @@ void printHelp() {
       "  r            rescan SD card\n"),
       g_settings.outGainDb, g_settings.delayOn ? "on" : "off", g_settings.delayMix, DELAY_MAX_MS,
       g_settings.delayTimeMs, g_settings.delayFeedback, g_settings.delayTone, g_settings.delayMod,
-      delayTypeName(g_settings.delayType), g_settings.delayDuck, g_settings.delayDrive,
-      g_settings.delayEra, convolver.drumsPlaying() ? "playing" : "stopped", g_settings.drumTempo,
+      g_settings.delayDuck, g_settings.delayDrive,
+      g_settings.delayEra, convolver.drums().playing() ? "playing" : "stopped", g_settings.drumTempo,
       irdsp::drumStyle(g_settings.drumStyle).name, irdsp::drumKit(g_settings.drumKit).name, songText(), loopText(),
       crashText(),
       g_settings.drumVolume, g_settings.drumComp,
       countText(), g_settings.trainerOn ? "on" : "off", g_settings.bassOn ? "on" : "off", g_settings.bassVolume,
       g_settings.bassTone, bassKeyName(g_settings.bassKey), g_settings.reverbOn ? "on" : "off", g_settings.reverbMix,
-      g_settings.reverbSize, g_settings.reverbTone, g_settings.reverbType ? "80s" : "plate",
-      g_settings.reverbMode ? "gated" : "hall", g_settings.reverbPreDelay, g_settings.reverbMod, g_settings.reverbEra,
+      g_settings.reverbSize, g_settings.reverbTone, reverbModeName(), g_settings.reverbPreDelay, g_settings.reverbMod, g_settings.reverbEra,
       g_settings.reverbGateMs, g_settings.lineIn, g_settings.lineOut,
       (int)lroundf(g_settings.hpVolume * 100));
 }
@@ -130,12 +127,13 @@ static void printList() {
 
 static void printDrums() {
   const irdsp::DrumSong* song = currentDrumSong();
-  if (convolver.drumsPlaying()) {
-    if (song) Serial.printf("Drums:     playing song \"%s\", %.0f BPM, ", song->title, convolver.drumTempoNow());
-    else Serial.printf("Drums:     playing %s, %.0f BPM, ", irdsp::drumStyle(g_settings.drumStyle).title, convolver.drumTempoNow());
-    if (convolver.drumsCountingIn()) Serial.print("counting in");
-    else if (song) Serial.printf("bar %d/%u", convolver.drumSongBar() + 1, song->barCount);
-    else Serial.printf("bar %d", convolver.drumBar() + 1);
+  const irdsp::DrumMachine& dm = convolver.drums();
+  if (dm.playing()) {
+    if (song) Serial.printf("Drums:     playing song \"%s\", %.0f BPM, ", song->title, dm.tempoNow());
+    else Serial.printf("Drums:     playing %s, %.0f BPM, ", irdsp::drumStyle(g_settings.drumStyle).title, dm.tempoNow());
+    if (dm.countingIn()) Serial.print("counting in");
+    else if (song) Serial.printf("bar %d/%u", dm.songBar() + 1, song->barCount);
+    else Serial.printf("bar %d", dm.bar() + 1);
   } else if (song) {
     Serial.printf("Drums:     stopped, song \"%s\" (%u bars), %u BPM", song->title, song->barCount, g_settings.drumTempo);
   } else {
@@ -172,7 +170,7 @@ static void printKits() {
 // "drum ..." subcommands; arg is the rest of the line (may be null).
 static void drumCommand(char* arg) {
   if (!arg || !*arg) {
-    setDrumsPlaying(!convolver.drumsPlaying());
+    setDrumsPlaying(!convolver.drums().playing());
     return;
   }
   char* val = strchr(arg, ' ');
@@ -266,24 +264,17 @@ static void printStatus() {
                 convolver.bypassed() ? "BYPASSED" : "active");
   Serial.printf("Latency:   ~%.2f ms buffering (2 x %d-sample blocks) + codec\n",
                 2 * blockMs, AUDIO_BLOCK_SAMPLES);
-  Serial.printf("Delay:     %s, %s, mix %u%%, %u ms, repeats %u%%, tone %u%%, mod %u%%",
+  Serial.printf("Delay:     %s, mix %u%%, %u ms, repeats %u%%, tone %u%%, mod %u%%, duck %u%%, drive %u%%, era %u%%\n",
                 g_settings.delayOn ? "on" : (convolver.delayActive() ? "off (repeats ringing)" : "off"),
-                delayTypeName(g_settings.delayType), g_settings.delayMix, g_settings.delayTimeMs,
-                g_settings.delayFeedback, g_settings.delayTone, g_settings.delayMod);
-  if (g_settings.delayType)
-    Serial.printf(", duck %u%%, drive %u%%, era %u%%", g_settings.delayDuck, g_settings.delayDrive,
-                  g_settings.delayEra);
-  Serial.println();
+                g_settings.delayMix, g_settings.delayTimeMs, g_settings.delayFeedback, g_settings.delayTone,
+                g_settings.delayMod, g_settings.delayDuck, g_settings.delayDrive, g_settings.delayEra);
   printDrums();
-  Serial.printf("Reverb:    %s, %s, mix %u%%, size %u%%, tone %u%%",
+  Serial.printf("Reverb:    %s, %s, mix %u%%, size %u%%, tone %u%%, pre %u ms, era %u%%",
                 g_settings.reverbOn ? "on" : (convolver.reverbActive() ? "off (tail ringing)" : "off"),
-                reverbTypeName(), g_settings.reverbMix, g_settings.reverbSize, g_settings.reverbTone);
-  if (g_settings.reverbType) {
-    Serial.printf(", pre %u ms, era %u%%", g_settings.reverbPreDelay, g_settings.reverbEra);
-    if (g_settings.reverbMode) Serial.printf(", gate %u ms", g_settings.reverbGateMs);
-    else Serial.printf(", mod %u%%", g_settings.reverbMod);
-  }
-  Serial.println();
+                reverbModeName(), g_settings.reverbMix, g_settings.reverbSize, g_settings.reverbTone,
+                g_settings.reverbPreDelay, g_settings.reverbEra);
+  if (g_settings.reverbMode) Serial.printf(", gate %u ms\n", g_settings.reverbGateMs);
+  else Serial.printf(", mod %u%%\n", g_settings.reverbMod);
   Serial.printf("CPU:       IR + effects %.1f%% avg / %.1f%% max (delay %.1f%%, reverb %.1f%%, drums %.1f%%), audio total %.1f%% max\n",
                 convolver.cpuPercent(), convolver.cpuPercentMax(), convolver.delayCpuPercent(),
                 convolver.reverbCpuPercent(), convolver.drumCpuPercent(), AudioProcessorUsageMax());
@@ -330,8 +321,6 @@ static void handleCommand(char* line) {
     setDelayTone(atoi(arg));
   } else if (!strcmp(line, "dmod") && arg) {
     setDelayMod(atoi(arg));
-  } else if (!strcmp(line, "dtype")) {
-    setDelayType(arg ? atoi(arg) : !g_settings.delayType);
   } else if (!strcmp(line, "dduck") && arg) {
     setDelayDuck(atoi(arg));
   } else if (!strcmp(line, "ddrive") && arg) {
@@ -352,8 +341,6 @@ static void handleCommand(char* line) {
     setReverbSize(atoi(arg));
   } else if (!strcmp(line, "tone") && arg) {
     setReverbTone(atoi(arg));
-  } else if (!strcmp(line, "rtype")) {
-    setReverbType(arg ? atoi(arg) : !g_settings.reverbType);
   } else if (!strcmp(line, "rmode")) {
     if (!arg) setReverbMode(!g_settings.reverbMode);
     else setReverbMode(!strcmp(arg, "gated") || !strcmp(arg, "1") ? 1 : 0);

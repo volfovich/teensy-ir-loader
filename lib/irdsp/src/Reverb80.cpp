@@ -47,6 +47,7 @@ IRDSP_COLD bool Reverb80::clearStep(int n) {
   clearPos_ += count;
   if (clearPos_ < kMemFloats) return false;
   clearPos_ = 0;
+  clean_ = true;
   return true;
 }
 

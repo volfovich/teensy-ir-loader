@@ -17,8 +17,8 @@
 // bandwidth falls from 16 to 6 kHz and its resolution from 16 to 10 bits.
 //
 // Line lengths are in samples, tuned for 44.1 kHz. The modes share one block
-// of memory; switching mode while running needs a clear (the firmware fades
-// out, clears and fades in, as for a type change).
+// of memory, so a mode change while the reverb sounds fades the tail out
+// (20 ms), clears the lines a few KB per block, then starts the new mode.
 //
 // Threading model: process() runs in the audio interrupt. The setters only
 // write single values; process() recomputes the coefficients when they
@@ -68,9 +68,10 @@ class Reverb80 {
 
   // ---- Parameters -----------------------------------------------------------
 
-  // Hall or gated. Changing it while sound is in the lines needs a clear.
-  void setMode(int m) { mode_ = m == kGated ? kGated : kHall; }
-  int mode() const { return mode_; }
+  // Hall or gated. With sound in the lines the change fades out, clears and
+  // switches (see above); with the lines already clear it applies at once.
+  void setMode(int m) { modeReq_ = m == kGated ? kGated : kHall; }
+  int mode() const { return modeReq_; }
   // Hall: decay time, 0..1 -> RT60 0.8 .. 8 s. Gated: the burst's shape,
   // 0 = decaying, 0.5 = flat, 1 = rising.
   void setSize(float n) { size_ = clamp01(n); }
@@ -93,6 +94,20 @@ class Reverb80 {
   // the same buffer). At the default settings 100 % wet is about as loud as
   // the input (checked by test/host/test_reverb80.cpp).
   void process(const float* inL, const float* inR, float* outL, float* outR, int n) {
+    if (modeReq_ != mode_ && !fading_ && !switchClearing_) {
+      if (clean_) mode_ = modeReq_;
+      else fading_ = true;
+    }
+    if (switchClearing_) {
+      for (int i = 0; i < n; i++) outL[i] = outR[i] = 0.0f;
+      if (clearStep(kSwitchClear)) {
+        switchClearing_ = false;
+        mode_ = modeReq_;
+        fadeGain_ = 1.0f;
+      }
+      return;
+    }
+    clean_ = false;
     if (size_ != cSize_ || tone_ != cTone_ || era_ != cEra_ || gateMs_ != cGate_) update();
     for (int off = 0; off < n; off += kChunk) {
       const int m = n - off < kChunk ? n - off : kChunk;
@@ -105,9 +120,28 @@ class Reverb80 {
         outR[off + i] = hpR_.process(r[i]);
       }
     }
+    if (fading_) fadeOut(outL, outR, n);
   }
 
  private:
+  static constexpr int kSwitchClear = 4096;  // floats cleared per block in a mode switch
+
+  // The mode switch's 20 ms fade; at silence the clearing starts.
+  void fadeOut(float* outL, float* outR, int n) {
+    const float step = 1.0f / (0.02f * fs_);
+    float g = fadeGain_;
+    for (int i = 0; i < n; i++) {
+      g = g > step ? g - step : 0.0f;
+      outL[i] *= g;
+      outR[i] *= g;
+    }
+    fadeGain_ = g;
+    if (g == 0.0f) {
+      fading_ = false;
+      switchClearing_ = true;
+    }
+  }
+
   // Work is done in chunks, one line at a time: the lines live in the
   // Teensy's cached OCRAM, and streaming through each line is much faster
   // than touching all of them every sample. Every line delay and output tap
@@ -280,8 +314,13 @@ class Reverb80 {
   int tapL_[kTaps] = {}, tapR_[kTaps] = {};
   float gainL_[kTaps] = {}, gainR_[kTaps] = {};
 
+  // Mode switching: the requested mode, the one running, and the switch's
+  // state (audio interrupt only). clean_: the lines are known silent.
+  volatile int modeReq_ = kHall;
+  int mode_ = kHall;
+  bool clean_ = false, fading_ = false, switchClearing_ = false;
+  float fadeGain_ = 1.0f;
   // Parameters and the values the coefficients were computed for.
-  volatile int mode_ = kHall;
   volatile float size_ = 0.5f, tone_ = 0.5f, mod_ = 0.4f, era_ = 0.4f, gateMs_ = 300.0f;
   float cSize_ = -1.0f, cTone_ = -1.0f, cEra_ = -1.0f, cGate_ = -1.0f;
   float qScale_ = 32768.0f, qInv_ = 1.0f / 32768.0f, dampK_ = 0.5f, modDepth_ = 3.2f;

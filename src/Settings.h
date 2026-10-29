@@ -26,7 +26,7 @@ struct Settings {
   uint8_t delayMod;       // 0 .. 100
   uint16_t delayTimeMs;   // 20 .. DELAY_MAX_MS
   // Added in "IRL4"; older records are upgraded with the defaults.
-  uint8_t delayType;   // 0 = ping-pong, 1 = studio 80s
+  uint8_t delayType;   // unused (was 0 = ping-pong, 1 = studio 80s)
   uint8_t delayDuck;   // 0 .. 100 (studio 80s only)
   uint8_t delayDrive;  // 0 .. 100 (studio 80s only)
   uint8_t delayEra;    // 0 .. 100 (studio 80s only)
@@ -43,7 +43,7 @@ struct Settings {
   uint8_t drumKit;        // 0-based kit index (0 = synth)
   uint8_t drumCrash;      // crash every 2/4/8/16 bars, 0 = off
   // Added in "IRL8"; older records are upgraded with the defaults.
-  uint8_t reverbType;     // 0 = plate, 1 = 80s
+  uint8_t reverbType;     // unused (was 0 = plate, 1 = 80s)
   uint8_t reverbMode;     // 80s: 0 = hall, 1 = gated
   uint8_t reverbPreDelay; // 80s: ms, 0 .. 150
   uint8_t reverbMod;      // 80s hall: 0 .. 100

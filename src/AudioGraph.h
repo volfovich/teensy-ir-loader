@@ -24,12 +24,9 @@ void setDelayTimeMs(int ms);          // 20 .. DELAY_MAX_MS
 void setDelayFeedback(int percent);   // 0 .. 100, repeats
 void setDelayTone(int percent);       // 0 .. 100, 100 = brightest repeats
 void setDelayMod(int percent);        // 0 .. 100, modulation depth
-void setDelayType(int type);          // 0 = ping-pong, 1 = studio 80s
-void setDelayDuck(int percent);       // 0 .. 100, studio 80s: ducking depth
-void setDelayDrive(int percent);      // 0 .. 100, studio 80s: input grit
-void setDelayEra(int percent);        // 0 .. 100, studio 80s: 0 = 16-bit, 100 = 10-bit
-// "ping-pong" / "studio 80s"
-const char* delayTypeName(int type);
+void setDelayDuck(int percent);       // 0 .. 100, ducking depth
+void setDelayDrive(int percent);      // 0 .. 100, input grit
+void setDelayEra(int percent);        // 0 .. 100, 0 = 16-bit, 100 = 10-bit
 // Drum machine. Playing is not saved; the rest is.
 void setDrumsPlaying(bool on);
 void setDrumStyle(int idx);           // 0-based, see irdsp::drumStyle()
@@ -51,11 +48,10 @@ void setReverbOn(bool on);
 void setReverbMix(int percent);       // 0 .. 100, 0 = dry only, 100 = wet only
 void setReverbSize(int percent);      // 0 .. 100, reverb time
 void setReverbTone(int percent);      // 0 .. 100, 100 = brightest tail
-void setReverbType(int type);         // 0 = plate, 1 = 80s
-void setReverbMode(int mode);         // 80s: 0 = hall, 1 = gated
-void setReverbPreDelay(int ms);       // 80s: 0 .. 150
-void setReverbMod(int percent);       // 80s hall: chorus in the tail
-void setReverbEra(int percent);       // 80s: 0 = 16-bit/16 kHz .. 100 = 10-bit/6 kHz
-void setReverbGate(int ms);           // 80s gated: 100 .. 600
-// "plate", "80s hall" or "80s gated", for the current settings.
-const char* reverbTypeName();
+void setReverbMode(int mode);         // 0 = hall, 1 = gated
+void setReverbPreDelay(int ms);       // 0 .. 150
+void setReverbMod(int percent);       // hall: chorus in the tail
+void setReverbEra(int percent);       // 0 = 16-bit/16 kHz .. 100 = 10-bit/6 kHz
+void setReverbGate(int ms);           // gated: 100 .. 600
+// "hall" or "gated", for the current settings.
+const char* reverbModeName();

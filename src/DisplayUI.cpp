@@ -52,7 +52,6 @@ int FirmwareHost::get(uint8_t id) {
   const Settings& s = g_settings;
   switch (id) {
     case ui::kDelayOn: return s.delayOn;
-    case ui::kDelayType: return s.delayType;
     case ui::kDelayMix: return s.delayMix;
     case ui::kDelayTime: return s.delayTimeMs;
     case ui::kDelayRepeats: return s.delayFeedback;
@@ -65,7 +64,6 @@ int FirmwareHost::get(uint8_t id) {
     case ui::kReverbMix: return s.reverbMix;
     case ui::kReverbSize: return s.reverbSize;
     case ui::kReverbTone: return s.reverbTone;
-    case ui::kReverbType: return s.reverbType;
     case ui::kReverbMode: return s.reverbMode;
     case ui::kReverbPreDelay: return s.reverbPreDelay;
     case ui::kReverbMod: return s.reverbMod;
@@ -76,7 +74,7 @@ int FirmwareHost::get(uint8_t id) {
     case ui::kLineOut: return s.lineOut;
     case ui::kHeadphones: return (int)lroundf(s.hpVolume * 100);
     case ui::kBypass: return s.bypass;
-    case ui::kDrumsPlay: return convolver.drumsPlaying();
+    case ui::kDrumsPlay: return convolver.drums().playing();
     case ui::kDrumStyle: return s.drumStyle;
     case ui::kDrumKit: return s.drumKit;
     case ui::kDrumSong: return s.drumSong;
@@ -95,10 +93,8 @@ int FirmwareHost::get(uint8_t id) {
     case ui::kBassVolume: return s.bassVolume;
     case ui::kBassKey: return s.bassKey;
     case ui::kBassTone: return s.bassTone;
-    case ui::kIsStudioDelay: return s.delayType == 1;
-    case ui::kIsReverb80: return s.reverbType == 1;
-    case ui::kIsReverbHall: return s.reverbType == 1 && s.reverbMode == 0;
-    case ui::kIsReverbGated: return s.reverbType == 1 && s.reverbMode == 1;
+    case ui::kIsReverbHall: return s.reverbMode == 0;
+    case ui::kIsReverbGated: return s.reverbMode == 1;
     case ui::kIsDrumSong: return s.drumSong != 0;
     default: return 0;
   }
@@ -108,7 +104,6 @@ void FirmwareHost::set(uint8_t id, int v) {
   const Settings& s = g_settings;
   switch (id) {
     case ui::kDelayOn: setDelayOn(v); break;
-    case ui::kDelayType: setDelayType(v); break;
     case ui::kDelayMix: setDelayMix(v); break;
     case ui::kDelayTime: setDelayTimeMs(v); break;
     case ui::kDelayRepeats: setDelayFeedback(v); break;
@@ -121,7 +116,6 @@ void FirmwareHost::set(uint8_t id, int v) {
     case ui::kReverbMix: setReverbMix(v); break;
     case ui::kReverbSize: setReverbSize(v); break;
     case ui::kReverbTone: setReverbTone(v); break;
-    case ui::kReverbType: setReverbType(v); break;
     case ui::kReverbMode: setReverbMode(v); break;
     case ui::kReverbPreDelay: setReverbPreDelay(v); break;
     case ui::kReverbMod: setReverbMod(v); break;
@@ -220,11 +214,12 @@ static void fillModel(uint32_t now) {
   m.bypass = s.bypass;
   m.delayOn = s.delayOn;
   m.reverbOn = s.reverbOn;
-  m.drumsPlaying = convolver.drumsPlaying();
+  const irdsp::DrumMachine& dm = convolver.drums();
+  m.drumsPlaying = dm.playing();
   const irdsp::DrumSong* song = currentDrumSong();
   m.drumStyle = song ? song->name : irdsp::drumStyle(s.drumStyle).name;
-  m.drumTempo = m.drumsPlaying ? (int)lroundf(convolver.drumTempoNow()) : s.drumTempo;
-  convolver.drumBeatPos(&m.drumBeat, &m.drumBeats);
+  m.drumTempo = m.drumsPlaying ? (int)lroundf(dm.tempoNow()) : s.drumTempo;
+  dm.beatPos(&m.drumBeat, &m.drumBeats);
 
   // Meters: CLIP at the serial meter's thresholds (in > -0.5 dBFS, out >
   // -0.1 dBFS), or when the clip counter moved since the last frame.

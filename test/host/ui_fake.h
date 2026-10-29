@@ -14,11 +14,11 @@ struct FakeHost : ui::MenuHost {
   int sets = 0;
   int loaded = -1, rescans = 0, resets = 0;  // the panel's actions
   FakeHost() {
-    v[ui::kDelayOn] = 1; v[ui::kDelayType] = 1; v[ui::kDelayMix] = 30; v[ui::kDelayTime] = 380;
+    v[ui::kDelayOn] = 1; v[ui::kDelayMix] = 30; v[ui::kDelayTime] = 380;
     v[ui::kDelayRepeats] = 35; v[ui::kDelayTone] = 60; v[ui::kDelayMod] = 15;
     v[ui::kDelayDuck] = 40; v[ui::kDelayDrive] = 20; v[ui::kDelayEra] = 40;
     v[ui::kReverbOn] = 1; v[ui::kReverbMix] = 25; v[ui::kReverbSize] = 50; v[ui::kReverbTone] = 50;
-    v[ui::kReverbType] = 1; v[ui::kReverbMode] = 0; v[ui::kReverbPreDelay] = 40; v[ui::kReverbMod] = 40;
+    v[ui::kReverbMode] = 0; v[ui::kReverbPreDelay] = 40; v[ui::kReverbMod] = 40;
     v[ui::kReverbEra] = 40; v[ui::kReverbGate] = 300;
     v[ui::kDrumSong] = 0; v[ui::kDrumLoopFrom] = 0; v[ui::kDrumLoopTo] = 32; v[ui::kDrumComp] = 40;
     v[ui::kOutGain] = -12; v[ui::kLineIn] = 0; v[ui::kLineOut] = 29; v[ui::kHeadphones] = 50;
@@ -46,10 +46,8 @@ struct FakeHost : ui::MenuHost {
     return names[i < 0 || i > 1 ? 0 : i];
   }
   int get(uint8_t id) override {
-    if (id == ui::kIsStudioDelay) return v[ui::kDelayType] == 1;
-    if (id == ui::kIsReverb80) return v[ui::kReverbType] == 1;
-    if (id == ui::kIsReverbHall) return v[ui::kReverbType] == 1 && v[ui::kReverbMode] == 0;
-    if (id == ui::kIsReverbGated) return v[ui::kReverbType] == 1 && v[ui::kReverbMode] == 1;
+    if (id == ui::kIsReverbHall) return v[ui::kReverbMode] == 0;
+    if (id == ui::kIsReverbGated) return v[ui::kReverbMode] == 1;
     if (id == ui::kIsDrumSong) return v[ui::kDrumSong] != 0;
     return v[id];
   }

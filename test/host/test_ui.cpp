@@ -72,7 +72,7 @@ static void testMenu() {
   check(m.turn(1, 0) == ui::Menu::kRedraw && m.current()->id == ui::kDelayOn, "turn moves to Delay", m.current()->id);
   m.push();
   check(m.pageIndex() == 1, "push enters the delay page", m.pageIndex());
-  m.turn(3, 0);
+  m.turn(2, 0);
   check(m.current()->id == ui::kDelayTime, "cursor on Time", m.current()->id);
   m.push();
   check(m.editing(), "push starts editing", m.editing());
@@ -95,16 +95,8 @@ static void testMenu() {
   m.turn(-10, 0);
   m.push();
   check(h.v[ui::kDelayOn] == 0, "push on a toggle flips it", h.v[ui::kDelayOn]);
-  m.turn(1, 0);
-  m.push();
-  check(h.v[ui::kDelayType] == 0, "push on Type steps the choice (80s -> ping-pong)", h.v[ui::kDelayType]);
   m.turn(100, 0);
-  check(m.current()->id == ui::kDelayMod, "ping-pong: Duck/Drive/Era hidden, last row Mod", m.current()->id);
-  h.v[ui::kDelayType] = 1;
-  m.turn(100, 0);
-  check(m.current()->id == ui::kDelayEra, "studio 80s: last row Era", m.current()->id);
-  h.v[ui::kDelayType] = 0;
-  check(m.current()->id == ui::kDelayMod, "type changed elsewhere: cursor clamps to Mod", m.current()->id);
+  check(m.current()->id == ui::kDelayEra, "last row Era", m.current()->id);
 
   check(m.back() == ui::Menu::kRedraw && m.pageIndex() == 0, "back to the top level", m.pageIndex());
   m.turn(100, 0);
@@ -120,23 +112,20 @@ static void testReverbPage() {
   m.turn(2, 0);
   m.push();
   m.turn(100, 0);
-  check(m.current()->id == ui::kReverbEra, "80s hall: last row Era (Mod shown, Gate hidden)", m.current()->id);
+  check(m.current()->id == ui::kReverbEra, "hall: last row Era (Mod shown, Gate hidden)", m.current()->id);
   m.turn(-1, 0);
   check(m.current()->id == ui::kReverbMod, "  ... Mod above it", m.current()->id);
   h.v[ui::kReverbMode] = 1;
   m.turn(100, 0);
-  check(m.current()->id == ui::kReverbGate, "80s gated: last row Gate", m.current()->id);
+  check(m.current()->id == ui::kReverbGate, "gated: last row Gate", m.current()->id);
   m.push();
   m.turn(2, 1000);
   m.push();
   check(h.v[ui::kReverbGate] == 320, "  ... Gate edits in 10 ms steps", h.v[ui::kReverbGate]);
-  h.v[ui::kReverbType] = 0;
-  m.turn(100, 0);
-  check(m.current()->id == ui::kReverbTone, "plate: last row Tone (no 80s rows)", m.current()->id);
   m.turn(-100, 0);
   m.turn(1, 0);
   m.push();
-  check(h.v[ui::kReverbType] == 1 && m.current()->id == ui::kReverbType, "push on Type: plate -> 80s", h.v[ui::kReverbType]);
+  check(h.v[ui::kReverbMode] == 0 && m.current()->id == ui::kReverbMode, "push on Mode: gated -> hall", h.v[ui::kReverbMode]);
 }
 
 static void testSongRows() {

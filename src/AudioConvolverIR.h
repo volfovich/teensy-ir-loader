@@ -1,19 +1,23 @@
 // AudioConvolverIR.h - Teensy Audio Library object wrapping the convolver
-// and the delay and plate reverb that follow it.
+// and the delay and reverb that follow it.
 //
 // One mono input (guitar), two outputs (0 = left, 1 = right). The whole chain
 // runs in 32-bit float inside update():
 //
 //   in -> IR convolution -> IR bypass blend x output gain = core (mono)
-//   core   -> delay (mono in, stereo out, dry/wet)           -> dL, dR
-//             (ping-pong or studio 80s, sharing the same lines)
-//   dL, dR -> plate or 80s reverb (stereo in, stereo out, dry/wet) -> out L / R
-//   + drum machine (stereo, added to the outputs, never through the effects)
+//   core   -> studio 80s delay (mono in, stereo out, dry/wet) -> dL, dR
+//   dL, dR -> 80s reverb, hall or gated (stereo, dry/wet)      -> out L / R
+//   + drum machine and bass (stereo, added to the outputs, never through
+//     the effects)
 //
 // Adds smoothed output gain, click-free IR bypass, on/off for each effect
 // (tails ring out when switched off; an idle effect passes its input through
-// unchanged and costs no CPU), peak meters, a clip counter and CPU
-// measurement of its own update().
+// unchanged and costs no CPU, see FxStage.h), peak meters, a clip counter and
+// CPU measurement of its own update().
+//
+// The effects' and the drums' own setters are safe to call from the
+// background (see their headers): reach them through delay(), reverb() and
+// drums().
 #pragma once
 
 #include <Arduino.h>
@@ -21,138 +25,49 @@
 #include <math.h>
 
 #include "DrumMachine.h"
-#include "FxSlot.h"
+#include "FxStage.h"
 #include "PartitionedConvolver.h"
-#include "PlateReverb.h"
 #include "Reverb80.h"
-#include "StereoDelay.h"
 #include "StudioDelay.h"
 #include "config.h"
 
 class AudioConvolverIR : public AudioStream {
  public:
   using Engine = irdsp::PartitionedConvolver<AUDIO_BLOCK_SAMPLES, IR_MAX_LENGTH>;
+  using DelayStage = irdsp::FxStage<irdsp::StudioDelay, AUDIO_BLOCK_SAMPLES, false>;
+  using ReverbStage = irdsp::FxStage<irdsp::Reverb80, AUDIO_BLOCK_SAMPLES, true>;
+  static constexpr int kReverbMemFloats = irdsp::Reverb80::kMemFloats;
+  static constexpr int kBassBufLen = irdsp::DrumMachine::kBassBufLen;
 
   AudioConvolverIR()
       : AudioStream(1, inputQueue_),
         delay_(AUDIO_SAMPLE_RATE_EXACT),
-        studio_(AUDIO_SAMPLE_RATE_EXACT),
         reverb_(AUDIO_SAMPLE_RATE_EXACT),
-        reverb80_(AUDIO_SAMPLE_RATE_EXACT),
-        dlSlot_(AUDIO_SAMPLE_RATE_EXACT),
-        rvSlot_(AUDIO_SAMPLE_RATE_EXACT),
         drums_(AUDIO_SAMPLE_RATE_EXACT) {}
 
-  Engine& engine() { return engine_; }
+  // Hands over the effects' memory before the audio runs: the reverb's lines
+  // (kReverbMemFloats), the delay's two lines (delayLen floats each) and the
+  // bass's buffer (kBassBufLen). Until then the effects stay off.
+  void begin(float* reverbMem, float* delayA, float* delayB, int delayLen, float* bassBuf);
 
-  // Hands the reverb its line memory (kReverbMemFloats floats, may be
-  // DMAMEM), shared by both reverb types. Until this is called the reverb
-  // stays off.
-  static constexpr int kReverbMemFloats = irdsp::PlateReverb::kMemFloats > irdsp::Reverb80::kMemFloats
-                                              ? irdsp::PlateReverb::kMemFloats
-                                              : irdsp::Reverb80::kMemFloats;
-  void beginReverb(float* mem) {
-    __disable_irq();
-    reverb_.init(mem);
-    reverb80_.init(mem);
-    __enable_irq();
-  }
-  // Hands the delay its two lines (len floats each), shared by both delay
-  // types. Until this is called the delay stays off.
-  void beginDelay(float* lineA, float* lineB, int len) {
-    __disable_irq();
-    delay_.init(lineA, lineB, len);
-    studio_.init(lineA, lineB, len);
-    __enable_irq();
-  }
+  Engine& engine() { return engine_; }
+  irdsp::StudioDelay& delay() { return delay_.fx(); }
+  irdsp::Reverb80& reverb() { return reverb_.fx(); }
+  irdsp::DrumMachine& drums() { return drums_; }
+  const irdsp::DrumMachine& drums() const { return drums_; }
 
   void setOutputGainDb(float db) { gainTarget_ = powf(10.0f, db / 20.0f); }
   void setBypass(bool on) { wetTarget_ = on ? 0.0f : 1.0f; }
   bool bypassed() const { return wetTarget_ < 0.5f; }
 
-  // Delay controls, all 0..1 except on/off and time. Applied at the next block.
-  void setDelayOn(bool on) { dlSlot_.setOn(on); }
-  void setDelayMix(float m) { dlSlot_.setMix(m); }
-  void setDelayTimeMs(float ms) { dlTimeMs_ = ms; }
-  void setDelayFeedback(float v) { dlFeedback_ = v; }
-  void setDelayTone(float v) { dlTone_ = v; }  // 1 = brightest repeats
-  void setDelayMod(float v) { dlMod_ = v; }    // modulation depth
-  void setDelayShape(float bassCut, float treble, float bass, float modRate, float inertia) {
-    dlBassCut_ = bassCut; dlTreble_ = treble; dlBass_ = bass; dlModRate_ = modRate; dlInertia_ = inertia;
-  }
-  // 0 = ping-pong, 1 = studio 80s. A switch while repeats ring fades them
-  // out (20 ms), clears the lines (about 12 ms) and starts the new type.
-  void setDelayType(int type) { dlType_ = type == kStudio ? kStudio : kPingPong; }
-  int delayType() const { return dlType_; }
-  // Studio 80s only, all 0..1.
-  void setDelayDuck(float v) { dlDuck_ = v; }
-  void setDelayDrive(float v) { dlDrive_ = v; }
-  void setDelayEra(float v) { dlEra_ = v; }
-  // Studio 80s fixed voicing. Applied directly (single values; the mod rate
-  // and duck release are converted here rather than every block).
-  void setDelayStudioShape(float rightRatio, float cross, float bassCut, float modRateHz,
-                           float duckThresholdDb, float duckReleaseMs) {
-    studio_.setRightRatio(rightRatio);
-    studio_.setCross(cross);
-    dl80BassCut_ = bassCut;
-    studio_.setModRate(modRateHz);
-    studio_.setDuckThresholdDb(duckThresholdDb);
-    studio_.setDuckReleaseMs(duckReleaseMs);
-  }
-  // True while the delay is on or its repeats are still ringing out.
-  bool delayActive() const { return dlSlot_.running(); }
-
-  // Reverb controls, all 0..1 except on/off. Applied at the next block.
-  void setReverbOn(bool on) { rvSlot_.setOn(on); }
-  void setReverbMix(float m) { rvSlot_.setMix(m); }
-  void setReverbSize(float v) { rvSize_ = v; }
-  void setReverbTone(float v) { rvTone_ = v; }  // 1 = brightest tail
-  void setReverbShape(float diffusion, float loDamp, float lowpass, float hipass) {
-    rvDiffusion_ = diffusion; rvLoDamp_ = loDamp; rvLowpass_ = lowpass; rvHipass_ = hipass;
-  }
-  // Reverb type: plate, or 80s in hall or gated mode. A change while the
-  // reverb sounds fades the tail out, clears the shared memory, then starts
-  // the new one.
-  static constexpr int kPlate = 0, kHall80 = 1, kGated80 = 2;
-  void setReverbType(bool eighties, bool gated) { rvKind_ = !eighties ? kPlate : (gated ? kGated80 : kHall80); }
-  // 80s reverb only.
-  void setReverbPreDelayMs(float ms) { rvPreMs_ = ms; }
-  void setReverbMod(float v) { rvMod_ = v; }
-  void setReverbEra(float v) { rvEra_ = v; }
-  void setReverbGateMs(float ms) { rvGateMs_ = ms; }
-  // True while the reverb is on or its tail is still ringing out.
-  bool reverbActive() const { return rvSlot_.running(); }
-
-  // Drum machine controls (see DrumMachine.h). Style and tempo apply at the
-  // next bar / step; volume 0..1.
-  void setDrumsPlaying(bool on) { if (on) drums_.start(); else drums_.stop(); }
-  void setDrumStyle(int idx) { drums_.setStyle(idx); }
-  void setDrumTempo(float bpm) { drums_.setTempo(bpm); }
-  void setDrumVolume(float v) { drums_.setVolume(v); }
-  void setDrumCountIn(int bars) { drums_.setCountIn(bars); }
-  void setDrumTrainer(bool on, int step, int every, int target) { drums_.setTrainer(on, step, every, target); }
-  void setDrumKit(int idx) { drums_.setKit(&irdsp::drumKit(idx)); }
-  void setDrumComp(float k) { drums_.setBusComp(k); }  // 0..1, parallel compression
-  // Song mode (nullptr: the style); takes effect at the next start.
-  void setDrumSong(const irdsp::DrumSong* song) { drums_.setSong(song); }
-  void setDrumLoop(int first, int last) { drums_.setLoop(first, last); }
-  bool drumsRunning() const { return drums_.running(); }  // the interrupt still sequencing
-  const irdsp::DrumSong* drumSongPlaying() const { return drums_.running() ? drums_.song() : nullptr; }
-  int drumSongBar() const { return drums_.songBar(); }  // 0-based
-  void setDrumCrash(int bars) { drums_.setCrashEvery(bars); }
-  // Bass (DrumMachine): buf is kBassBufLen floats, set before the drums play.
-  static constexpr int kBassBufLen = irdsp::DrumMachine::kBassBufLen;
-  void setBassBuffer(float* buf) { drums_.setBassBuffer(buf); }
-  void setBassOn(bool on) { drums_.setBassOn(on); }
-  void setBassVolume(float v) { drums_.setBassVolume(v); }  // 0..1
-  void setBassKey(int key) { drums_.setBassKey(key); }      // 0 = C .. 11 = B
-  void setBassTone(float t) { drums_.setBassTone(t); }      // 0..1
-  bool drumsPlaying() const { return drums_.playing(); }
-  bool drumsCountingIn() const { return drums_.countingIn(); }
-  float drumTempoNow() const { return drums_.tempoNow(); }
-  int drumBar() const { return drums_.bar(); }
-  // The beat sounding (0-based, -1 stopped) and the bar's beats.
-  void drumBeatPos(int* beat, int* beats) const { drums_.beatPos(beat, beats); }
+  // Effect on/off and mix (0 = dry only, 1 = wet only); "active" while on or
+  // still ringing out.
+  void setDelayOn(bool on) { delay_.setOn(on); }
+  void setDelayMix(float m) { delay_.setMix(m); }
+  bool delayActive() const { return delay_.running(); }
+  void setReverbOn(bool on) { reverb_.setOn(on); }
+  void setReverbMix(float m) { reverb_.setMix(m); }
+  bool reverbActive() const { return reverb_.running(); }
 
   // Meters: return the peak (linear, 1.0 = full scale) since the last call.
   float takeInputPeak() { float p = inPeak_; inPeak_ = 0.0f; return p; }
@@ -166,12 +81,12 @@ class AudioConvolverIR : public AudioStream {
     dispInPeak_ = dispOutPeak_ = 0.0f;
   }
 
-  // CPU load of this object, in percent of one core.
+  // CPU load of this object, in percent of one core, and the shares of it
+  // spent in the delay, the reverb and the drums.
   float cpuPercent() const { return cyclesToPercent(cyclesAvg_); }
   float cpuPercentMax() const { return cyclesToPercent(cyclesMax_); }
-  // Shares of the above spent in the delay and the reverb.
-  float delayCpuPercent() const { return cyclesToPercent(dlSlot_.cyclesAvg()); }
-  float reverbCpuPercent() const { return cyclesToPercent(rvSlot_.cyclesAvg()); }
+  float delayCpuPercent() const { return cyclesToPercent(delay_.cyclesAvg()); }
+  float reverbCpuPercent() const { return cyclesToPercent(reverb_.cyclesAvg()); }
   float drumCpuPercent() const { return cyclesToPercent(drumCyclesAvg_); }
   void resetCpuMax() { cyclesMax_ = 0; }
 
@@ -214,13 +129,13 @@ class AudioConvolverIR : public AudioStream {
     // Delay, then reverb. An idle effect passes its input through, so with
     // both idle the signal stays mono.
     const uint32_t t1 = ARM_DWT_CYCCNT;
-    const bool delayed = processDelay(y, dl, dr);
+    const bool delayed = delay_.process(y, y, dl, dr);
     const uint32_t t2 = ARM_DWT_CYCCNT;
-    dlSlot_.addCycles(t2 - t1);
+    delay_.addCycles(t2 - t1);
     const float* sl = delayed ? dl : y;
     const float* sr = delayed ? dr : y;
-    const bool reverbed = processReverb(sl, sr, ol, orr);
-    rvSlot_.addCycles(ARM_DWT_CYCCNT - t2);
+    const bool reverbed = reverb_.process(sl, sr, ol, orr);
+    reverb_.addCycles(ARM_DWT_CYCCNT - t2);
     const float* fl = reverbed ? ol : sl;
     const float* fr = reverbed ? orr : sr;
 
@@ -291,193 +206,12 @@ class AudioConvolverIR : public AudioStream {
     }
   }
 
-  // An effect that has gone idle is cleared a few KB per block (clearing it
-  // all at once would stall this interrupt), or all at once if it is
-  // switched on again meanwhile. Returns false while it is still clearing.
-  template <class Fx>
-  static bool finishClearing(bool& clearing, const irdsp::FxSlot<AUDIO_BLOCK_SAMPLES>& slot, Fx& fx) {
-    if (!clearing) return true;
-    if (!slot.on()) {
-      if (fx.clearStep(4096)) clearing = false;
-      return false;
-    }
-    fx.clearStep(1 << 30);
-    clearing = false;
-    return true;
-  }
-
-  // The delay stage: core -> out L/R. Returns false while the delay is idle
-  // (the caller uses core for both channels).
-  bool processDelay(const float* core, float* outL, float* outR) {
-    // Idle with clean lines: a type change takes effect at once.
-    if (!dlClearing_ && !dlSlot_.running()) {
-      dlActive_ = dlType_;
-      dlSwitchClearing_ = false;
-      dlTypeGain_ = 1.0f;
-    }
-    return dlActive_ == kStudio ? runDelay(studio_, core, outL, outR)
-                                : runDelay(delay_, core, outL, outR);
-  }
-
-  template <class Fx>
-  bool runDelay(Fx& fx, const float* core, float* outL, float* outR) {
-    constexpr int B = AUDIO_BLOCK_SAMPLES;
-    if (!finishClearing(dlClearing_, dlSlot_, fx)) return false;
-    const bool wasRunning = dlSlot_.running();
-    if (!dlSlot_.begin(fx.ready())) return false;
-
-    // Time changes glide or crossfade, except when starting from idle or
-    // after a type switch: the lines are empty then, so jump straight to
-    // the set time.
-    applyDelayParams(fx, !wasRunning || dlRestart_);
-    dlRestart_ = false;
-
-    // Type switch while running: fade the repeats out, clear the lines a few
-    // KB per block, then hand over. The dry signal is not affected. Once the
-    // clearing has started it is finished even if the type is switched back.
-    const bool switching = dlSwitchClearing_ || dlType_ != dlActive_;
-    const float t0 = dlTypeGain_, t1 = ramp(t0, switching ? 0.0f : 1.0f);
-    if (switching && t0 == 0.0f) {
-      dlSwitchClearing_ = true;
-      if (fx.clearStep(4096)) {
-        dlSwitchClearing_ = false;
-        dlActive_ = dlType_;
-        dlRestart_ = true;
-      }
-      for (int i = 0; i < B; i++) outL[i] = outR[i] = 0.0f;
-    } else {
-      float in[B];
-      dlSlot_.feed(core, in);
-      fx.process(in, outL, outR, B);
-      if (t0 != 1.0f || t1 != 1.0f) {
-        for (int i = 0; i < B; i++) {
-          const float g = t0 + (t1 - t0) * (float)(i + 1) / (float)B;
-          outL[i] *= g;
-          outR[i] *= g;
-        }
-      }
-    }
-    dlTypeGain_ = t1;
-    dlSlot_.mix(core, outL);
-    dlSlot_.mix(core, outR);
-    if (dlSlot_.end()) dlClearing_ = true;
-    return true;
-  }
-
-  void applyDelayParams(irdsp::StereoDelay& d, bool force) {
-    d.setDelaySamples(dlTimeMs_ * (AUDIO_SAMPLE_RATE_EXACT / 1000.0f), force);
-    d.setFeedback(dlFeedback_);
-    d.setTrebleCut(1.0f - dlTone_);
-    d.setModDepth(dlMod_);
-    d.setBassCut(dlBassCut_);
-    d.setTreble(dlTreble_);
-    d.setBass(dlBass_);
-    d.setModRate(dlModRate_);
-    d.setInertia(dlInertia_);
-  }
-
-  void applyDelayParams(irdsp::StudioDelay& d, bool force) {
-    d.setDelaySamples(dlTimeMs_ * (AUDIO_SAMPLE_RATE_EXACT / 1000.0f), force);
-    d.setFeedback(dlFeedback_);
-    d.setTone(dlTone_);
-    d.setModDepth(dlMod_);
-    d.setBassCut(dl80BassCut_);
-    d.setDuck(dlDuck_);
-    d.setDrive(dlDrive_);
-    d.setEra(dlEra_);
-  }
-
-  // The reverb stage: in L/R -> out L/R. Returns false while the reverb is
-  // idle (the caller passes its input on).
-  bool processReverb(const float* inL, const float* inR, float* outL, float* outR) {
-    // Idle with clean lines: a type change takes effect at once.
-    if (!rvClearing_ && !rvSlot_.running() && rvActive_ != rvKind_) {
-      rvActive_ = rvKind_;
-      rvSwitchClearing_ = false;
-      rvTypeGain_ = 1.0f;
-    }
-    reverb80_.setMode(rvActive_ == kGated80 ? irdsp::Reverb80::kGated : irdsp::Reverb80::kHall);
-    return rvActive_ == kPlate ? runReverb(reverb_, inL, inR, outL, outR)
-                               : runReverb(reverb80_, inL, inR, outL, outR);
-  }
-
-  // As runDelay: a type switch while running fades the tail out, clears the
-  // shared memory a few KB per block, then hands over.
-  template <class Fx>
-  bool runReverb(Fx& fx, const float* inL, const float* inR, float* outL, float* outR) {
-    constexpr int B = AUDIO_BLOCK_SAMPLES;
-    if (!finishClearing(rvClearing_, rvSlot_, fx)) return false;
-    if (!rvSlot_.begin(fx.ready())) return false;
-    applyReverbParams(fx);
-
-    const bool switching = rvSwitchClearing_ || rvKind_ != rvActive_;
-    const float t0 = rvTypeGain_, t1 = ramp(t0, switching ? 0.0f : 1.0f);
-    if (switching && t0 == 0.0f) {
-      rvSwitchClearing_ = true;
-      if (fx.clearStep(4096)) {
-        rvSwitchClearing_ = false;
-        rvActive_ = rvKind_;
-      }
-      for (int i = 0; i < B; i++) outL[i] = outR[i] = 0.0f;
-    } else {
-      float rl[B], rr[B];
-      rvSlot_.feed(inL, rl);
-      rvSlot_.feed(inR, rr);
-      fx.process(rl, rr, outL, outR, B);
-      if (t0 != 1.0f || t1 != 1.0f) {
-        for (int i = 0; i < B; i++) {
-          const float g = t0 + (t1 - t0) * (float)(i + 1) / (float)B;
-          outL[i] *= g;
-          outR[i] *= g;
-        }
-      }
-    }
-    rvTypeGain_ = t1;
-    rvSlot_.mix(inL, outL);
-    rvSlot_.mix(inR, outR);
-    if (rvSlot_.end()) rvClearing_ = true;
-    return true;
-  }
-
-  void applyReverbParams(irdsp::PlateReverb& r) {
-    r.setSize(rvSize_);
-    r.setHiDamp(1.0f - rvTone_);
-    r.setDiffusion(rvDiffusion_);
-    r.setLoDamp(rvLoDamp_);
-    r.setLowpass(rvLowpass_);
-    r.setHipass(rvHipass_);
-  }
-
-  void applyReverbParams(irdsp::Reverb80& r) {
-    r.setSize(rvSize_);
-    r.setTone(rvTone_);
-    r.setPreDelayMs(rvPreMs_);
-    r.setMod(rvMod_);
-    r.setEra(rvEra_);
-    r.setGateMs(rvGateMs_);
-  }
-
   audio_block_t* inputQueue_[1];
   Engine engine_;
-  static constexpr int kPingPong = 0, kStudio = 1;
-  irdsp::StereoDelay delay_;
-  irdsp::StudioDelay studio_;
-  irdsp::PlateReverb reverb_;
-  irdsp::Reverb80 reverb80_;
-  irdsp::FxSlot<AUDIO_BLOCK_SAMPLES> dlSlot_, rvSlot_;
+  DelayStage delay_;
+  ReverbStage reverb_;
   irdsp::DrumMachine drums_;
   volatile float drumCyclesAvg_ = 0.0f;
-  bool dlClearing_ = false, rvClearing_ = false;  // audio interrupt only
-  // Delay type switching (audio interrupt only, except dlType_).
-  volatile int dlType_ = kPingPong;
-  int dlActive_ = kPingPong;
-  bool dlSwitchClearing_ = false, dlRestart_ = false;
-  float dlTypeGain_ = 1.0f;
-  // Reverb type switching (audio interrupt only, except rvKind_).
-  volatile int rvKind_ = kPlate;
-  int rvActive_ = kPlate;
-  bool rvSwitchClearing_ = false;
-  float rvTypeGain_ = 1.0f;
   volatile float gainTarget_ = 0.5f, gainCur_ = 0.5f;
   volatile float wetTarget_ = 1.0f, wetCur_ = 1.0f;
   volatile float inPeak_ = 0.0f, outPeak_ = 0.0f;
@@ -485,12 +219,4 @@ class AudioConvolverIR : public AudioStream {
   volatile uint32_t clips_ = 0;
   volatile float cyclesAvg_ = 0.0f;
   volatile uint32_t cyclesMax_ = 0;
-
-  // Effect settings (written by setters, read once per block).
-  volatile float dlTimeMs_ = 380.0f, dlFeedback_ = 0.35f, dlTone_ = 0.6f, dlMod_ = 0.0f;
-  volatile float dlBassCut_ = 0.0f, dlTreble_ = 1.0f, dlBass_ = 1.0f, dlModRate_ = 0.0f, dlInertia_ = 0.0f;
-  volatile float dlDuck_ = 0.0f, dlDrive_ = 0.0f, dlEra_ = 0.0f, dl80BassCut_ = 0.0f;
-  volatile float rvSize_ = 0.5f, rvTone_ = 0.5f;
-  volatile float rvDiffusion_ = 1.0f, rvLoDamp_ = 0.0f, rvLowpass_ = 0.0f, rvHipass_ = 0.0f;
-  volatile float rvPreMs_ = 40.0f, rvMod_ = 0.4f, rvEra_ = 0.4f, rvGateMs_ = 300.0f;
 };

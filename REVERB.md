@@ -1,51 +1,46 @@
 # Reverb
 
-The reverb is the last effect, after the IR and the delay. It takes the stereo signal and returns a stereo signal. There are two types, which share the same memory and the basic controls (Mix, Size, Tone):
+The reverb is the last effect, after the IR and the delay. It takes the stereo signal and returns a stereo signal: the rack reverbs of 80s rock and metal records, in two modes, a Lexicon-style **hall** (`rmode hall`, the default) and an AMS-style **gated** reverb (`rmode gated`). The modes share the same memory and the basic controls (Mix, Size, Tone).
 
-| Type | `rtype` | Character |
-|---|---|---|
-| **80s** (default) | `1` | The rack reverbs of 80s rock and metal records, in two modes: a Lexicon-style **hall** (`rmode hall`, the default) and an AMS-style **gated** reverb (`rmode gated`). |
-| **Plate** | `0` | A port of the HexeFX `AudioEffectPlateReverb_F32` (MIT, Piotr Zapart): a smooth, dense FV-1-style plate. |
+It runs in 32-bit float inside the same audio object as the convolution.
 
-Both run in 32-bit float inside the same audio object as the convolution.
+(Until 2026-10-29 there was also a plate reverb, a port of the HexeFX `AudioEffectPlateReverb_F32`. It was removed to save code; it is in the git history.)
 
 ## Contents
 
 - [Controls](#controls)
-- [80s hall](#80s-hall)
-- [80s gated](#80s-gated)
-- [Plate](#plate)
-- [On/off, mix and switching type](#onoff-mix-and-switching-type)
+- [Hall](#hall)
+- [Gated](#gated)
+- [On/off, mix and switching mode](#onoff-mix-and-switching-mode)
 - [Starting points](#starting-points)
 - [Memory and CPU](#memory-and-cpu)
 - [Code and tests](#code-and-tests)
 
 ## Controls
 
-All controls are serial commands. The reverb button (pin 5) toggles the reverb on and off. Every value is saved to EEPROM a few seconds after the last change. The planned OLED menu gives each one a row on the Reverb page, showing only the rows that apply to the current type and mode; see [DISPLAY.md](DISPLAY.md#menu-tree) and `screenshots/17_menu_reverb_80s.png`, `18_menu_reverb_gated.png`.
+Every control is a serial command and a row on the panel's Reverb page, which shows only the rows that apply to the current mode ([DISPLAY.md](DISPLAY.md#menu-tree), `screenshots/17_menu_reverb_hall.png`, `18_menu_reverb_gated.png`). Holding the push button on the home screen's REV block toggles the reverb. Every value is saved to EEPROM a few seconds after the last change.
 
 | Command | Range | Default | Applies to | What it does |
 |---|---|---|---|---|
-| `rv` | toggle | off | all | Reverb on/off. Switching off lets the tail ring out. |
-| `rtype` / `rtype 0\|1` | 0, 1 | 1 | — | Toggles or sets the type: 0 = plate, 1 = 80s. |
-| `rmode` / `rmode hall\|gated` | hall, gated | hall | 80s | Toggles or sets the 80s mode. |
-| `mix` | 0–100 | 25 | all | Dry/wet blend, with an equal-power crossfade. 0 = dry only, 100 = reverb only. |
-| `size` | 0–100 | 50 | all | Plate: reverb time, about 1.1–6 s. 80s hall: reverb time, 0.8–8 s (2.5 s at 50). 80s gated: the burst's shape, from decaying (0) to flat (50) to rising (100). |
-| `tone` | 0–100 | 50 | all | Brightness of the tail. 80s: 2.5 to 12 kHz, never above the era's bandwidth. |
-| `rpre` | 0–150 ms | 40 | 80s | Pre-delay: a gap before the reverb starts, so your picking stays clear. |
-| `rmod` | 0–100 | 40 | 80s hall | Chorus in the tail, from still to lush. |
-| `rera` | 0–100 | 40 | 80s | Converter era: 0 = late-80s 16-bit / 16 kHz, 100 = early 10-bit / 6 kHz. |
-| `rgate` | 100–600 ms | 300 | 80s gated | How long the burst lasts before it stops. |
+| `rv` | toggle | off | both | Reverb on/off. Switching off lets the tail ring out. |
+| `rmode` / `rmode hall\|gated` | hall, gated | hall | — | Toggles or sets the mode. |
+| `mix` | 0–100 | 25 | both | Dry/wet blend, with an equal-power crossfade. 0 = dry only, 100 = reverb only. |
+| `size` | 0–100 | 50 | both | Hall: reverb time, 0.8–8 s (2.5 s at 50). Gated: the burst's shape, from decaying (0) to flat (50) to rising (100). |
+| `tone` | 0–100 | 50 | both | Brightness of the tail, 2.5 to 12 kHz, never above the era's bandwidth. |
+| `rpre` | 0–150 ms | 40 | both | Pre-delay: a gap before the reverb starts, so your picking stays clear. |
+| `rmod` | 0–100 | 40 | hall | Chorus in the tail, from still to lush. |
+| `rera` | 0–100 | 40 | both | Converter era: 0 = late-80s 16-bit / 16 kHz, 100 = early 10-bit / 6 kHz. |
+| `rgate` | 100–600 ms | 300 | gated | How long the burst lasts before it stops. |
 
-`s` prints the reverb's state, type and settings, and its share of the CPU, for example:
+`s` prints the reverb's state and settings, and its share of the CPU, for example:
 
 ```
-Reverb:    on, 80s hall, mix 25%, size 50%, tone 50%, pre 40 ms, era 40%, mod 40%
+Reverb:    on, hall, mix 25%, size 50%, tone 50%, pre 40 ms, era 40%, mod 40%
 ```
 
-The plate ignores the 80s settings, and each 80s mode ignores the other's (Mod, Gate), but they keep their values for when you switch back.
+Each mode ignores the other's setting (Mod, Gate), but keeps its value for when you switch back.
 
-## 80s hall
+## Hall
 
 The big rack halls of 80s rock records: Lexicon 224/224XL and 480L. They're the "arena" sound of the leads, power ballads and clean arpeggios of the time.
 
@@ -62,7 +57,7 @@ in (L+R)/2 -> pre-delay -> era: anti-alias LP + 16..10-bit -> 4 allpass diffuser
 - **Dark highs, lean lows:** each line loses treble on every pass (Tone), and a 100 Hz low cut keeps the tail from muddying the low strings.
 - **Era:** the input passes a steep (4th-order) anti-alias filter at the era's bandwidth and is truncated to its resolution, as in the studio 80s delay. At 40 it's about 10.8 kHz and 13.6 bits.
 
-## 80s gated
+## Gated
 
 The AMS RMX16 "Nonlin" sound. Each hit gets a dense burst of reverb that stays at the same level for the gate time, then stops dead, instead of decaying slowly. It was famous on 80s snares, and on guitar it gives tight, huge rhythm parts that never wash out the next chord.
 
@@ -79,31 +74,20 @@ in (L+R)/2 -> pre-delay -> era -> 2 short allpass diffusers -> line
 - **Stops dead:** the burst is 40 dB down within 40 ms after the gate time, because the diffusion is kept short.
 - **Wide:** left and right use different tap positions and signs.
 
-## Plate
+## On/off, mix and switching mode
 
-The original reverb, ported from HexeFX:
-
-1. The signal goes through two chains of four allpass diffusers, one per side.
-2. They feed a loop of four delay lines and allpasses with shelving filters, scaled by the reverb time.
-3. The outputs are taken from different points in the loop.
-4. Two slow LFOs modulate the loop.
-
-Its fixed voicing (diffusion, bass damping, output filters) is set in `include/config.h` (`REVERB_*`).
-
-## On/off, mix and switching type
-
-- **Off is click-free:** the tail rings out, then the reverb uses no CPU and passes the signal through bit for bit.
-- **Switching while it sounds:** a change of type, or of the 80s mode, fades the tail out over 20 ms. The shared memory is then cleared in about 8 audio blocks before the new reverb starts, so there's never a burst of the old tail through the new algorithm.
+- **Off is click-free:** the tail rings out, then the reverb uses no CPU and passes the signal through bit for bit (`FxStage.h`).
+- **Switching mode while it sounds:** the tail fades out over 20 ms. The shared memory is then cleared in about 8 audio blocks (about 9 ms) before the new mode starts, so there's never a burst of the old tail through the new algorithm. `Reverb80` does this itself.
 - **Switching while idle:** the change takes effect at once.
 
 ## Starting points
 
 | Sound | Settings |
 |---|---|
-| 80s lead (hall) | `rtype 1`, `rmode hall`, `size 60`, `rpre 60`, `rmod 50`, `rera 30`, `mix 25` |
-| Power-ballad cleans | `rtype 1`, `rmode hall`, `size 80`, `rpre 80`, `rmod 60`, `tone 40`, `mix 30` |
-| Tight, huge rhythm (gated) | `rtype 1`, `rmode gated`, `rgate 250`, `size 50`, `rpre 10`, `mix 20` |
-| Reverse-swell ambience | `rtype 1`, `rmode gated`, `rgate 500`, `size 100`, `mix 30` |
+| 80s lead (hall) | `rmode hall`, `size 60`, `rpre 60`, `rmod 50`, `rera 30`, `mix 25` |
+| Power-ballad cleans | `rmode hall`, `size 80`, `rpre 80`, `rmod 60`, `tone 40`, `mix 30` |
+| Tight, huge rhythm (gated) | `rmode gated`, `rgate 250`, `size 50`, `rpre 10`, `mix 20` |
+| Reverse-swell ambience | `rmode gated`, `rgate 500`, `size 100`, `mix 30` |
 
 To listen on a computer first, `make -C test/host render` writes `test/host/out/reverb80_*.wav`:
 - a plucked-guitar riff through the hall
@@ -113,7 +97,7 @@ To listen on a computer first, `make -C test/host render` writes `test/host/out/
 
 ## Memory and CPU
 
-**Memory:** both types share one block in RAM2 (OCRAM): 136 KB, the size of the larger (the 80s reverb). Only one type runs at a time.
+**Memory:** one block in RAM2 (OCRAM), 136 KB, shared by the two modes. Moving it to the faster DTCM was measured on 2026-10-29: it saved only 0.3 % CPU, so it stays in OCRAM.
 
 | Part | Size |
 |---|---|
@@ -121,17 +105,16 @@ To listen on a computer first, `make -C test/host render` writes `test/host/out/
 | Diffusers | 4 KB |
 | Hall lines / gate line (shared by the two modes) | 106 KB |
 
-RAM1 holds only the reverbs' state and the real-time code. Setup, clearing and the coefficient math run from flash.
+RAM1 holds only the reverb's state and the real-time code. Setup, clearing and the coefficient math run from flash.
 
 **CPU**, measured on the Teensy 4.0 with 32-sample blocks:
 
-| Type | CPU (while on or ringing) |
+| Mode | CPU (while on or ringing) |
 |---|---|
-| Plate | 6.2 % |
-| 80s hall | 7.5 % |
-| 80s gated | 6.0 % |
+| Hall | 7.5 % |
+| Gated | 6.0 % |
 
-**How the 80s reverb stays fast:**
+**How the reverb stays fast:**
 - It works in 32-sample chunks, one line at a time, so it streams through each line in the cached OCRAM instead of jumping between all of them every sample.
 - The chorus LFOs run once per chunk and are interpolated.
 - The chorused reads use linear interpolation, as the units of the day did.
@@ -140,10 +123,10 @@ RAM1 holds only the reverbs' state and the real-time code. Setup, clearing and t
 
 | File | Contents |
 |---|---|
-| `lib/irdsp/src/Reverb80.h`, `Reverb80.cpp` | The 80s reverb (hall and gated). Portable C++, no Arduino. The real-time code is in the header; setup, clearing and coefficients are in the .cpp, in flash. |
-| `lib/irdsp/src/PlateReverb.h` | The plate. |
-| `src/AudioConvolverIR.h` | Runs the reverb each block, switches types, mixes. |
-| `src/AudioGraph.cpp`, `src/SerialUI.cpp`, `src/Settings.cpp` | Setters, the `r*` commands, EEPROM (`"IRL8"`). |
+| `lib/irdsp/src/Reverb80.h`, `Reverb80.cpp` | The reverb (hall and gated, and the switch between them). Portable C++, no Arduino. The real-time code is in the header; setup, clearing and coefficients are in the .cpp, in flash. |
+| `lib/irdsp/src/FxStage.h`, `FxSlot.h` | On/off with trails, dry/wet mix, idle detection and clearing. |
+| `src/AudioConvolverIR.h` | Runs the reverb stage each block. |
+| `src/AudioGraph.cpp`, `src/SerialUI.cpp`, `src/Settings.cpp` | Setters, the `r*` commands, EEPROM. |
 
 `make -C test/host test` runs `test_reverb80`. It checks:
 
@@ -161,4 +144,4 @@ RAM1 holds only the reverbs' state and the real-time code. Setup, clearing and t
   - Levelled to the input.
 - **Both:** 60 s of loud noise stays finite, and a clear leaves exact silence.
 
-`test_reverb` checks the plate.
+`test_fxstage` checks the mode switch: a switch while sounding fades out in 20 ms, goes silent while the lines clear, then plays the new mode; a switch while idle and clear applies at once.

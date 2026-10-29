@@ -1,20 +1,16 @@
 # Delay
 
-The delay sits between the IR and the reverb ([REVERB.md](REVERB.md)). It takes the mono signal after the IR and gives a stereo output. It has two types, which share the same memory and the same basic controls:
+The delay sits between the IR and the reverb ([REVERB.md](REVERB.md)). It takes the mono signal after the IR and gives a stereo output: a wet/dry/wet dual delay voiced after the digital racks of 80s guitar rigs (TC 2290, Korg SDD-3000, Roland SDE-3000). It has clean, pitch-stable repeats that spread wide without bouncing, with ducking, preamp grit and converter character.
 
-| Type | `dtype` | Character |
-|---|---|---|
-| **Studio 80s** (default) | `1` | A wet/dry/wet dual delay voiced after the digital racks of 80s guitar rigs (TC 2290, Korg SDD-3000, Roland SDE-3000). Clean, pitch-stable repeats, wide but not bouncing, with ducking, preamp grit and converter character. |
-| **Ping-pong** | `0` | A port of the HexeFX `AudioEffectDelayStereo_F32` (MIT, Piotr Zapart). The repeats alternate left and right, with tape-like wobble, and time changes glide. |
+It runs in 32-bit float inside the same audio object as the convolution. Delay times run from 20 to 750 ms.
 
-Both run in 32-bit float inside the same audio object as the convolution. Delay times run from 20 to 750 ms.
+(Until 2026-10-29 there was also a ping-pong delay, a port of the HexeFX `AudioEffectDelayStereo_F32`. It was removed to save code; it is in the git history.)
 
 ## Contents
 
 - [Controls](#controls)
-- [Studio 80s](#studio-80s)
-- [Ping-pong](#ping-pong)
-- [On/off, mix and switching type](#onoff-mix-and-switching-type)
+- [How it works](#how-it-works)
+- [On/off and mix](#onoff-and-mix)
 - [Fixed voicing (`config.h`)](#fixed-voicing-configh)
 - [Memory and CPU](#memory-and-cpu)
 - [Starting points](#starting-points)
@@ -22,24 +18,23 @@ Both run in 32-bit float inside the same audio object as the convolution. Delay 
 
 ## Controls
 
-All controls are serial commands. The delay button (pin 9) toggles the delay on and off. Every value is saved to EEPROM a few seconds after the last change. The planned OLED menu gives each one a row; see [DISPLAY.md](DISPLAY.md#menu-tree).
+Every control is a serial command and a row on the panel's Delay page ([DISPLAY.md](DISPLAY.md#menu-tree)). Holding the push button on the home screen's DLY block toggles the delay. Every value is saved to EEPROM a few seconds after the last change.
 
-| Command | Range | Default | Types | What it does |
-|---|---|---|---|---|
-| `dl` | toggle | off | both | Delay on/off. Switching off lets the repeats ring out. |
-| `dtype` / `dtype 0\|1` | 0, 1 | 1 | — | Toggles or sets the type: 0 = ping-pong, 1 = studio 80s. |
-| `dmix` | 0–100 | 30 | both | Dry/wet blend, with an equal-power crossfade. 0 = dry only, 100 = repeats only. |
-| `dtime` | 20–750 ms | 380 | both | Delay time. On the studio 80s this is the **left** time; the right one is ¾ of it. |
-| `dfb` | 0–100 | 35 | both | Repeats (feedback). |
-| `dtone` | 0–100 | 60 | both | Brightness of the repeats. Lower values make each repeat darker than the one before. |
-| `dmod` | 0–100 | 15 | both | Modulation depth: a chorus on the studio 80s, a tape-like wobble on the ping-pong. |
-| `dduck` | 0–100 | 40 | studio 80s | How far the repeats drop while you play. 100 = −24 dB. |
-| `ddrive` | 0–100 | 20 | studio 80s | Grit from the rack's input preamp. 0 = clean. |
-| `dera` | 0–100 | 40 | studio 80s | Converter era: 0 = late-80s 16-bit / 16 kHz, 100 = early 10-bit / 6 kHz. |
+| Command | Range | Default | What it does |
+|---|---|---|---|
+| `dl` | toggle | off | Delay on/off. Switching off lets the repeats ring out. |
+| `dmix` | 0–100 | 30 | Dry/wet blend, with an equal-power crossfade. 0 = dry only, 100 = repeats only. |
+| `dtime` | 20–750 ms | 380 | Delay time: the **left** time; the right one is ¾ of it. |
+| `dfb` | 0–100 | 35 | Repeats (feedback). |
+| `dtone` | 0–100 | 60 | Brightness of the repeats. Lower values make each repeat darker than the one before. |
+| `dmod` | 0–100 | 15 | Modulation depth: a chorus on the tail. |
+| `dduck` | 0–100 | 40 | How far the repeats drop while you play. 100 = −24 dB. |
+| `ddrive` | 0–100 | 20 | Grit from the rack's input preamp. 0 = clean. |
+| `dera` | 0–100 | 40 | Converter era: 0 = late-80s 16-bit / 16 kHz, 100 = early 10-bit / 6 kHz. |
 
-`s` prints the delay's state, its type and settings, and its share of the CPU. The ping-pong ignores duck, drive and era, but keeps their values for when you switch back.
+`s` prints the delay's state and settings, and its share of the CPU.
 
-## Studio 80s
+## How it works
 
 ### Signal flow
 
@@ -58,7 +53,7 @@ filt X = bass cut (lowpass (line X output)): every repeat loses a little treble 
 ```
 
 - **Two loops, not a ping-pong.** Line A (left) repeats at T and line B (right) at ¾ T, so each side has its own rhythm. The image is wide and the repeats don't bounce side to side, which is the classic wet/dry/wet rack setup. A little **cross-feed** (`c`, 20 %) takes part of each side's repeats into the other loop and blends the two tails.
-- **Stable at any setting.** The cross-feed is a blend, `(1-c) x own + c x other`, so the loop gain never exceeds the feedback, which is at most 0.96. More feedback also lowers the input level a little, as in the ping-pong, so the repeats don't build up.
+- **Stable at any setting.** The cross-feed is a blend, `(1-c) x own + c x other`, so the loop gain never exceeds the feedback, which is at most 0.96. More feedback also lowers the input level a little, so the repeats don't build up.
 - **Pitch-stable time changes.** A new time doesn't glide. The delay crossfades from the old read position to the new one over 20 ms, as digital racks do. The repeats never bend in pitch. During those 20 ms their phase moves once, from the old position to the new.
 
 ### The 80s controls
@@ -86,54 +81,20 @@ filt X = bass cut (lowpass (line X output)): every repeat loses a little treble 
 
 **Modulation** is a 0.8 Hz sine. `dmod 100` moves the read positions by ±1.5 ms, with L and R in opposite phase. That gives a wide, chorused tail and keeps the repeats on time on average. The default of 15 is a subtle shimmer, about 2 cents.
 
-## Ping-pong
+## On/off and mix
 
-```
-  in --> (+) --> tone --> line A --+--> line B --+--> out R
-          ^                        |             |
-          |                        +--> out L    |
-          +---- feedback x damping filter <------+
-```
-
-1. The input plus the filtered feedback goes into line A.
-2. Line A's output is the left repeat, and it also feeds line B.
-3. Line B's output is the right repeat, and it feeds back into line A.
-
-So the first repeat comes on the left after T, the next on the right after 2T, and so on.
-
-- Reads use 4-point Hermite interpolation, which allows smooth modulation and time glides.
-- A time change glides there with a speed limit, like turning a tape delay's time knob, so the pitch bends on the way.
-- The damping filter takes some treble (`dtone`) and bass (fixed) off every repeat.
-- The modulation is a slow LFO on both lines, a tape-like wobble.
-- The original runs two such pairs, fed by the left and right inputs. With a mono guitar input both would carry the same signal, so one pair with twice the output gain is used. With modulation off it sounds the same, at half the memory.
-- The original's freeze, tap tempo and PSRAM support are left out.
-
-## On/off, mix and switching type
-
-Both types sit in one effect slot (`lib/irdsp/src/FxSlot.h`):
+The delay runs in an effect stage (`lib/irdsp/src/FxStage.h`, with `FxSlot.h`):
 
 - **On** fades the delay's input in over 20 ms. **Off** fades the input out and lets the repeats ring.
 - Once the delay is off and its output has stayed below −100 dBFS for 0.5 s, it goes **idle**:
-  - The lines are cleared, a few KB per block.
+  - The lines are cleared, a few KB per block, and the next start jumps straight to the set time.
   - From then on the delay passes its input through bit-identically and uses no CPU.
   - With both the delay and the reverb idle, the output is mono again.
 - **Mix** is an equal-power crossfade with 20 ms ramps.
 
-**Switching type** never mixes one type's audio into the other's lines:
-
-- **While the delay is idle:** the switch is immediate.
-- **While repeats are ringing:**
-  1. The repeats fade out over 20 ms. The dry signal is unaffected.
-  2. The lines are cleared, which takes about 12 ms.
-  3. The new type starts at the set time and fades in over 20 ms.
-
-  The repeats are gone for about 30 ms, and you don't hear a click. Once the clearing has started it finishes, even if you switch back.
-
 ## Fixed voicing (`config.h`)
 
 These are compile-time settings in `include/config.h`, under *Delay*.
-
-**Studio 80s**
 
 | Define | Default | Effect |
 |---|---|---|
@@ -144,39 +105,22 @@ These are compile-time settings in `include/config.h`, under *Delay*.
 | `DELAY80_DUCK_THRESHOLD_DB` | −36 | Input level where ducking starts. It is complete 12 dB higher. |
 | `DELAY80_DUCK_RELEASE_MS` | 200 | How fast the repeats swell back after you stop. |
 
-**Ping-pong**
-
-| Define | Default | Effect |
-|---|---|---|
-| `DELAY_BASS_CUT` | 0.2 | Bass loss per repeat. |
-| `DELAY_TREBLE` / `DELAY_BASS` | 1.0 / 1.0 | Treble and bass of the signal entering the lines (1 = flat). |
-| `DELAY_MOD_RATE` | 0.35 | Modulation rate, cubic: 0.35 is about 0.7 Hz. |
-| `DELAY_INERTIA` | 0.9 | How slowly a new time is reached (the pitch glide). |
-
-**Shared:** `DELAY_MAX_MS` (750) and the `DEFAULT_DELAY_*` defaults, including `DEFAULT_DELAY_TYPE`. The defaults are used when the EEPROM is blank or invalid, and for the new fields when settings saved by older firmware are upgraded.
+`DELAY_MAX_MS` (750) sets the longest time and the size of the lines.
 
 ## Memory and CPU
 
 **Memory**
 
 - The delay uses two float lines of `DELAY_MAX_MS` each, about 129 KB per line at 750 ms. One is in RAM1 (DTCM) and the other in RAM2 (OCRAM), because neither bank has room for both.
-- Both types use the same two lines, so the second type cost no data memory. Its code added about 7 KB to RAM1 (ITCM), which leaves about 2.4 KB of headroom before ITCM needs a 5th bank (see [DISPLAY.md, RAM1 strategy](DISPLAY.md#ram1-strategy)).
-- RAM1 is the limit: every 100 ms of `DELAY_MAX_MS` costs about 17.6 KB of it. Lower `DELAY_MAX_MS` to free memory.
+- Every 100 ms of `DELAY_MAX_MS` costs about 17.6 KB in each bank. See [DISPLAY.md, RAM1 strategy](DISPLAY.md#ram1-strategy) for the current budget.
 
 **CPU**
 
-Measured on a Teensy 4.0 with 32-sample blocks, while the delay is on or ringing:
-
-| Type | CPU |
-|---|---|
-| Ping-pong | about 2.9 % |
-| Studio 80s | about 4.4 % (twice the reads during a time crossfade, plus filters, quantizer, drive and envelope) |
-
-An idle delay uses nothing. `s` shows the live figure.
+About 4.4 % on a Teensy 4.0 with 32-sample blocks, while the delay is on or ringing (twice the reads during a time crossfade, plus filters, quantizer, drive and envelope). An idle delay uses nothing. `s` shows the live figure.
 
 ## Starting points
 
-These are suggestions to get near a familiar 80s sound quickly, not exact settings from any record. All use the studio 80s type (`dtype 1`). Type the commands one per line.
+These are suggestions to get near a familiar 80s sound quickly, not exact settings from any record. Type the commands one per line.
 
 | Sound | Settings |
 |---|---|
@@ -191,24 +135,15 @@ For dotted eighths at another tempo, use `dtime` = 45000 / BPM. For the classic 
 
 | File | Contents |
 |---|---|
-| `lib/irdsp/src/StudioDelay.h` | The studio 80s delay. Portable C++, no Arduino. |
-| `lib/irdsp/src/StereoDelay.h` | The ping-pong (HexeFX port). |
+| `lib/irdsp/src/StudioDelay.h` | The delay. Portable C++, no Arduino. |
 | `lib/irdsp/src/irdsp_blocks.h` | Shared building blocks: Hermite read, biquad lowpass, shelving filter, LFO, mix law. |
-| `lib/irdsp/src/FxSlot.h` | On/off with trails, dry/wet mix and idle detection. |
-| `src/AudioConvolverIR.h` | Runs the active type each block, applies the settings, switches types. |
-| `src/AudioGraph.cpp`, `src/SerialUI.cpp`, `src/Settings.cpp` | Setters, serial commands, EEPROM (the `"IRL4"` record holds the type and the 80s controls). |
-| `test/host/test_delay.cpp`, `test/host/test_studio_delay.cpp` | PC tests. |
+| `lib/irdsp/src/FxStage.h`, `FxSlot.h` | On/off with trails, dry/wet mix, idle detection and clearing. |
+| `src/AudioConvolverIR.h` | Runs the delay stage each block. |
+| `src/AudioGraph.cpp`, `src/SerialUI.cpp`, `src/Settings.cpp` | Setters, serial commands, EEPROM. |
+| `test/host/test_studio_delay.cpp`, `test_fxstage.cpp` | PC tests. |
 
 Run the tests on a PC with `make -C test/host test`.
 
-**Ping-pong:**
-- The repeats alternate left and right at exactly the set time, with the expected gains.
-- It is stable at maximum feedback and modulation.
-- Fractional delays are accurate.
-- Time changes glide without jumps.
-- The tail dies out, and clearing empties both lines.
-
-**Studio 80s:**
 - The repeats land at T (left) and ¾ T (right), with the expected gains and cross-feed.
 - 60 s of noise with feedback, modulation, drive, era and cross-feed all at maximum stays finite and bounded.
 - At era 100 with high feedback the tail reaches exact silence.
@@ -216,3 +151,4 @@ Run the tests on a PC with `make -C test/host test`.
 - A time change has no jumps, and the pitch is exact outside the 20 ms crossfade.
 - Ducking is −24 dB at `dduck 100` while you play, and fully recovered 1 s after you stop.
 - Drive 0 is exactly linear, drive 100 squashes loud input, and era 100 cuts 10 kHz by more than 6 dB.
+- After a clear, the next start plays at the set time, with no crossfade from the old one (`test_fxstage`).
