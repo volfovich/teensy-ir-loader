@@ -241,6 +241,7 @@ The tests check:
 
 ## Ideas for next steps
 
+- **Amp block:** play Neural Amp Modeler A2 profiles (`.nam`) before the IR. The plan is in [NAM.md](NAM.md).
 - **Tone controls:** low-cut, high-cut and a presence biquad after the convolver.
 - **Two-IR blending:** the engine already evaluates two IRs during crossfades.
 - **USB audio:** build with `-D USB_MIDI_AUDIO_SERIAL` and add `AudioOutputUSB` to record directly into a computer (verify it with your chosen block size).
