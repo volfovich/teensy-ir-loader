@@ -9,21 +9,21 @@ static int g_addr = -1;
 
 // Commands go after a 0x00 control byte, display data after 0x40.
 static bool command(const uint8_t* c, int n) {
-  Wire.beginTransmission(g_addr);
-  Wire.write(0x00);
-  Wire.write(c, n);
-  return Wire.endTransmission() == 0;
+  OLED_WIRE.beginTransmission(g_addr);
+  OLED_WIRE.write(0x00);
+  OLED_WIRE.write(c, n);
+  return OLED_WIRE.endTransmission() == 0;
 }
 
 static bool probe(int addr) {
-  Wire.beginTransmission(addr);
-  return Wire.endTransmission() == 0;
+  OLED_WIRE.beginTransmission(addr);
+  return OLED_WIRE.endTransmission() == 0;
 }
 
 bool oledBegin() {
   if (OLED_I2C_ADDR < 0) return false;
-  // The SGTL5000 is rated for 400 kHz too; Wire starts at 100 kHz.
-  Wire.setClock(400000);
+  OLED_WIRE.begin();
+  OLED_WIRE.setClock(OLED_I2C_HZ);
   if (probe(OLED_I2C_ADDR)) g_addr = OLED_I2C_ADDR;
   else if (probe(0x3D)) g_addr = 0x3D;
   else return false;
@@ -78,10 +78,10 @@ bool oledBegin() {
   for (int p = 0; p < 8; p++) {
     const uint8_t addr[] = {(uint8_t)(0xB0 | p), 0x00, 0x10};
     command(addr, sizeof(addr));
-    Wire.beginTransmission(g_addr);
-    Wire.write(0x40);
-    Wire.write(zeros, OLED_SH1106 ? 132 : 128);
-    Wire.endTransmission();
+    OLED_WIRE.beginTransmission(g_addr);
+    OLED_WIRE.write(0x40);
+    OLED_WIRE.write(zeros, OLED_SH1106 ? 132 : 128);
+    OLED_WIRE.endTransmission();
   }
   // The SH1106 datasheet's power-on sequence wants 100 ms between switching
   // the DC-DC converter on and the display on.
@@ -101,9 +101,9 @@ void oledSendPage(int p, const uint8_t* data) {
   const uint8_t addr[] = {(uint8_t)(0xB0 | p), (uint8_t)(col & 0x0F), (uint8_t)(0x10 | (col >> 4))};
   command(addr, sizeof(addr));
   // 1 control byte + 128 data bytes fit the Teensy 4 Wire buffer (136).
-  Wire.beginTransmission(g_addr);
-  Wire.write(0x40);
-  Wire.write(data, 128);
-  Wire.endTransmission();
+  OLED_WIRE.beginTransmission(g_addr);
+  OLED_WIRE.write(0x40);
+  OLED_WIRE.write(data, 128);
+  OLED_WIRE.endTransmission();
 }
 

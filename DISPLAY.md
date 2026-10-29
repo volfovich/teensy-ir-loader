@@ -6,7 +6,7 @@ The UI is written and tested on the PC: `lib/oledui` draws every screen and runs
 
 ## Summary
 
-- **Display:** 128x64 SH1106 (1.3") or SSD1306 (0.96") on I2C, sharing the bus with the audio codec (pins 18/19). No extra bus is needed. `OLED_SH1106` in `config.h` picks the controller.
+- **Display:** 128x64 SH1106 (1.3") or SSD1306 (0.96") on its own I2C bus, `Wire1` (pins 16/17, 1 MHz), apart from the audio codec's (pins 18/19). `OLED_SH1106` in `config.h` picks the controller.
 - **Inputs:** the encoder and the two buttons reuse the five wires of today's buttons (pins 2, 3, 4, 5, 9).
 - **Software:**
   - A small SH1106 / SSD1306 driver of our own, running from flash. It sends only the 128-byte pages that changed.
@@ -24,8 +24,8 @@ Module pin labels vary between sellers. Common names are given in brackets.
 |---|---|---|---|
 | VCC | **3.3 V** | | **Never 5 V.** The module's pull-ups would put 5 V on the Teensy pins, which are not 5 V tolerant. |
 | GND | GND | | |
-| SDA | **18** (SDA0) | | Shared with the SGTL5000 codec (address 0x0A). |
-| SCL | **19** (SCL0) | | Shared with the codec. |
+| SDA | **17** (SDA1) | | The display's own bus, `Wire1`. |
+| SCL | **16** (SCL1) | | |
 | Encoder A (TRA, ENCA, CLK) | **2** | next button | |
 | Encoder B (TRB, ENCB, DT) | **3** | prev button | |
 | Encoder push (PSH, SW, ENCSW) | **4** | bypass button | |
@@ -37,8 +37,8 @@ Module pin labels vary between sellers. Common names are given in brackets.
   ┌──────────────────────────┐
   │ VCC ─────────────────────┼──────────────► 3.3V
   │ GND ─────────────────────┼──────────────► GND
-  │ SDA ─────────────────────┼──────────────► 18  (shared with codec)
-  │ SCL ─────────────────────┼──────────────► 19  (shared with codec)
+  │ SDA ─────────────────────┼──────────────► 17  (SDA1)
+  │ SCL ─────────────────────┼──────────────► 16  (SCL1)
   │ TRA  (encoder A) ────────┼──────────────► 2
   │ TRB  (encoder B) ────────┼──────────────► 3
   │ PSH  (encoder push) ─────┼──────────────► 4
@@ -50,19 +50,22 @@ Module pin labels vary between sellers. Common names are given in brackets.
 Notes:
 
 - **I2C address:** usually 0x3C. Some modules are set to 0x3D with a resistor on the back. It is set in `config.h`.
-- **Pull-ups:** the OLED module and the Audio Shield both have I2C pull-ups. In parallel they are still within spec, so nothing needs removing.
+- **Pull-ups:** the module's own I2C pull-ups serve `Wire1`. If the picture glitches at 1 MHz (weak pull-ups round the edges), set `OLED_I2C_HZ` to 400000.
 - **Encoder direction:** on our module, clockwise counts down, so `config.h` has `ENC_REVERSE 1`. Set it to 0 if clockwise moves the cursor left on yours.
 - **Encoder and buttons:** the firmware uses the Teensy's internal pull-ups (`INPUT_PULLUP`), with the contacts switching to GND. If the module has its own pull-ups to VCC, that is fine at 3.3 V.
 - **Encoder bounce:** if the module has no RC filter on the encoder, a 100 nF capacitor from A and from B to GND helps. The state-table decoder tolerates bounce anyway, so try without first.
-- **Physical access:** with the shield stacked, pins 18/19 are reachable on the shield's header or on the Teensy's top header pins.
-- **Other free pins**, if needed later: 0, 1, 14, 16, 17, 22. 15 is the shield's volume-pot pad and 6 its memory-chip CS.
+- **Physical access:** with the shield stacked, pins 16/17 are reachable on the shield's header or on the Teensy's top header pins.
+- **Other free pins**, if needed later: 0, 1, 14, 22. 15 is the shield's volume-pot pad and 6 its memory-chip CS.
 
-### Why share the codec's I2C bus
+### Why the display has its own bus
 
-- The codec uses address 0x0A and the OLED 0x3C, so they don't collide.
-- All codec writes (`setLineInLevel` etc.) and all display writes run from `loop()`, never from an interrupt. They can't interrupt each other.
-- The SGTL5000 is rated for 400 kHz, so the bus runs at 400 kHz. `Wire` defaults to 100 kHz, so the display driver calls `Wire.setClock(400000)` after `audioBegin()`.
-- **Alternative:** `Wire1` on pins 16/17 gives the display its own bus, which can run at 1 MHz. This is only worth doing if the shared bus ever causes trouble.
+Until 2026-10-29 the display shared the codec's bus (`Wire`, pins 18/19, 400 kHz). That worked: all codec and display writes run from `loop()`, never from an interrupt. Its own bus (`OLED_WIRE` in `config.h`) brings:
+
+- **A faster screen:** 1 MHz instead of the codec's 400 kHz, so a page takes about 1.3 ms instead of 3.3 ms, and a full redraw about 11 ms instead of 26.
+- **A faster boot:** the display needs nothing else, so the splash shows first, before the codec's 0.4 s power-up.
+- **A codec bus that's never shared:** codec writes don't wait behind page sends, and the codec stays at its library's own clock.
+
+To go back to the shared bus, set `OLED_WIRE` to `Wire` and `OLED_I2C_HZ` to 400000, and wire SDA/SCL to 18/19.
 
 ## Controls
 
@@ -306,7 +309,7 @@ Why our own driver: see [RAM1 strategy](#ram1-strategy). It is about 70 lines.
 - **Init:** probes `OLED_I2C_ADDR`, then 0x3D, and sends the 128x64 init sequence for the controller `OLED_SH1106` selects: the SSD1306's charge pump and page addressing mode, or the SH1106's DC-DC converter (it only has page addressing). It then blanks the whole display RAM (132 columns on the SH1106), so no power-on garbage shows. With no display found, the panel stays off and the firmware runs as before.
 - **SH1106 column offset:** its RAM is 132 columns wide and the glass shows 128 of them, starting at `OLED_COL_OFFSET`. That is 2 on many modules but 0 on ours. If it is wrong, the line ends are cut off on one side and stray pixels show on the other.
 - **"SH1106" modules with an SSD1306-compatible chip:** ours is one (hence offset 0). It stayed black after power-up until the SSD1306 charge-pump command (`8D 14`) was added to the SH1106 init; a real SH1106 ignores it. This only shows from cold: the setting survives a warm restart (a reflash), so a module once started by the SSD1306 init works until it is unplugged. The init also waits 100 ms between the converter and display-on, as the SH1106 datasheet asks.
-- **Sending:** `oledSendPage(p, data)` sends one page: a 3-byte address command, then 1 control byte + 128 data bytes. The Teensy 4 `Wire` buffer is 136 bytes, so a whole page fits in one transaction. A page takes about 3.3 ms at 400 kHz.
+- **Sending:** `oledSendPage(p, data)` sends one page: a 3-byte address command, then 1 control byte + 128 data bytes. The Teensy 4 `Wire` buffer is 136 bytes, so a whole page fits in one transaction. A page takes about 1.3 ms at 1 MHz.
 - **Drawing** is `ui::Canvas` (`lib/oledui`): the frame buffer, text in the two fonts, lines, boxes and inversion.
 - **Fonts:** Spleen 8x16 and 16x32 by Frederic Cambus (BSD-2-Clause), 2.2.0. `tools/make_font.py` converts the BDF files in `fonts/spleen/` into `lib/oledui/src/Fonts.cpp` (7.6 KB in flash, ASCII 32..126) in the display's page layout, so a glyph's columns are copied straight into the frame buffer. Text rows start at x = 1: the glyphs' blank column is on the right, and this keeps inverted rows off the left edge.
 
@@ -337,8 +340,8 @@ Why our own driver: see [RAM1 strategy](#ram1-strategy). It is about 70 lines.
   - A second 1 KB buffer (`DMAMEM`) holds what the OLED shows. `serviceDisplay()` sends **at most one page per call, and only a page whose bytes differ** from it, round-robin so busy rows (the Meter screen's bars) can't starve the others.
   - So a still home screen sends nothing (only the beat row while the drums play), and changes made over serial show on the screen within a frame, with no coupling between the two UIs.
 - **Serial echo:** `setParam()` prints a confirmation on Serial at every encoder step, for example `Delay time 385ms`. That is harmless. If it gets noisy, add a `quiet` flag later.
-- **Loop budget:** `serviceDisplay()` sends at most one page (about 3.3 ms) per call. Drawing a screen runs from flash and takes much less.
-- **Splash:** shown for 1.5 s at the end of `setup()`, after the SD scan, so it can show the IR count. Input is ignored meanwhile.
+- **Loop budget:** `serviceDisplay()` sends at most one page (about 1.3 ms) per call. Drawing a screen runs from flash and takes much less.
+- **Splash:** the first thing `setup()` does, before the audio starts: the title, then the IR count once the SD card has been read (`displayBootDone()`). It stays up for 1.5 s from power-on, overlapping the rest of `setup()` (about 1 s from cold), and input is ignored meanwhile.
 
 ### main.cpp
 
@@ -346,9 +349,11 @@ Why our own driver: see [RAM1 strategy](#ram1-strategy). It is about 70 lines.
 void setup() {
   controlsBegin();
   loadSettings();
-  audioBegin();
-  ...                  // serial, SD scan, startup IR, drum song
-  displayBegin();      // after audioBegin() (Wire is up; sets 400 kHz) and the scan; shows the splash
+  displayBegin();      // the splash at once (the display's own bus)
+  audioBegin();        // codec, effects, the saved settings
+  Serial.begin(115200);  // no waiting for a monitor
+  ...                  // SD scan, startup IR, drum song
+  displayBootDone();   // the splash shows the IR count
 }
 
 void loop() {
@@ -429,4 +434,4 @@ The audio path stays in ITCM: `AudioGraph` with the convolver and effects, the d
 
 ## Open choices
 
-- **Bus:** shared `Wire` (18/19, 400 kHz) for now. A separate `Wire1` (16/17, 1 MHz) would be a rewiring and a one-line change in `Oled.cpp`, only worth it if the shared bus ever causes trouble.
+- **Bus:** `Wire1` (16/17, 1 MHz) since 2026-10-29; see [Why the display has its own bus](#why-the-display-has-its-own-bus).

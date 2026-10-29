@@ -156,17 +156,27 @@ static bool sendOnePage() {
   return false;
 }
 
+static void showSplash() {
+  fillModel(millis());
+  ui::drawSplash(g_canvas, g_model);
+  while (sendOnePage()) {}
+}
+
 void displayBegin() {
-  if (!oledBegin()) {
+  if (!oledBegin()) return;  // reported by displayBootDone(), once Serial is up
+  memset(g_shown, 0, sizeof(g_shown));  // oledBegin() blanked the display
+  g_splashUntil = millis() + kSplashMs;
+  g_model.booting = true;
+  showSplash();
+}
+
+void displayBootDone() {
+  if (!oledPresent()) {
     Serial.println("No OLED found (I2C 0x3C / 0x3D).");
     return;
   }
-  memset(g_shown, 0, sizeof(g_shown));  // oledBegin() blanked the display
-  const uint32_t now = millis();
-  fillModel(now);
-  ui::drawSplash(g_canvas, g_model);
-  while (sendOnePage()) {}
-  g_splashUntil = now + kSplashMs;
+  g_model.booting = false;
+  showSplash();
 }
 
 #if CONTROLS_DEBUG

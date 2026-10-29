@@ -1,8 +1,8 @@
 // Teensy 4.0 + Audio Shield guitar IR loader
 //
-//   tube amp line out -> shield LINE IN (L) -> convolution -> ping-pong delay
-//                     -> plate reverb -> LINE OUT L/R + headphones
-//                     (32-bit float throughout)
+//   tube amp line out -> shield LINE IN (L) -> convolution -> studio 80s delay
+//                     -> 80s reverb -> LINE OUT L/R + headphones
+//                     (32-bit float throughout; drums and bass added after)
 //
 // Copy .wav impulse responses to the SD card (root or /IR folder). Any sample
 // rate, mono or stereo, 8/16/24/32-bit PCM or 32/64-bit float; files are
@@ -11,12 +11,14 @@
 // Control: USB serial (type "?" for help) and the OLED + encoder panel
 // (DISPLAY.md, pins in config.h).
 //
-//   AudioGraph  audio objects, codec, level/bypass/effect setters
+//   AudioGraph  audio objects and the codec
+//   Params      reading and changing any setting (the table: ParamDefs.cpp)
+//   Settings    the settings saved in EEPROM
 //   IRLibrary   SD card file list and IR loading
-//   Settings    EEPROM-backed settings
+//   DrumSongs   the drum songs, built-in and from the SD card
 //   SerialUI    serial commands and level meter
 //   Controls    the panel's encoder and keys
-//   Oled        SSD1306 driver on the codec's I2C bus
+//   Oled        SH1106 / SSD1306 driver on its own I2C bus
 //   DisplayUI   the panel: lib/oledui's screens and menu on the OLED
 #include <Arduino.h>
 
@@ -30,25 +32,27 @@
 #include "Settings.h"
 #include "config.h"
 
+
 void setup() {
   controlsBegin();
   loadSettings();
-
-  // Audio first: the passthrough starts immediately, even before the IR loads.
+  // The splash first (the display has its own I2C bus), then the audio: the
+  // passthrough starts there, even before the IR loads.
+  displayBegin();
   audioBegin();
 
-  Serial.begin(115200);
-  uint32_t t = millis();
-  while (!Serial && millis() - t < 1500) {}
-  Serial.printf("\nTeensy IR loader - block %d samples, max IR %d samples\n",
+  // No Serial.begin(): USB serial works without it on the Teensy, and it
+  // waits up to 2 s for a serial monitor to open the port (0.75 s on a USB
+  // charger). So this line only shows if one is already open; every state
+  // can be printed later (?, s).
+  Serial.printf("\nTeensy IR loader - block %d samples, max IR %d samples. Type ? for the commands.\n",
                 AUDIO_BLOCK_SAMPLES, IR_MAX_LENGTH);
 
   scanCard();
   loadStartupIR();
   // The drum song saved last time (an SD file may have gone: then none).
   if (getParam(ui::kDrumSong) && !selectDrumSong(getParam(ui::kDrumSong), true)) setParam(ui::kDrumSong, 0);
-  printHelp();
-  displayBegin();
+  displayBootDone();
 }
 
 void loop() {

@@ -82,6 +82,10 @@ int main(int argc, char** argv) {
   FakeHost host;
   ui::Menu menu(ui::menuPages(), host);
 
+  m.booting = true;  // the first frame, before the SD card is read
+  ui::drawSplash(c, m);
+  snap("01_splash_boot");
+  m.booting = false;
   ui::drawSplash(c, m);
   snap("01_splash");
 

@@ -11,6 +11,7 @@ namespace ui {
 
 struct UiModel {
   uint32_t nowMs = 0;
+  bool booting = false;  // the SD card not read yet (the splash shows no count)
 
   // IR files.
   bool sdOk = false;

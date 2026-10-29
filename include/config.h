@@ -62,10 +62,13 @@
 // ---------------------------------------------------------------------------
 #define SDCARD_CS_PIN 10  // SD slot on the Teensy 4 Audio Shield (Rev D)
 
-// OLED + encoder module (see DISPLAY.md): a 128x64 SH1106 or SSD1306 on the
-// codec's I2C bus (pins 18/19); the encoder and the keys switch to GND
-// (internal pull-ups). Other free pins with the audio shield fitted: 0, 1,
-// 14, 16, 17, 22 (15 is the shield's volume-pot pad, 6 its memory-chip CS).
+// OLED + encoder module (see DISPLAY.md): a 128x64 SH1106 or SSD1306 on its
+// own I2C bus, Wire1 (SCL1 pin 16, SDA1 pin 17), apart from the codec's
+// (Wire, pins 18/19); the encoder and the keys switch to GND (internal
+// pull-ups). Other free pins with the audio shield fitted: 0, 1, 14, 22 (15
+// is the shield's volume-pot pad, 6 its memory-chip CS).
+#define OLED_WIRE Wire1          // Wire to share the codec's bus (pins 18/19)
+#define OLED_I2C_HZ 1000000      // 400000 if the picture glitches (the SH1106 is rated for 400 kHz)
 #define OLED_I2C_ADDR 0x3C       // 0x3D on some modules (tried too); -1 disables the display
 #define OLED_SH1106 1            // 1 = SH1106 (1.3" modules), 0 = SSD1306 (0.96")
 // SH1106 only: its RAM is 132 columns wide; the first one the glass shows.

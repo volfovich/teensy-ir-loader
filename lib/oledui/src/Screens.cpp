@@ -28,6 +28,7 @@ void drawSplash(Canvas& c, const UiModel& m) {
   c.clear();
   c.textCenter(2, "IR LOADER");
   c.hline(20, Canvas::kW - 21, 33);
+  if (m.booting) return;
   if (!m.sdOk) snprintf(buf, sizeof(buf), "%s", "No SD card");
   else snprintf(buf, sizeof(buf), "%d IRs on SD", m.irCount);
   c.textCenter(5, buf);

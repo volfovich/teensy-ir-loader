@@ -51,7 +51,7 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
 | Amp line out ground | **GND** next to the line-in pads | |
 | To mixer / interface / power amp | **LINE OUT L** and **R** + GND | Stereo when the delay or reverb is on; both carry the same signal when they are off. For a mono rig use L. If the gear you feed is not AC-coupled, add a 2.2–10 µF capacitor in series. |
 | Headphones | 3.5 mm jack | **Headphones only.** The jack's ground is a *virtual* ground, so never connect it to another device's ground. |
-| OLED + encoder module (128x64, SH1106 1.3" or SSD1306 0.96") | VCC **3.3 V**, GND, SDA **18**, SCL **19** (shared with the codec); encoder A **2**, B **3**, push **4**; CONFIRM **5**; BACK **9** | Never 5 V. Wiring, controls and screens: [DISPLAY.md](DISPLAY.md). Pins, I2C address, the controller (`OLED_SH1106`) and encoder direction are in `include/config.h`. |
+| OLED + encoder module (128x64, SH1106 1.3" or SSD1306 0.96") | VCC **3.3 V**, GND, SDA **17**, SCL **16** (its own bus, `Wire1`); encoder A **2**, B **3**, push **4**; CONFIRM **5**; BACK **9** | Never 5 V. Wiring, controls and screens: [DISPLAY.md](DISPLAY.md). Pins, I2C address, the controller (`OLED_SH1106`) and encoder direction are in `include/config.h`. |
 
 ### ⚠️ Level and safety
 

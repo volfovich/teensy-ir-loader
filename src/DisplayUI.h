@@ -4,9 +4,12 @@
 // Settings change through the AudioGraph setters, like over serial.
 #pragma once
 
-// Call at the end of setup() (after audioBegin() and the SD scan): shows
-// the splash. Without a display the panel stays off.
+// Call first in setup() (after loadSettings()): shows the splash at once.
+// Without a display the panel stays off.
 void displayBegin();
+// Call at the end of setup(), after the SD scan: the splash shows the IR
+// count. The home screen follows once the splash has been up 1.5 s.
+void displayBootDone();
 // Call every loop() pass: controls, redraws, and at most one page sent
 // (about 3.3 ms of I2C).
 void serviceDisplay();
