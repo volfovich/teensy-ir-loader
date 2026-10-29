@@ -27,10 +27,12 @@ class FFT {
         if (i & (1 << b)) r |= 1 << (bits - 1 - b);
       rev_[i] = (uint16_t)r;
     }
+    // Float trig: double sin/cos would pull ~4 KB of double-precision
+    // library code into RAM1 on the Teensy, for no audible gain.
     for (int i = 0; i < N / 2; i++) {
-      double a = -2.0 * M_PI * i / N;
-      cos_[i] = (float)cos(a);
-      sin_[i] = (float)sin(a);
+      const float a = -2.0f * (float)M_PI * (float)i / (float)N;
+      cos_[i] = cosf(a);
+      sin_[i] = sinf(a);
     }
   }
 

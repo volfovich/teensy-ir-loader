@@ -2,7 +2,7 @@
 // levels after a change. Invalid transitions (both pins changed, i.e. a
 // missed or bouncing edge) count 0, so bounce can't run the count away.
 //
-// Header-only and not UI_COLD: it runs in the encoder interrupt.
+// Header-only: it runs in the encoder interrupt, from ITCM (Controls.cpp).
 #pragma once
 
 #include <stdint.h>

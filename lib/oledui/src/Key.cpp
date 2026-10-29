@@ -1,10 +1,9 @@
 #include "Key.h"
 
-#include "ui_port.h"
 
 namespace ui {
 
-UI_COLD Key::Event Key::update(bool down, uint32_t now) {
+Key::Event Key::update(bool down, uint32_t now) {
   if (down != raw_) {
     raw_ = down;
     changedAt_ = now;

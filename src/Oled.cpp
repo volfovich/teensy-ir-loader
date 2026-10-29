@@ -8,19 +8,19 @@
 static int g_addr = -1;
 
 // Commands go after a 0x00 control byte, display data after 0x40.
-FLASHMEM static bool command(const uint8_t* c, int n) {
+static bool command(const uint8_t* c, int n) {
   Wire.beginTransmission(g_addr);
   Wire.write(0x00);
   Wire.write(c, n);
   return Wire.endTransmission() == 0;
 }
 
-FLASHMEM static bool probe(int addr) {
+static bool probe(int addr) {
   Wire.beginTransmission(addr);
   return Wire.endTransmission() == 0;
 }
 
-FLASHMEM bool oledBegin() {
+bool oledBegin() {
   if (OLED_I2C_ADDR < 0) return false;
   // The SGTL5000 is rated for 400 kHz too; Wire starts at 100 kHz.
   Wire.setClock(400000);
@@ -92,9 +92,9 @@ FLASHMEM bool oledBegin() {
   return true;
 }
 
-FLASHMEM bool oledPresent() { return g_addr >= 0; }
+bool oledPresent() { return g_addr >= 0; }
 
-FLASHMEM void oledSendPage(int p, const uint8_t* data) {
+void oledSendPage(int p, const uint8_t* data) {
   if (g_addr < 0) return;
   // The SH1106 has 132 columns of RAM; the visible 128 start at OLED_COL_OFFSET.
   const uint8_t col = OLED_SH1106 ? OLED_COL_OFFSET : 0;

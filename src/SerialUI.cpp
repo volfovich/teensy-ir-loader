@@ -16,7 +16,7 @@ static bool g_meter = false;
 static float toDb(float lin) { return lin > 1e-6f ? 20.0f * log10f(lin) : -120.0f; }
 
 // "every 4 bars" or "off".
-FLASHMEM static const char* crashText() {
+static const char* crashText() {
   static char buf[16];
   if (!g_settings.drumCrash) return "off";
   snprintf(buf, sizeof(buf), "every %u bars", g_settings.drumCrash);
@@ -24,7 +24,7 @@ FLASHMEM static const char* crashText() {
 }
 
 // "2 bars", "1 bar" or "off".
-FLASHMEM static const char* countText() {
+static const char* countText() {
   static char buf[12];
   if (!g_settings.drumCountIn) return "off";
   snprintf(buf, sizeof(buf), "%u bar%s", g_settings.drumCountIn, g_settings.drumCountIn == 1 ? "" : "s");
@@ -32,20 +32,20 @@ FLASHMEM static const char* countText() {
 }
 
 // The selected song's name, or "off".
-FLASHMEM static const char* songText() {
+static const char* songText() {
   const irdsp::DrumSong* s = currentDrumSong();
   return s ? s->name : "off";
 }
 
 // "9-16" or "off".
-FLASHMEM static const char* loopText() {
+static const char* loopText() {
   static char buf[16];
   if (!drumLoopFirst()) return "off";
   snprintf(buf, sizeof(buf), "%d-%d", drumLoopFirst(), drumLoopLast());
   return buf;
 }
 
-FLASHMEM static void printSongs() {
+static void printSongs() {
   const irdsp::DrumSong* cur = currentDrumSong();
   for (int n = 1; n <= drumSongTotal(); n++) {
     const bool sel = cur && !strcmp(drumSongName(n), cur->name);
@@ -56,7 +56,7 @@ FLASHMEM static void printSongs() {
   else Serial.println("  drum song off  plays the style again");
 }
 
-FLASHMEM void printHelp() {
+void printHelp() {
   // The help text in flash (PSTR): as a plain literal it would be copied to
   // RAM1, taking stack space.
   Serial.printf(PSTR(
@@ -121,14 +121,14 @@ FLASHMEM void printHelp() {
       (int)lroundf(g_settings.hpVolume * 100));
 }
 
-FLASHMEM static void printList() {
+static void printList() {
   if (!irSdOk()) { Serial.println("No SD card."); return; }
   for (int i = 0; i < irCount(); i++)
     Serial.printf("%c %3d  %s\n", i == irCurrent() ? '>' : ' ', i + 1, irPath(i));
   if (irCount() == 0) Serial.println("No .wav files in / or /IR");
 }
 
-FLASHMEM static void printDrums() {
+static void printDrums() {
   const irdsp::DrumSong* song = currentDrumSong();
   if (convolver.drumsPlaying()) {
     if (song) Serial.printf("Drums:     playing song \"%s\", %.0f BPM, ", song->title, convolver.drumTempoNow());
@@ -155,14 +155,14 @@ FLASHMEM static void printDrums() {
   Serial.println();
 }
 
-FLASHMEM static void printStyles() {
+static void printStyles() {
   for (int i = 0; i < irdsp::drumStyleCount(); i++) {
     const irdsp::DrumStyle& s = irdsp::drumStyle(i);
     Serial.printf("%c %2d  %-10s %s\n", i == g_settings.drumStyle ? '>' : ' ', i + 1, s.name, s.title);
   }
 }
 
-FLASHMEM static void printKits() {
+static void printKits() {
   for (int i = 0; i < irdsp::drumKitCount(); i++) {
     const irdsp::DrumKit& k = irdsp::drumKit(i);
     Serial.printf("%c %2d  %-10s %s\n", i == g_settings.drumKit ? '>' : ' ', i + 1, k.name, k.title);
@@ -170,7 +170,7 @@ FLASHMEM static void printKits() {
 }
 
 // "drum ..." subcommands; arg is the rest of the line (may be null).
-FLASHMEM static void drumCommand(char* arg) {
+static void drumCommand(char* arg) {
   if (!arg || !*arg) {
     setDrumsPlaying(!convolver.drumsPlaying());
     return;
@@ -228,7 +228,7 @@ FLASHMEM static void drumCommand(char* arg) {
 }
 
 // "bass ..." subcommands; arg is the rest of the line (may be null).
-FLASHMEM static void bassCommand(char* arg) {
+static void bassCommand(char* arg) {
   if (!arg || !*arg) {
     setBassOn(!g_settings.bassOn);
     return;
@@ -258,7 +258,7 @@ FLASHMEM static void bassCommand(char* arg) {
   }
 }
 
-FLASHMEM static void printStatus() {
+static void printStatus() {
   auto& eng = convolver.engine();
   const float blockMs = AUDIO_BLOCK_SAMPLES * 1000.0f / AUDIO_SAMPLE_RATE_EXACT;
   Serial.printf("\nIR:        %s\n", irCurrent() >= 0 ? irPath(irCurrent()) : "(none - passthrough)");
@@ -299,7 +299,7 @@ FLASHMEM static void printStatus() {
   AudioProcessorUsageMaxReset();
 }
 
-FLASHMEM static void handleCommand(char* line) {
+static void handleCommand(char* line) {
   while (*line == ' ') line++;
   for (char* e = line + strlen(line); e > line && e[-1] == ' ';) *--e = 0;
   if (!*line) return;
@@ -388,7 +388,7 @@ FLASHMEM static void handleCommand(char* line) {
   }
 }
 
-FLASHMEM void serviceSerial() {
+void serviceSerial() {
   static char buf[64];
   static int len = 0;
   while (Serial.available()) {
@@ -403,7 +403,7 @@ FLASHMEM void serviceSerial() {
   }
 }
 
-FLASHMEM void serviceMeter() {
+void serviceMeter() {
   static uint32_t last = 0;
   if (!g_meter || millis() - last < 200) return;
   last = millis();

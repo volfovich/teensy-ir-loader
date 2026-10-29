@@ -43,12 +43,12 @@ class FirmwareHost final : public ui::MenuHost {
   bool valueText(uint8_t id, char* buf, int n) override;
 };
 
-FLASHMEM static int songBars() {
+static int songBars() {
   const irdsp::DrumSong* s = currentDrumSong();
   return s ? s->barCount : 1;
 }
 
-FLASHMEM int FirmwareHost::get(uint8_t id) {
+int FirmwareHost::get(uint8_t id) {
   const Settings& s = g_settings;
   switch (id) {
     case ui::kDelayOn: return s.delayOn;
@@ -104,7 +104,7 @@ FLASHMEM int FirmwareHost::get(uint8_t id) {
   }
 }
 
-FLASHMEM void FirmwareHost::set(uint8_t id, int v) {
+void FirmwareHost::set(uint8_t id, int v) {
   const Settings& s = g_settings;
   switch (id) {
     case ui::kDelayOn: setDelayOn(v); break;
@@ -168,7 +168,7 @@ FLASHMEM void FirmwareHost::set(uint8_t id, int v) {
   }
 }
 
-FLASHMEM void FirmwareHost::limits(uint8_t id, int* lo, int* hi) {
+void FirmwareHost::limits(uint8_t id, int* lo, int* hi) {
   (void)lo;
   switch (id) {
     case ui::kDelayTime: *hi = DELAY_MAX_MS; break;
@@ -181,7 +181,7 @@ FLASHMEM void FirmwareHost::limits(uint8_t id, int* lo, int* hi) {
   }
 }
 
-FLASHMEM bool FirmwareHost::valueText(uint8_t id, char* buf, int n) {
+bool FirmwareHost::valueText(uint8_t id, char* buf, int n) {
   switch (id) {
     case ui::kScreenIR:
       if (!irSdOk()) snprintf(buf, n, "no SD");
@@ -207,7 +207,7 @@ static ui::Panel g_panel(ui::menuPages(), g_host, g_model);
 
 // ---- The model the screens are drawn from -------------------------------------------
 
-FLASHMEM static void fillModel(uint32_t now) {
+static void fillModel(uint32_t now) {
   const Settings& s = g_settings;
   ui::UiModel& m = g_model;
   m.nowMs = now;
@@ -255,7 +255,7 @@ FLASHMEM static void fillModel(uint32_t now) {
 
 // Sends the next page that differs from what the OLED shows (round-robin,
 // so a busy meter row can't starve the others). False if all match.
-FLASHMEM static bool sendOnePage() {
+static bool sendOnePage() {
   for (int i = 0; i < ui::Canvas::kPages; i++) {
     const int p = (g_nextPage + i) % ui::Canvas::kPages;
     uint8_t* shown = g_shown + p * ui::Canvas::kW;
@@ -268,7 +268,7 @@ FLASHMEM static bool sendOnePage() {
   return false;
 }
 
-FLASHMEM void displayBegin() {
+void displayBegin() {
   if (!oledBegin()) {
     Serial.println("No OLED found (I2C 0x3C / 0x3D).");
     return;
@@ -282,7 +282,7 @@ FLASHMEM void displayBegin() {
 }
 
 #if CONTROLS_DEBUG
-FLASHMEM static void printEvents(const ControlEvents& e) {
+static void printEvents(const ControlEvents& e) {
   static const char* const kNames[] = {"", "press", "release", "hold"};
   if (e.detents) Serial.printf("turn %+d\n", e.detents);
   if (e.push) Serial.printf("push %s\n", kNames[e.push]);
@@ -291,7 +291,7 @@ FLASHMEM static void printEvents(const ControlEvents& e) {
 }
 #endif
 
-FLASHMEM void serviceDisplay() {
+void serviceDisplay() {
   if (!oledPresent()) return;
   const uint32_t now = millis();
   const ControlEvents e = readControls(now);

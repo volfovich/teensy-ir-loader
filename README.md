@@ -12,7 +12,7 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
 
 ## Features
 
-- **Full-length IRs:** up to 8192 samples (186 ms at 44.1 kHz). That is far longer than any cabinet IR needs.
+- **Long IRs:** up to 4096 samples (93 ms at 44.1 kHz), longer than any cabinet has audible response. Longer files are cut there with a short fade (`IR_MAX_LENGTH` in `include/config.h`).
 - **Zero added latency from the convolution.** The partition size equals the audio block size, so total latency is only the audio buffering, about 1.5 ms at the default 32-sample blocks, plus the codec's converter delay.
 - **Just copy WAVs to the SD card:**
   - Files can go in the root folder or an `/IR` folder.
@@ -145,18 +145,18 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 
 ## Latency and CPU
 
-The block size is set in `platformio.ini`. CPU figures below are estimates from the compiled code. Run `s` on the device to see real numbers.
+The block size is set in `platformio.ini`. The 32-sample row is measured with `s` (2026-10-29); the others are scaled from it. Run `s` on the device to see real numbers.
 
-| `AUDIO_BLOCK_SAMPLES` | I/O buffering | Convolver CPU, 8192-sample IR | During a 25 ms IR switch |
+| `AUDIO_BLOCK_SAMPLES` | I/O buffering | Convolver CPU, 4096-sample IR | During a 25 ms IR switch |
 |---|---|---|---|
-| 16 | ~0.7 ms | ~25 % | ~50 % |
-| **32 (default)** | **~1.5 ms** | **~12 %** | ~25 % |
-| 64 | ~2.9 ms | ~7 % | ~14 % |
-| 128 | ~5.8 ms | ~4 % | ~8 % |
+| 16 | ~0.7 ms | ~22 % | ~40 % |
+| **32 (default)** | **~1.5 ms** | **~11 %** | ~20 % |
+| 64 | ~2.9 ms | ~6 % | ~11 % |
+| 128 | ~5.8 ms | ~3.5 % | ~6 % |
 
 The codec's ADC and DAC add their own fixed delay on top of the buffering. To measure your exact total, loop LINE OUT back into LINE IN R and record both channels.
 
-CPU cost scales with IR length. A typical 2048-sample cabinet IR uses about a quarter of the figures above.
+CPU cost scales with IR length. A 2048-sample cabinet IR uses about half the figures above.
 
 The reverb adds about 6 % CPU (measured with 32-sample blocks; the 80s hall 7.5 %), the ping-pong delay about 3 %, the studio 80s delay about 4.5 % and the drum machine about 2.5 % (recorded kits, including its drum-bus compressor), while each is on (or playing) or still ringing out. None of them uses any CPU once its tail has died away. Run `s` to see the current values. The fixed voicing of both effects (diffusion, damping, filters, modulation rate, time glide) is set in `include/config.h`; see [DELAY.md](DELAY.md#fixed-voicing-configh) for the delay's.
 

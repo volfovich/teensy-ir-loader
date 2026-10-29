@@ -12,7 +12,7 @@ The UI is written and tested on the PC: `lib/oledui` draws every screen and runs
   - A small SH1106 / SSD1306 driver of our own, running from flash. It sends only the 128-byte pages that changed.
   - An interrupt-driven encoder.
   - A table-driven menu that calls the existing setters in `AudioGraph`.
-- **Memory:** the panel costs 768 B of RAM1 code (most of it the Teensy core's pin-interrupt code) and 2 KB of RAM2. **No feature had to be removed.** See [RAM1 strategy](#ram1-strategy).
+- **Memory:** the panel's code and fonts run from flash. It costs about 0.8 KB of RAM1 (the encoder interrupt and the core's pin-interrupt code) and 2 KB of RAM2. See [RAM1 strategy](#ram1-strategy).
 
 ## Hardware
 
@@ -359,57 +359,30 @@ void loop() {
 
 ## RAM1 strategy
 
-### The problem
+On the Teensy 4, RAM1 is shared between code (ITCM) and data plus the stack (DTCM), in 32 KB banks. The core's linker script copies every function into ITCM and every constant into DTCM, so a library's cold code costs RAM1 just like the audio path. Before 2026-10-29 that left only about 1 KB of headroom: ITCM sat at 4 banks, and one more bank would have cut the stack to under 10 KB.
 
-These numbers are measured with `teensy_size` and `arm-none-eabi-nm` from the build with the studio 80s delay and option B (below) done:
+**What is done: placement by file, in one linker script.** `tools/imxrt1062_cold.ld` (set with `board_build.ldscript` in `platformio.ini`) is the core's `imxrt1062.ld` with a list of files whose code and constants stay in flash. They run through the 32 KB instruction cache, which is plenty for code outside the audio interrupt. The list covers:
 
-| | Size |
-|---|---|
-| ITCM (code in RAM1) | 114,808 B code + 16,264 B padding = **4 x 32 KB banks** |
-| RAM1 variables | 351,936 B (`convolver` 200 KB, `g_delayA` 132 KB, …) |
-| RAM1 free for the stack | **41,280 B** |
-| RAM2 free for malloc | 147,072 B |
+- newlib's printf, strtod, malloc and qsort (except `mem*` and `str*`);
+- SdFat, SD, Wire, EEPROM and the codec control;
+- the UI library (`lib/oledui`, fonts and menu tables included);
+- the IR and MIDI loaders;
+- this firmware's background-only files (`main`, `SerialUI`, `Settings`, `DisplayUI`, `IRLibrary`, `DrumSongs`, `Oled`).
 
-On the Teensy 4, RAM1 is shared between code (ITCM) and data (DTCM) in 32 KB banks.
+The audio path stays in ITCM: `AudioGraph` with the convolver and effects, the drum machine's per-sample loops, libm, and the encoder interrupt in `Controls.cpp`. Files that mix both use attributes for their cold functions: `FLASHMEM` in `src`, and `IRDSP_COLD` in `lib/irdsp` (`DrumMachine`, `PluckBass`, `Reverb80`).
 
-- **More code can push ITCM into a 5th bank.** If it grows by more than about 16 KB, it takes a 5th bank, which comes out of DTCM. The stack would shrink from 41 KB to about 9 KB, which is not safe.
-- **Constant data also costs RAM1.** The linker copies `.rodata` into DTCM (`imxrt1062.ld`), so plain `const` tables and string literals use RAM1 unless they are marked `PROGMEM`. On the Teensy 4, `F("...")` is only a cast and does not move the string. `PSTR("...")` does.
+| Build | ITCM | RAM1 free for the stack | RAM2 free |
+|---|---|---|---|
+| Before (2026-10-28) | 130,024 B (4 banks, 1 KB padding) | 35,360 B | 71,712 B |
+| Cold-file linker script | 61,736 B (2 banks) | 107,040 B | 71,712 B |
+| + 4096-sample IR limit | 61,544 B (2 banks) | 205,344 B | 88,096 B |
 
-So the display must not be added the "normal" way:
+**Rules**
 
-- **U8g2:** its fonts are plain `const` on ARM, so they end up in DTCM.
-- **Adafruit SSD1306 + GFX:** the library code lands in ITCM and could push ITCM into a 5th bank.
+- Never add a file to the cold list if anything in it runs in the audio interrupt. After a change, check that the interrupt's functions stay below `0x20000000`: `arm-none-eabi-nm -C -S .pio/build/teensy40/firmware.elf`.
+- A new background-only `.cpp` in `src` goes on the list in both the `COLD_TEXT` and `COLD_RODATA` blocks.
+- Still avoid `sscanf` (its locale tables) and 64-bit division in the audio path.
 
-### The options
-
-**No feature had to be removed.** Options A and B are done. C and D are only for the future.
-
-#### A. Keep the UI out of RAM1 (done)
-
-- All UI functions are marked `FLASHMEM`. They run from flash through the 32 KB instruction cache, which is far faster than an I2C display needs.
-- The font, the menu table and the strings go in `PROGMEM` / `PSTR()`.
-- The frame buffer is `DMAMEM` (RAM2).
-- Our own small driver instead of a library, so everything above is under our control.
-- **RAM1 cost, measured** (2026-10-28, against the build just before): ITCM code +768 B (127,976 → 128,744 B; 2,328 B of padding left in the 4 banks). Our own share is the encoder ISR (72 B) and the display peak pair in `update()` (48 B); the rest is Teensy core code that comes with pin interrupts (`attachInterrupt` 292 B, the GPIO interrupt dispatcher 192 B) and `Wire.setClock` (132 B). DTCM variables +1.2 KB (the GPIO interrupt tables, the model, the panel), so the stack went from 34,880 to 33,696 B. RAM2: the two 1 KB screen buffers.
-
-#### B. Move existing non-real-time code to flash (done)
-
-- The code that never runs in the audio interrupt is marked `FLASHMEM`: the serial UI, the SD scan and IR loading, `audioBegin` and the setters, the settings and `setup()`.
-- In `lib/irdsp`, which must stay Arduino-free for the host tests, `IRDSP_COLD` (`irdsp_port.h`) does the same. It means `__attribute__((section(".flashmem")))` on the Teensy and nothing on the host. It is on `prepareIR`, the WAV parser and decoder, and the resampler.
-- **Exceptions:** GCC can't put constructors (`AudioConvolverIR()`, 1.7 KB) or member functions of templates (`installIR`, 0.5 KB) in a named section, so those two stay in ITCM.
-- **Result:** ITCM code went from 128,600 to 114,808 B (−13.8 KB), so there are about 16 KB of headroom inside the 4 banks.
-- **Cost:** none measured. IR load time stays at 29–31 ms, and CPU is unchanged. The resampler, which now also runs from flash, only runs for IRs that aren't 44.1 kHz.
-
-#### C. Gain a whole 32 KB bank of RAM1 (only if a future feature needs it)
-
-- Use a custom linker script (`board_build.ldscript` in `platformio.ini`, a copy of `imxrt1062.ld`) that places the `.text` of SdFat/ExFat (about 25 KB) and newlib's printf/strtod (about 20 KB) in flash.
-- With B done, ITCM would fit in 3 banks, which gives **+32 KB of DTCM**.
-- This is more work to maintain across Teensyduino updates, so don't do it until it is needed.
-
-#### D. Options that do cost something (not needed)
-
-- `DELAY_MAX_MS` 750 → 600 frees about 26 KB of RAM1. Each 100 ms costs about 17.6 KB per delay line.
-- Moving `g_delayA` to `DMAMEM` frees 132 KB of RAM1 but leaves only about 15 KB free in RAM2. It is also a bigger change to the delay's memory layout.
 
 ## Bring-up (2026-10-28)
 
@@ -427,7 +400,7 @@ So the display must not be added the "normal" way:
 
 **Memory and performance**
 
-- Run `teensy_size` after each change. ITCM should stay within 4 banks (check the `padding` figure), and RAM2 should still have well over 100 KB free.
+- Run `teensy_size` after each change and compare ITCM, the stack and RAM2 with the table in [RAM1 strategy](#ram1-strategy).
 - Take a baseline `s` before flashing (about 52 % max during a crossfade while the drums play). CPU should be unchanged with the display running, because the UI works in `loop()`, not in the audio interrupt.
 - Spin the encoder fast and switch IRs during heavy page flushing. There should be no clicks or dropouts, and the `s` max should not rise.
 

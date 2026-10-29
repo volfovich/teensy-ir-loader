@@ -21,14 +21,14 @@ static const uint32_t kSettingsMagicV2 = 0x49524C32;  // "IRL2": no delay fields
 static const uint32_t kSettingsMagicV1 = 0x49524C31;  // "IRL1": no reverb or delay fields
 static uint32_t g_saveAt = 0;  // millis() when a pending save is due (0 = none)
 
-FLASHMEM static void defaultReverbSettings() {
+static void defaultReverbSettings() {
   g_settings.reverbOn = DEFAULT_REVERB_ON;
   g_settings.reverbMix = DEFAULT_REVERB_MIX;
   g_settings.reverbSize = DEFAULT_REVERB_SIZE;
   g_settings.reverbTone = DEFAULT_REVERB_TONE;
 }
 
-FLASHMEM static void defaultDelaySettings() {
+static void defaultDelaySettings() {
   g_settings.delayOn = DEFAULT_DELAY_ON;
   g_settings.delayMix = DEFAULT_DELAY_MIX;
   g_settings.delayFeedback = DEFAULT_DELAY_FEEDBACK;
@@ -37,14 +37,14 @@ FLASHMEM static void defaultDelaySettings() {
   g_settings.delayTimeMs = DEFAULT_DELAY_TIME_MS;
 }
 
-FLASHMEM static void defaultDelayTypeSettings() {
+static void defaultDelayTypeSettings() {
   g_settings.delayType = DEFAULT_DELAY_TYPE;
   g_settings.delayDuck = DEFAULT_DELAY_DUCK;
   g_settings.delayDrive = DEFAULT_DELAY_DRIVE;
   g_settings.delayEra = DEFAULT_DELAY_ERA;
 }
 
-FLASHMEM static void defaultDrumSettings() {
+static void defaultDrumSettings() {
   g_settings.drumStyle = DEFAULT_DRUM_STYLE - 1;
   g_settings.drumTempo = DEFAULT_DRUM_TEMPO;
   g_settings.drumVolume = DEFAULT_DRUM_VOLUME;
@@ -55,12 +55,12 @@ FLASHMEM static void defaultDrumSettings() {
   g_settings.trainerTarget = DEFAULT_TRAINER_TARGET;
 }
 
-FLASHMEM static void defaultKitSettings() {
+static void defaultKitSettings() {
   g_settings.drumKit = DEFAULT_DRUM_KIT - 1;
   g_settings.drumCrash = DEFAULT_DRUM_CRASH;
 }
 
-FLASHMEM static void defaultReverb80Settings() {
+static void defaultReverb80Settings() {
   g_settings.reverbType = DEFAULT_REVERB_TYPE;
   g_settings.reverbMode = DEFAULT_REVERB_MODE;
   g_settings.reverbPreDelay = DEFAULT_REVERB_PREDELAY;
@@ -69,14 +69,14 @@ FLASHMEM static void defaultReverb80Settings() {
   g_settings.reverbGateMs = DEFAULT_REVERB_GATE;
 }
 
-FLASHMEM static void defaultBassSettings() {
+static void defaultBassSettings() {
   g_settings.bassOn = DEFAULT_BASS_ON;
   g_settings.bassVolume = DEFAULT_BASS_VOLUME;
   g_settings.bassKey = DEFAULT_BASS_KEY;
   g_settings.bassTone = DEFAULT_BASS_TONE;
 }
 
-FLASHMEM static void defaultSettings() {
+static void defaultSettings() {
   memset(&g_settings, 0, sizeof(g_settings));
   g_settings.magic = kSettingsMagic;
   g_settings.outGainDb = DEFAULT_OUTPUT_GAIN_DB;
@@ -93,7 +93,7 @@ FLASHMEM static void defaultSettings() {
   defaultBassSettings();
 }
 
-FLASHMEM void loadSettings() {
+void loadSettings() {
   EEPROM.get(0, g_settings);
   // Older firmware: keep what it stored, add defaults for the newer fields.
   if (g_settings.magic == kSettingsMagicV1) {
@@ -169,7 +169,7 @@ FLASHMEM void loadSettings() {
 
 void scheduleSave() { g_saveAt = millis() + 3000; if (!g_saveAt) g_saveAt = 1; }
 
-FLASHMEM void serviceSave() {
+void serviceSave() {
   if (g_saveAt && (int32_t)(millis() - g_saveAt) >= 0) {
     EEPROM.put(0, g_settings);
     g_saveAt = 0;

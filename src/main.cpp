@@ -29,7 +29,7 @@
 #include "Settings.h"
 #include "config.h"
 
-FLASHMEM void setup() {
+void setup() {
   controlsBegin();
   loadSettings();
 

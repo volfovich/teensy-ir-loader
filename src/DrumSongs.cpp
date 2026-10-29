@@ -25,15 +25,15 @@ static int g_selected = 0;  // 1-based, 0 = none
 static int g_loopA = 0, g_loopB = 0;
 static char g_name[24];
 
-FLASHMEM static bool isMidiName(const char* n) {
+static bool isMidiName(const char* n) {
   if (n[0] == '.') return false;
   const size_t len = strlen(n);
   return (len > 4 && !strcasecmp(n + len - 4, ".mid")) || (len > 5 && !strcasecmp(n + len - 5, ".midi"));
 }
 
-FLASHMEM static int cmpName(const void* a, const void* b) { return strcasecmp((const char*)a, (const char*)b); }
+static int cmpName(const void* a, const void* b) { return strcasecmp((const char*)a, (const char*)b); }
 
-FLASHMEM void scanDrumSongs() {
+void scanDrumSongs() {
   g_numFiles = 0;
   if (!irSdOk()) return;
   File d = SD.open("/DRUMS");
@@ -50,11 +50,11 @@ FLASHMEM void scanDrumSongs() {
   if (g_numFiles) Serial.printf("Found %d drum song(s) in /DRUMS.\n", g_numFiles);
 }
 
-FLASHMEM int drumSongTotal() { return irdsp::drumSongCount() + g_numFiles; }
-FLASHMEM bool drumSongFromSd(int n) { return n > irdsp::drumSongCount(); }
+int drumSongTotal() { return irdsp::drumSongCount() + g_numFiles; }
+bool drumSongFromSd(int n) { return n > irdsp::drumSongCount(); }
 
 // A file's name without the extension (into a static buffer).
-FLASHMEM static const char* baseName(int file) {
+static const char* baseName(int file) {
   strncpy(g_name, g_files[file], sizeof(g_name) - 1);
   g_name[sizeof(g_name) - 1] = 0;
   char* dot = strrchr(g_name, '.');
@@ -62,18 +62,18 @@ FLASHMEM static const char* baseName(int file) {
   return g_name;
 }
 
-FLASHMEM const char* drumSongTitle(int n) {
+const char* drumSongTitle(int n) {
   if (n < 1 || n > drumSongTotal()) return "";
   if (!drumSongFromSd(n)) return irdsp::drumSong(n - 1).title;
   return baseName(n - 1 - irdsp::drumSongCount());
 }
 
-FLASHMEM const char* drumSongName(int n) {
+const char* drumSongName(int n) {
   if (n >= 1 && !drumSongFromSd(n)) return irdsp::drumSong(n - 1).name;
   return drumSongTitle(n);
 }
 
-FLASHMEM int findDrumSongIndex(const char* s) {
+int findDrumSongIndex(const char* s) {
   if (!strcasecmp(s, "off")) return 0;
   if (s[0] >= '0' && s[0] <= '9') {
     const int n = atoi(s);
@@ -91,10 +91,10 @@ struct FileSource : irdsp::MidiSource {
   int read(uint8_t* dst, int n) override;
   bool seek(uint32_t pos) override;
 };
-FLASHMEM int FileSource::read(uint8_t* dst, int n) { return f.read(dst, n); }
-FLASHMEM bool FileSource::seek(uint32_t pos) { return f.seek(pos); }
+int FileSource::read(uint8_t* dst, int n) { return f.read(dst, n); }
+bool FileSource::seek(uint32_t pos) { return f.seek(pos); }
 
-FLASHMEM static bool loadSdSong(int file) {
+static bool loadSdSong(int file) {
   char path[8 + kNameMax];
   snprintf(path, sizeof(path), "/DRUMS/%s", g_files[file]);
   File f = SD.open(path);
@@ -127,7 +127,7 @@ FLASHMEM static bool loadSdSong(int file) {
   return true;
 }
 
-FLASHMEM bool selectDrumSong(int n, bool keepTempo) {
+bool selectDrumSong(int n, bool keepTempo) {
   if (n < 0 || n > drumSongTotal()) return false;
   const bool wasPlaying = convolver.drumsPlaying();
   if (wasPlaying) {
@@ -167,7 +167,7 @@ FLASHMEM bool selectDrumSong(int n, bool keepTempo) {
   return true;
 }
 
-FLASHMEM void setDrumLoop(int first, int last) {
+void setDrumLoop(int first, int last) {
   const irdsp::DrumSong* s = currentDrumSong();
   if (!s || first < 1) {
     g_loopA = g_loopB = 0;
@@ -180,10 +180,10 @@ FLASHMEM void setDrumLoop(int first, int last) {
   else Serial.println("Loop off (the whole song)");
 }
 
-FLASHMEM int drumLoopFirst() { return g_loopA; }
-FLASHMEM int drumLoopLast() { return g_loopB; }
+int drumLoopFirst() { return g_loopA; }
+int drumLoopLast() { return g_loopB; }
 
-FLASHMEM const irdsp::DrumSong* currentDrumSong() {
+const irdsp::DrumSong* currentDrumSong() {
   if (g_selected < 1) return nullptr;
   return drumSongFromSd(g_selected) ? &g_sdSong : &irdsp::drumSong(g_selected - 1);
 }

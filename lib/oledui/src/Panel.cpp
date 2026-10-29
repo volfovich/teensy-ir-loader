@@ -2,20 +2,19 @@
 
 #include <string.h>
 
-#include "ui_port.h"
 
 namespace ui {
 
 // The IR list's marquee waits this many steps at each end of the name.
 static constexpr int kMarqueePause = 3;
 
-UI_COLD bool Panel::toggle(uint8_t id) {
+bool Panel::toggle(uint8_t id) {
   host_.set(id, host_.get(id) ? 0 : 1);
   return true;
 }
 
 // The list opens on the loaded IR, about in the middle of the screen.
-UI_COLD void Panel::openIrList(Screen from) {
+void Panel::openIrList(Screen from) {
   from_ = from;
   screen_ = kIrList;
   irCursor_ = m_.irCurrent >= 0 && m_.irCurrent < m_.irCount ? m_.irCurrent : 0;
@@ -26,7 +25,7 @@ UI_COLD void Panel::openIrList(Screen from) {
   marquee_ = 0;
 }
 
-UI_COLD bool Panel::menuResult(Menu::Result r) {
+bool Panel::menuResult(Menu::Result r) {
   switch (r) {
     case Menu::kExit:
       screen_ = kHome;
@@ -46,7 +45,7 @@ UI_COLD bool Panel::menuResult(Menu::Result r) {
   }
 }
 
-UI_COLD bool Panel::turn(int detents, uint32_t now) {
+bool Panel::turn(int detents, uint32_t now) {
   if (detents == 0) return false;
   touch(now);
   switch (screen_) {
@@ -90,7 +89,7 @@ UI_COLD bool Panel::turn(int detents, uint32_t now) {
   }
 }
 
-UI_COLD bool Panel::push(uint32_t now) {
+bool Panel::push(uint32_t now) {
   touch(now);
   switch (screen_) {
     case kHome:
@@ -119,15 +118,15 @@ UI_COLD bool Panel::push(uint32_t now) {
   }
 }
 
-UI_COLD bool Panel::hold(uint32_t now) {
+bool Panel::hold(uint32_t now) {
   touch(now);
   if (screen_ != kHome) return false;
   // The IR block is on when not bypassed: flipping bypass flips it.
-  static const uint8_t UI_PROGMEM kOnOff[kHomeBlocks] = {kBypass, kDelayOn, kReverbOn, kDrumsPlay, kDrumsPlay};
+  static const uint8_t kOnOff[kHomeBlocks] = {kBypass, kDelayOn, kReverbOn, kDrumsPlay, kDrumsPlay};
   return toggle(kOnOff[block_]);
 }
 
-UI_COLD bool Panel::confirm(uint32_t now) {
+bool Panel::confirm(uint32_t now) {
   touch(now);
   switch (screen_) {
     case kHome:
@@ -144,7 +143,7 @@ UI_COLD bool Panel::confirm(uint32_t now) {
   }
 }
 
-UI_COLD bool Panel::back(uint32_t now) {
+bool Panel::back(uint32_t now) {
   touch(now);
   switch (screen_) {
     case kHome:
@@ -166,11 +165,11 @@ UI_COLD bool Panel::back(uint32_t now) {
 
 // The characters the cursor row's name is scrolled by: it waits at the
 // start, scrolls to the end, waits again and starts over.
-UI_COLD int Panel::marqueeOffset() const {
+int Panel::marqueeOffset() const {
   return marquee_ > kMarqueePause ? marquee_ - kMarqueePause : 0;
 }
 
-UI_COLD bool Panel::tick(uint32_t now) {
+bool Panel::tick(uint32_t now) {
   if (tempoEdit_ && now - lastInputMs_ >= kTimeoutMs) {
     tempoEdit_ = false;  // keeps the tempo
     return true;
@@ -189,7 +188,7 @@ UI_COLD bool Panel::tick(uint32_t now) {
   return true;
 }
 
-UI_COLD void Panel::draw(Canvas& c, const UiModel& m) {
+void Panel::draw(Canvas& c, const UiModel& m) {
   switch (screen_) {
     case kHome:
       drawHome(c, m, block_, tempoEdit_);

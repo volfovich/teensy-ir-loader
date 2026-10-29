@@ -2,13 +2,12 @@
 
 #include <math.h>
 
-#include "ui_port.h"
 
 namespace ui {
 
-UI_COLD float toDb(float lin) { return lin > 1e-6f ? 20.0f * log10f(lin) : -120.0f; }
+float toDb(float lin) { return lin > 1e-6f ? 20.0f * log10f(lin) : -120.0f; }
 
-UI_COLD void MeterState::update(float peak, bool clipped, uint32_t now) {
+void MeterState::update(float peak, bool clipped, uint32_t now) {
   const float db = toDb(peak);
   const float fall = started ? kFallDbPerS * (float)(now - lastMs) * 0.001f : 1000.0f;
   started = true;
@@ -25,7 +24,7 @@ UI_COLD void MeterState::update(float peak, bool clipped, uint32_t now) {
 }
 
 // x offset (0 .. w) of a level on a bar w pixels wide.
-static UI_COLD int barX(float db, int w) {
+static int barX(float db, int w) {
   const float t = (db - MeterState::kFloorDb) / -MeterState::kFloorDb;
   const int x = (int)lroundf(t * (float)w);
   return x < 0 ? 0 : (x > w ? w : x);
@@ -33,8 +32,8 @@ static UI_COLD int barX(float db, int w) {
 
 // Bar at (x, y), w x h: filled up to the level, the empty part outlined top
 // and bottom, ticks on the empty part, a full-height peak marker.
-static UI_COLD void drawBar(Canvas& c, int x, int y, int w, int h, const MeterState& m) {
-  static const float UI_PROGMEM kTicks[] = {-24.0f, -12.0f, -6.0f, -3.0f};
+static void drawBar(Canvas& c, int x, int y, int w, int h, const MeterState& m) {
+  static const float kTicks[] = {-24.0f, -12.0f, -6.0f, -3.0f};
   const int lv = barX(m.levelDb, w);
   c.fill(x, y, w, h, false);
   c.fill(x, y, lv, h, true);
@@ -49,7 +48,7 @@ static UI_COLD void drawBar(Canvas& c, int x, int y, int w, int h, const MeterSt
   if (m.peakDb > MeterState::kFloorDb) c.vline(x + (px >= w ? w - 1 : px), y, y + h - 1);
 }
 
-UI_COLD void drawMeterBar(Canvas& c, int x, int page, const MeterState& m, bool zone) {
+void drawMeterBar(Canvas& c, int x, int page, const MeterState& m, bool zone) {
   const int y = page * 8 + 2, w = Canvas::kW - x, h = 12;
   drawBar(c, x, y, w, h, m);
   if (zone) {

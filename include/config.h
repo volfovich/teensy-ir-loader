@@ -14,9 +14,11 @@
 // ---------------------------------------------------------------------------
 // Impulse responses
 // ---------------------------------------------------------------------------
-// Longest IR in samples at 44.1 kHz. 8192 samples = 186 ms, far longer than
-// any guitar cabinet needs. Must be a multiple of AUDIO_BLOCK_SAMPLES.
-#define IR_MAX_LENGTH 8192
+// Longest IR in samples at 44.1 kHz. 4096 samples = 93 ms, longer than any
+// cabinet has audible response; longer files are cut there with a short
+// fade. Memory (DTCM) and convolution CPU scale with it: 8192 doubles both.
+// Must be a multiple of AUDIO_BLOCK_SAMPLES.
+#define IR_MAX_LENGTH 4096
 
 // Folders scanned for .wav files (FAT is case-insensitive: "/IR" == "/ir").
 #define IR_SCAN_DIRS {"/", "/IR"}

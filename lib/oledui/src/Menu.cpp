@@ -3,13 +3,12 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "ui_port.h"
 
 namespace ui {
 
 // ---- The menu tree (DISPLAY.md, "Menu tree") --------------------------------
 
-#define UI_LABEL(name, text) static const char UI_PROGMEM name[] = text
+#define UI_LABEL(name, text) static const char name[] = text
 UI_LABEL(kMenu, "MENU");
 UI_LABEL(kDelay, "DELAY");
 UI_LABEL(kReverb, "REVERB");
@@ -75,16 +74,16 @@ UI_LABEL(kC1Bar, "1 bar");
 UI_LABEL(kC3Bars, "3 bars");
 #undef UI_LABEL
 
-static const char* const UI_PROGMEM kTypeNames[] = {kCPing, kC80s};
-static const char* const UI_PROGMEM kReverbTypeNames[] = {kCPlate, kC80sReverb};
-static const char* const UI_PROGMEM kReverbModeNames[] = {kCHall, kCGated};
-static const char* const UI_PROGMEM kCrashNames[] = {kCOff, kC2Bars, kC4Bars, kC8Bars, kC16Bars};
-static const char* const UI_PROGMEM kCountNames[] = {kCOff, kC1Bar, kC2Bars, kC3Bars, kC4Bars};
+static const char* const kTypeNames[] = {kCPing, kC80s};
+static const char* const kReverbTypeNames[] = {kCPlate, kC80sReverb};
+static const char* const kReverbModeNames[] = {kCHall, kCGated};
+static const char* const kCrashNames[] = {kCOff, kC2Bars, kC4Bars, kC8Bars, kC16Bars};
+static const char* const kCountNames[] = {kCOff, kC1Bar, kC2Bars, kC3Bars, kC4Bars};
 
 using K = Kind;
 using U = Unit;
 
-static const MenuItem UI_PROGMEM kTop[] = {
+static const MenuItem kTop[] = {
     {kLIr, K::kScreen, kScreenIR, 0, 0, 0, 0, U::kNone, kNoItem, nullptr},
     {kLDelay, K::kSubmenu, kDelayOn, kPageDelay, 0, 0, 0, U::kNone, kNoItem, nullptr},
     {kLReverb, K::kSubmenu, kReverbOn, kPageReverb, 0, 0, 0, U::kNone, kNoItem, nullptr},
@@ -95,7 +94,7 @@ static const MenuItem UI_PROGMEM kTop[] = {
     {kLStatus, K::kScreen, kScreenStatus, 0, 0, 0, 0, U::kNone, kNoItem, nullptr},
 };
 
-static const MenuItem UI_PROGMEM kDelayItems[] = {
+static const MenuItem kDelayItems[] = {
     {kLOn, K::kToggle, kDelayOn, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
     {kLType, K::kChoice, kDelayType, 0, 0, 1, 1, U::kNone, kNoItem, kTypeNames},
     {kLMix, K::kValue, kDelayMix, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
@@ -110,7 +109,7 @@ static const MenuItem UI_PROGMEM kDelayItems[] = {
 
 // Type: plate or 80s; the 80s rows show only for the 80s reverb (Mod for
 // the hall, Gate for the gated mode).
-static const MenuItem UI_PROGMEM kReverbItems[] = {
+static const MenuItem kReverbItems[] = {
     {kLOn, K::kToggle, kReverbOn, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
     {kLType, K::kChoice, kReverbType, 0, 0, 1, 1, U::kNone, kNoItem, kReverbTypeNames},
     {kLMode, K::kChoice, kReverbMode, 0, 0, 1, 1, U::kNone, kIsReverb80, kReverbModeNames},
@@ -123,7 +122,7 @@ static const MenuItem UI_PROGMEM kReverbItems[] = {
     {kLGate, K::kValue, kReverbGate, 0, 100, 600, 10, U::kMs, kIsReverbGated, nullptr},
 };
 
-static const MenuItem UI_PROGMEM kLevelItems[] = {
+static const MenuItem kLevelItems[] = {
     {kLGain, K::kValue, kOutGain, 0, -120, 48, 1, U::kHalfDb, kNoItem, nullptr},
     {kLLineIn, K::kValue, kLineIn, 0, 0, 15, 1, U::kNone, kNoItem, nullptr},
     {kLLineOut, K::kValue, kLineOut, 0, 13, 31, 1, U::kNone, kNoItem, nullptr},
@@ -133,7 +132,7 @@ static const MenuItem UI_PROGMEM kLevelItems[] = {
 // The style's, kit's and song's range ends come from MenuHost::limits (how
 // many there are), their names from MenuHost::valueText; so do the loop's
 // bars (the song's length; "off" for from = 0).
-static const MenuItem UI_PROGMEM kDrumItems[] = {
+static const MenuItem kDrumItems[] = {
     {kLPlay, K::kToggle, kDrumsPlay, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
     {kLBass, K::kSubmenu, kBassOn, kPageBass, 0, 0, 0, U::kNone, kNoItem, nullptr},
     {kLStyle, K::kValue, kDrumStyle, 0, 0, 7, 1, U::kName, kNoItem, nullptr},
@@ -151,7 +150,7 @@ static const MenuItem UI_PROGMEM kDrumItems[] = {
 
 // Speed trainer: all settings on one screen, so they can be set up before
 // switching it on.
-static const MenuItem UI_PROGMEM kTrainerItems[] = {
+static const MenuItem kTrainerItems[] = {
     {kLOn, K::kToggle, kTrainerOn, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
     {kLStep, K::kValue, kTrainerStep, 0, 1, 20, 1, U::kBpm, kNoItem, nullptr},
     {kLEvery, K::kValue, kTrainerEvery, 0, 1, 16, 1, U::kBars, kNoItem, nullptr},
@@ -160,7 +159,7 @@ static const MenuItem UI_PROGMEM kTrainerItems[] = {
 
 // The bass playing with the drums: on/off first, so it is one push away.
 // The key is the styles' (songs have their own); named by MenuHost.
-static const MenuItem UI_PROGMEM kBassItems[] = {
+static const MenuItem kBassItems[] = {
     {kLOn, K::kToggle, kBassOn, 0, 0, 1, 1, U::kNone, kNoItem, nullptr},
     {kLVolume, K::kValue, kBassVolume, 0, 0, 100, 1, U::kPercent, kNoItem, nullptr},
     {kLKey, K::kValue, kBassKey, 0, 0, 11, 1, U::kName, kNoItem, nullptr},
@@ -169,7 +168,7 @@ static const MenuItem UI_PROGMEM kBassItems[] = {
 
 #define UI_PAGE(title, items) {title, items, sizeof(items) / sizeof(items[0])}
 // In MenuPageId order.
-static const MenuPage UI_PROGMEM kPages[] = {
+static const MenuPage kPages[] = {
     UI_PAGE(kMenu, kTop),
     UI_PAGE(kDelay, kDelayItems),
     UI_PAGE(kReverb, kReverbItems),
@@ -180,60 +179,60 @@ static const MenuPage UI_PROGMEM kPages[] = {
 };
 #undef UI_PAGE
 
-UI_COLD const MenuPage* menuPages() { return kPages; }
+const MenuPage* menuPages() { return kPages; }
 
 // ---- Formatting ----------------------------------------------------------------
 
 // Half-dB steps as "-6.0", "+3.5", "0.0".
-static UI_COLD void halfDb(int v, char* buf, int n) {
+static void halfDb(int v, char* buf, int n) {
   const int a = v < 0 ? -v : v;
-  snprintf(buf, n, UI_STR("%s%d.%d"), v < 0 ? UI_STR("-") : (v > 0 ? UI_STR("+") : UI_STR("")),
+  snprintf(buf, n, "%s%d.%d", v < 0 ? "-" : (v > 0 ? "+" : ""),
            a / 2, (a & 1) * 5);
 }
 
-UI_COLD void formatValue(const MenuItem& it, int v, bool spaced, char* buf, int n) {
-  const char* sp = spaced ? UI_STR(" ") : UI_STR("");
+void formatValue(const MenuItem& it, int v, bool spaced, char* buf, int n) {
+  const char* sp = spaced ? " " : "";
   switch (it.kind) {
     case Kind::kToggle:
     case Kind::kSubmenu:
-      snprintf(buf, n, UI_STR("%s"), v ? UI_STR("ON") : UI_STR("OFF"));
+      snprintf(buf, n, "%s", v ? "ON" : "OFF");
       return;
     case Kind::kChoice:
-      snprintf(buf, n, UI_STR("%s"), (v >= it.min && v <= it.max) ? it.choices[v] : UI_STR("?"));
+      snprintf(buf, n, "%s", (v >= it.min && v <= it.max) ? it.choices[v] : "?");
       return;
     default:
       break;
   }
   switch (it.unit) {
-    case Unit::kPercent: snprintf(buf, n, UI_STR("%d%s%%"), v, sp); break;
-    case Unit::kMs: snprintf(buf, n, UI_STR("%d%sms"), v, sp); break;
-    case Unit::kBpm: snprintf(buf, n, UI_STR("%d BPM"), v); break;
-    case Unit::kBars: snprintf(buf, n, UI_STR("%d bar%s"), v, v == 1 ? UI_STR("") : UI_STR("s")); break;
-    case Unit::kName: snprintf(buf, n, UI_STR("%d"), v + 1); break;
+    case Unit::kPercent: snprintf(buf, n, "%d%s%%", v, sp); break;
+    case Unit::kMs: snprintf(buf, n, "%d%sms", v, sp); break;
+    case Unit::kBpm: snprintf(buf, n, "%d BPM", v); break;
+    case Unit::kBars: snprintf(buf, n, "%d bar%s", v, v == 1 ? "" : "s"); break;
+    case Unit::kName: snprintf(buf, n, "%d", v + 1); break;
     case Unit::kHalfDb: {
       char num[16];
       halfDb(v, num, sizeof(num));
-      snprintf(buf, n, UI_STR("%s%sdB"), num, sp);
+      snprintf(buf, n, "%s%sdB", num, sp);
       break;
     }
-    default: snprintf(buf, n, UI_STR("%d"), v); break;
+    default: snprintf(buf, n, "%d", v); break;
   }
 }
 
 // ---- Engine --------------------------------------------------------------------
 
-UI_COLD bool Menu::visible(const MenuItem& it) {
+bool Menu::visible(const MenuItem& it) {
   return it.visibleIf == kNoItem || host_.get(it.visibleIf) != 0;
 }
 
-UI_COLD int Menu::visibleCount() {
+int Menu::visibleCount() {
   const MenuPage& pg = pages_[stack_[depth_].page];
   int n = 0;
   for (int i = 0; i < pg.count; i++) n += visible(pg.items[i]);
   return n;
 }
 
-UI_COLD const MenuItem* Menu::visibleItem(int n) {
+const MenuItem* Menu::visibleItem(int n) {
   const MenuPage& pg = pages_[stack_[depth_].page];
   for (int i = 0; i < pg.count; i++) {
     if (!visible(pg.items[i])) continue;
@@ -242,27 +241,27 @@ UI_COLD const MenuItem* Menu::visibleItem(int n) {
   return nullptr;
 }
 
-UI_COLD const MenuItem* Menu::current() {
+const MenuItem* Menu::current() {
   Level& lv = stack_[depth_];
   const int count = visibleCount();
   if (lv.cursor >= count) lv.cursor = count > 0 ? count - 1 : 0;
   return visibleItem(lv.cursor);
 }
 
-UI_COLD void Menu::range(const MenuItem& it, int* lo, int* hi) {
+void Menu::range(const MenuItem& it, int* lo, int* hi) {
   *lo = it.min;
   *hi = it.max;
   host_.limits(it.id, lo, hi);
 }
 
-UI_COLD void Menu::open(int page) {
+void Menu::open(int page) {
   depth_ = 0;
   stack_[0] = Level{(uint8_t)page, 0, 0};
   editing_ = false;
   screen_ = kNoItem;
 }
 
-UI_COLD Menu::Result Menu::turn(int detents, uint32_t now) {
+Menu::Result Menu::turn(int detents, uint32_t now) {
   if (detents == 0) return kNothing;
   const MenuItem* it = current();
   if (!it) return kNothing;
@@ -287,7 +286,7 @@ UI_COLD Menu::Result Menu::turn(int detents, uint32_t now) {
   return kRedraw;
 }
 
-UI_COLD Menu::Result Menu::push() {
+Menu::Result Menu::push() {
   const MenuItem* it = current();
   if (!it) return kNothing;
   if (editing_) {
@@ -323,7 +322,7 @@ UI_COLD Menu::Result Menu::push() {
   return kNothing;
 }
 
-UI_COLD Menu::Result Menu::back() {
+Menu::Result Menu::back() {
   if (editing_) {
     const MenuItem* it = current();
     if (it) host_.set(it->id, original_);
@@ -339,19 +338,19 @@ UI_COLD Menu::Result Menu::back() {
 
 // ---- Drawing -------------------------------------------------------------------
 
-static UI_COLD void titleBar(Canvas& c, const char* left, const char* right) {
+static void titleBar(Canvas& c, const char* left, const char* right) {
   c.clearPages(0, Canvas::kRowPages - 1);
   c.text(Canvas::kLeft, 0, left);
   if (right) c.textRight(Canvas::kW, 0, right);
   c.invertRow(0);
 }
 
-UI_COLD void Menu::draw(Canvas& c) {
+void Menu::draw(Canvas& c) {
   if (editing_) drawEditor(c);
   else drawList(c);
 }
 
-UI_COLD void Menu::drawList(Canvas& c) {
+void Menu::drawList(Canvas& c) {
   c.clear();
   Level& lv = stack_[depth_];
   current();  // clamps the cursor if items were hidden
@@ -360,7 +359,7 @@ UI_COLD void Menu::drawList(Canvas& c) {
   if (lv.top + kRows > count) lv.top = count > kRows ? count - kRows : 0;
   // Where the cursor is ("3/9") when the page has more items than rows.
   char pos[8];
-  if (count > kRows) snprintf(pos, sizeof(pos), UI_STR("%d/%d"), lv.cursor + 1, count);
+  if (count > kRows) snprintf(pos, sizeof(pos), "%d/%d", lv.cursor + 1, count);
   titleBar(c, pages_[lv.page].title, count > kRows ? pos : nullptr);
   for (int row = 0; row < kRows; row++) {
     const int n = lv.top + row;
@@ -392,7 +391,7 @@ UI_COLD void Menu::drawList(Canvas& c) {
 
 // A name centered on row 1.5, or wrapped onto rows 1-2 at the last space
 // that leaves at most a row's worth on the first line.
-static UI_COLD void drawName(Canvas& c, const char* s) {
+static void drawName(Canvas& c, const char* s) {
   const int len = (int)strlen(s);
   if (len <= Canvas::kCols) {
     c.textCenter(3, s);
@@ -403,18 +402,18 @@ static UI_COLD void drawName(Canvas& c, const char* s) {
   if (cut == 0) cut = Canvas::kCols;  // no space: break mid-word
   const char* rest = s + cut + (s[cut] == ' ');
   char line[Canvas::kCols + 1];
-  snprintf(line, sizeof(line), UI_STR("%.*s"), cut, s);
+  snprintf(line, sizeof(line), "%.*s", cut, s);
   c.textCenter(2, line);
-  snprintf(line, sizeof(line), UI_STR("%s"), rest);
+  snprintf(line, sizeof(line), "%s", rest);
   c.textCenter(4, line);
 }
 
 // x of value v on the editor's bar (inside the frame at x0, w wide).
-static UI_COLD int barPos(int v, int lo, int hi, int x0, int w) {
+static int barPos(int v, int lo, int hi, int x0, int w) {
   return x0 + 1 + (int)((long)(v - lo) * (w - 3) / (hi > lo ? hi - lo : 1));
 }
 
-UI_COLD void Menu::drawEditor(Canvas& c) {
+void Menu::drawEditor(Canvas& c) {
   c.clear();
   const MenuItem* it = current();
   if (!it) return;
