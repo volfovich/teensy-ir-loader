@@ -1,6 +1,6 @@
 # Amp block (NAM A2): plan
 
-**Status (2026-10-29): M0 done.** The A2-Lite engine is built and measured on the Teensy (32.4 % of the CPU at 48 kHz, see [M0 results](#m0-results)); the rest is still a plan. This is the research and the build plan for an amp block that plays [Neural Amp Modeler](https://www.neuralampmodeler.com/) **A2** profiles (`.nam` files) on the Teensy 4.0.
+**Status (2026-10-29): M0 and M1 done.** The A2-Lite engine is built and measured on the Teensy (32.4 % of the CPU at 48 kHz, see [M0 results](#m0-results)), and the firmware runs at 48 kHz ([M1 results](#m1-results)); the rest is still a plan. This is the research and the build plan for an amp block that plays [Neural Amp Modeler](https://www.neuralampmodeler.com/) **A2** profiles (`.nam` files) on the Teensy 4.0.
 
 ```
 shield LINE IN (L) ──► AMP (NAM A2-Lite) ──► IR (cab) ──► delay ──► reverb ──► LINE OUT L/R + headphones
@@ -93,7 +93,7 @@ For Lite that is **1,871 floats** (7.5 KB): 72 per 6-tap layer, 153 per 15-tap l
 | Multiply-adds per sample | about 1,730 | about 12,000 |
 | At 48 kHz | 83 M/s | 565 M/s |
 | Weights | 7.5 KB | 48 KB |
-| History (the dilated taps' memory) | 74 KB | 198 KB |
+| History (the dilated taps' memory) | 74 KB (87 KB as ring buffers) | 198 KB |
 
 - **Full is out of reach.** 565 M multiply-adds a second is about a whole 600 MHz Cortex-M7 at one cycle each, before anything else runs.
 - **Lite fits.** TONE3000 quotes it at "50 % CPU on an ARM Cortex M7 600MHz" (the Teensy 4's chip), with general code. Our engine is specialized for this one shape and processes a block at a time, so the goal was **about 20 %** (1.5 cycles per multiply-add). [M0](#m0-results) measured **32.4 %** (2.34 cycles): the M7 doesn't overlap the float loads with the arithmetic, so moving the data costs as much as the math.
@@ -101,23 +101,29 @@ For Lite that is **1,871 floats** (7.5 KB): 72 per 6-tap layer, 153 per 15-tap l
 
 ## Step 1: the whole system at 48 kHz
 
-Its own commit, before any NAM code. Everything still sounds the same afterwards, at about 9 % more CPU.
+**Done** (its own commit, before any NAM code). Everything still sounds the same, at 8.5 % more CPU.
 
 **What changes**
 
 - **The rate:** `-D AUDIO_SAMPLE_RATE_EXACT=48000.0f` in `platformio.ini`. The core's `AudioStream.h` only sets 44.1 kHz `#ifndef`, and the Teensy 4 I2S output (`output_i2s.cpp`) sets its PLL from this value.
-- **The codec:** `AudioControlSGTL5000::enable()` writes `CHIP_CLK_CTRL = 0x0004` (44.1 kHz). Write `0x0008` (48 kHz, 256·Fs) after it. `write()` is protected, so through a small subclass in `AudioGraph.cpp`.
-- **The reverb:** `Reverb80.h` sizes its memory in samples for 44.1 kHz (`kPreMax` 6620 = 150 ms, `kGateMax` 26464 = 600 ms, the hall lines' lengths). Size them for 48 kHz and scale the hall lines by 48/44.1, so the times and the sound stay the same. RAM2 +12 KB.
-- **The drum kit:** `tools/make_kits.py` requires 44.1 kHz WAVs (`FS = 44100`). Convert `kits/rock/*.wav` to 48 kHz once (`tools/import_kit.py` gains a rate option; band-limited sinc with numpy) and commit them. `pio_kits.py` passes the build's rate to `make_kits.py`, which checks the WAVs against it. Flash +55 KB.
+- **The codec:** `AudioControlSGTL5000::enable()` writes `CHIP_CLK_CTRL = 0x0004` (44.1 kHz). `Codec::setRate()` (`src/AudioGraph.h`, a small subclass, because `write()` is protected) writes `0x0008` (48 kHz, 256·Fs) after it.
+- **The reverb:** `Reverb80.h` sizes its memory in samples for 44.1 kHz (`kPreMax` 6620 = 150 ms, `kGateMax` 26464 = 600 ms, the hall lines' lengths). Now sized for 48 kHz (`kPreMax` 7205, `kGateMax` 28804), and every length (hall lines, diffusers, output taps) scaled by 48/44.1 with primes kept prime, so the times and the sound stay the same. RAM2 +12 KB.
+- **The drum kit:** `tools/make_kits.py` requires 44.1 kHz WAVs (`FS = 44100`). Now `FS = 48000`. `tools/import_kit.py` resamples sources at other rates (Kaiser-windowed sinc, pure Python), and the rock kit was rebuilt from its 44.1 kHz sources and committed. `pio_kits.py` reads the build's rate from `build_flags` and passes it to `make_kits.py`, which stops the build if the kits don't match. Flash +53 KB (666 KB). Levels: the same within 0.1 dB, except the open hat (−0.7 dB RMS) and the ride (+0.8 dB): they are levelled by their sample peak, which lands a little differently on a 48 kHz grid.
 - **The defaults:** drop the `44100.0f` defaults in the irdsp constructors and `IRPrepOptions`, so nothing can quietly run at the wrong rate.
 - **Already rate-aware:** the IR loader (it resamples to `AUDIO_SAMPLE_RATE_EXACT`), the delay (its line length in `AudioGraph.cpp`, +12 KB in each of RAM1 and RAM2), `FxSlot`, the drum machine, the bass and the CPU figures.
 
 **Gains:** the buffering latency drops from 1.45 to 1.33 ms (2 × 32 samples), and IRs and NAM models captured at 48 kHz play without resampling.
 
-**Checks:**
-- The host tests pass at 48 kHz (the Makefile gets a rate variable).
-- On the device: `bass key A` plays an A on a tuner, the metronome's tempo is right against a phone metronome, and `dtime` repeats are on time.
-- `s` CPU: about 9 % more than before.
+### M1 results
+
+Measured on 2026-10-29:
+
+- **Host tests:** all pass at 48 kHz. The tests' sample positions are now written in terms of the rate (`kS`, `kBeat`, `kBar` …), and the loader test targets 48 kHz with 44.1 kHz as one of the resampled source rates.
+- **The real rate:** silent drums at 100 BPM for 48 s of wall clock reached bar 21 (20 bars of 2.4 s). At 44.1 kHz they would have reached bar 19.
+- **CPU, IR and reverb:** 23.0 % average and 25.5 % max, against 21.2 % and 23.3 % before: +8.5 %.
+- **CPU, worst case:** drums and bass at 240 BPM with crashes, the delay, the reverb and four IR switches: 32.5 % average, **53.6 % max**.
+- **Memory:** 195 KB of RAM1 left for the stack (was 207), 64 KB of RAM2 (was 88). ITCM unchanged.
+- **IRs:** 44.1 kHz files are resampled on load; a 4096-sample IR is now 85 ms instead of 93.
 
 ## Step 2: the A2-Lite engine
 
@@ -212,7 +218,7 @@ in → × input gain → NamA2 → × level (−18 − loudness) → × output l
   3. Run the network muted for 132 ms (the warm-up).
   4. Fade up (20 ms).
   
-  That's a 170 ms dip in the sound. Two networks for a crossfade, as the IRs have, would need a second 74 KB history, which won't fit.
+  That's a 170 ms dip in the sound. Two networks for a crossfade, as the IRs have, would need a second 87 KB history, which won't fit.
 - **`s`** gets an `Amp:` line (the model, on/off, the levels) and the amp's CPU share.
 
 **Settings** (new rows at the end of the saved block in `ParamDefs.cpp`, after `kBassTone`)
@@ -249,15 +255,14 @@ in → × input gain → NamA2 → × level (−18 − loudness) → × output l
 
 ## CPU and memory budget
 
-**CPU** (32-sample blocks; the amp measured in M0; the 48 kHz column estimated, +9 %, until M1)
+**CPU** (32-sample blocks; measured: the amp in M0, the 48 kHz column in M1)
 
 | | Today (44.1 kHz) | At 48 kHz | + amp |
 |---|---|---|---|
-| Worst case: drums, IR switches, delay, reverb (measured 2026-10-29) | 41–47 % | 45–51 % | **78–84 %** |
-| Older worst case: drums and bass at 240 BPM, IR switches (2026-10-28, longer IRs, before the 4096-sample cap) | 55–58 % | 60–63 % | 93–96 % |
-| Typical playing: IR, delay and reverb | about 25 % | about 28 % | about 60 % |
+| Worst case: drums and bass at 240 BPM with crashes, delay, reverb, IR switches | 41–47 % | **53.6 %** (32.5 % average) | **86 %** (65 % average) |
+| Typical playing: IR, delay and reverb | about 25 % | about 28 % | about 61 % |
 
-The amp is counted at its measured 32.4 %.
+The amp is counted at its measured 32.4 % average, 32.8 % max.
 
 The worst case is close to the limit. Ways to buy room, in order:
 1. **Cap the IR at 2048 samples while the amp is on.** A cab IR has nothing audible after 43 ms. That saves about 6 %.
@@ -268,12 +273,12 @@ The worst case is close to the limit. Ways to buy room, in order:
 
 | | Free today | After 48 kHz | After the amp |
 |---|---|---|---|
-| RAM1 (stack) | 205 KB | about 193 KB | about 98 KB |
-| RAM2 (heap) | 88 KB | about 64 KB | about 50 KB |
-| ITCM | 4 KB left in 2 banks | same | must fit in it |
+| RAM1 (stack) | 205 KB | 195 KB | about 100 KB |
+| RAM2 (heap) | 88 KB | 64 KB | about 50 KB |
+| ITCM | 13 KB left in 2 banks | same | must fit in it |
 
 - **RAM1** takes the history (87 KB, measured), the weights (7.5 KB) and the per-layer pointers.
-- **ITCM** has about 4 KB left in its two 32 KB banks. If the engine's code doesn't fit, a third bank takes 32 KB from the stack. Then the fallback is to move the three dilation-239 layers' history (43 KB) to OCRAM, or shorten `DELAY_MAX_MS` from 750 to 600 ms (29 KB from each RAM).
+- **ITCM** has 13 KB left in its two 32 KB banks (52.5 KB used); the engine's code is about 4 KB. If the engine's code doesn't fit, a third bank takes 32 KB from the stack. Then the fallback is to move the three dilation-239 layers' history (43 KB) to OCRAM, or shorten `DELAY_MAX_MS` from 750 to 600 ms (29 KB from each RAM).
 - **RAM2** takes the file list (6 KB) and the staging weights (7.5 KB).
 - **Flash:** about 20 KB of code and the 55 KB the kit grows.
 
@@ -282,7 +287,7 @@ The worst case is close to the limit. Ways to buy room, in order:
 | | What | Done when |
 |---|---|---|
 | **M0** | Benchmark the engine alone on the Teensy: random A2-Lite weights, the cycle counter, a sketch on its own. | **Done:** 32.4 % at 48 kHz ([results](#m0-results)). |
-| **M1** | [Step 1](#step-1-the-whole-system-at-48-khz): the whole system at 48 kHz. | Host tests pass, the device checks pass, the CPU and memory tables updated. |
+| **M1** | [Step 1](#step-1-the-whole-system-at-48-khz): the whole system at 48 kHz. | **Done** ([results](#m1-results)). |
 | **M2** | [Step 2](#step-2-the-a2-lite-engine): the engine. | `test_nam` passes, including the golden test. |
 | **M3** | [Step 3](#step-3-reading-nam-files): the loader and `namtool`. | `test_namfile` passes; real A2 files from TONE3000 load. |
 | **M4** | [Step 4](#step-4-the-firmware): serial and settings. | Load, switch, on/off and `s` on the device, no dropouts. |

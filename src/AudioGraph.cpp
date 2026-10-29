@@ -12,7 +12,12 @@ AudioOutputI2S i2sOut;
 AudioConnection patchIn(i2sIn, 0, convolver, 0);  // left input = guitar
 AudioConnection patchL(convolver, 0, i2sOut, 0);
 AudioConnection patchR(convolver, 1, i2sOut, 1);
-AudioControlSGTL5000 codec;
+Codec codec;
+
+FLASHMEM bool Codec::setRate(int hz) {
+  const int sysFs = hz == 32000 ? 0 : (hz == 48000 ? 2 : (hz == 96000 ? 3 : 1));
+  return write(0x0004, sysFs << 2);  // CHIP_CLK_CTRL
+}
 
 // Reverb lines live in the 512 KB OCRAM (DMAMEM): random access, but moving
 // them to DTCM only saved 0.3 % CPU.
@@ -39,6 +44,7 @@ FLASHMEM void audioBegin() {
   AudioMemory(AUDIO_MEMORY_BLOCKS);
   convolver.begin(g_reverbMem, g_delayA, g_delayB, kDelayLen, g_bassMem);
   codec.enable();
+  codec.setRate((int)AUDIO_SAMPLE_RATE_EXACT);
   codec.inputSelect(AUDIO_INPUT_LINEIN);
   // The delay's fixed voicing (config.h); the rest is the saved settings.
   irdsp::StudioDelay& d = convolver.delay();

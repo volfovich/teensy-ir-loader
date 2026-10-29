@@ -10,7 +10,7 @@
 #include "Reverb80.h"
 #include "StudioDelay.h"
 
-static const float kFs = 44100.0f;
+static const float kFs = 48000.0f;
 static const int kB = 32;
 static int failures = 0;
 

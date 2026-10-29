@@ -72,7 +72,7 @@ IRDSP_COLD void Reverb80::update() {
   // the low cut shorten the measured decay by about that much).
   const float rt60 = 1.2f * 0.8f * powf(10.0f, size_);
   for (int k = 0; k < 8; k++) gain_[k] = powf(10.0f, -3.0f * (float)kHallLen[k] / (rt60 * fs_));
-  modDepth_ = 8.0f * mod_;
+  modDepth_ = 8.7f * mod_;  // samples: 0.18 ms at 48 kHz
   // Gated: taps spread over the gate time with fixed jitter, gains tilted
   // by Size (decaying .. flat .. rising), the last 10 ms faded, and the
   // whole burst normalized to unity power.

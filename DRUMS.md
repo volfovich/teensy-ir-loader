@@ -358,7 +358,7 @@ Every style plays with any kit (`drum kit`). The count-in and metronome click ar
 | # | Kit | What it is | Flash |
 |---|---|---|---|
 | 1 | synth | Synthesized voices | — |
-| 2 | rock (default) | Our own kick, snare and closed hat; AVL "Red Zeppelin" rim, open hat, Ludwig toms, Zildjian A ride, Zildjian K crash | 613 KB |
+| 2 | rock (default) | Our own kick, snare and closed hat; AVL "Red Zeppelin" rim, open hat, Ludwig toms, Zildjian A ride, Zildjian K crash | 666 KB |
 
 ### rock (default)
 
@@ -368,17 +368,17 @@ A recorded acoustic kit:
 
 | Lane | Sample (source layers → velocities) | Length kept | Size |
 |---|---|---|---|
-| Kick | own sample `Kick1.wav` (→ 9), peaking at −4.9 dBFS | 0.27 s | 23 KB |
-| Snare | own sample `Snare1.wav` (→ 9), peaking at −4.2 dBFS | 0.28 s | 24 KB |
-| Rim | sidestick (4 → 7) | 0.3 s | 26 KB |
-| Closed hat | own sample `Closed1.wav` (→ 9), peaking at −13.4 dBFS | 0.28 s | 24 KB |
-| Open hat | Sabian Rock hat, semi-open (4 → 7) | 0.6 s | 50 KB |
-| Ride | Zildjian A 24" ride (4 → 7) | 2.0 s | 172 KB |
-| Crash | Zildjian K 17" crash (4 → 7), dark and smooth, peaking at −16 dBFS | 2.5 s | 215 KB |
-| Rack tom | Ludwig 14" tom (4 → 7) | 0.45 s | 39 KB |
-| Floor tom | Ludwig 16" floor tom (4 → 7) | 0.45 s | 39 KB |
+| Kick | own sample `Kick1.wav` (→ 9), peaking at −4.9 dBFS | 0.27 s | 26 KB |
+| Snare | own sample `Snare1.wav` (→ 9), peaking at −4.2 dBFS | 0.28 s | 26 KB |
+| Rim | sidestick (4 → 7) | 0.3 s | 27 KB |
+| Closed hat | own sample `Closed1.wav` (→ 9), peaking at −14.1 dBFS | 0.28 s | 26 KB |
+| Open hat | Sabian Rock hat, semi-open (4 → 7) | 0.6 s | 55 KB |
+| Ride | Zildjian A 24" ride (4 → 7) | 2.0 s | 188 KB |
+| Crash | Zildjian K 17" crash (4 → 7), dark and smooth, peaking at −16 dBFS | 2.5 s | 234 KB |
+| Rack tom | Ludwig 14" tom (4 → 7) | 0.45 s | 42 KB |
+| Floor tom | Ludwig 16" floor tom (4 → 7) | 0.45 s | 42 KB |
 
-All samples are 16-bit mono 44.1 kHz: **613 KB** of flash in all.
+All samples are 16-bit mono 48 kHz, the firmware's rate (resampled from 44.1 kHz sources): **666 KB** of flash in all.
 
 ### How the sampled kits play
 
@@ -436,15 +436,15 @@ A kit's lanes can also be swapped one by one: rock's kick, snare and closed hat 
    - Trims the silence before the hit, keeping 0.5 ms, faded in.
    - Cuts the tail at −60 dB or at the length given, with a raised-cosine fade.
    - Levels it to the lane's peak × velocity / 9 (unless the peak is `-`).
-   - Writes 16-bit mono 44.1 kHz WAVs.
+   - Writes 16-bit mono WAVs at the firmware's rate (`FS` in `tools/make_kits.py`, 48 kHz).
 
-   Sources must be 44.1 kHz (16 or 24-bit, mono or stereo).
+   Sources can be at any rate (16 or 24-bit, mono or stereo); other rates are resampled (Kaiser-windowed sinc). The build stops if the kits don't match the firmware's rate.
 3. **Build and listen:**
    - `pio run` compiles the kit in: `tools/make_kits.py` regenerates `lib/irdsp/src/DrumKitData.cpp` whenever a kit changes.
    - `make -C test/host render` writes every style with every kit to `test/host/out/drums_*_<kit>.wav`.
    - `test_drums` checks that each sample starts and ends at zero, that its hit starts within 2 ms, and that the loudest style stays below clipping.
 
-**Flash budget:** the rock kit uses 613 KB, and about 1,170 KB of flash is left (88 KB per second of sound). Keep some of it for future code. Cymbal tails are the expensive part.
+**Flash budget:** the rock kit uses 666 KB, and about 1,100 KB of flash is left (96 KB per second of sound). Keep some of it for future code. Cymbal tails are the expensive part.
 
 ## Drum bus
 
@@ -469,8 +469,8 @@ voices (stereo) -> bus gain -> natural ----------+
   - Release 200 ms, slow enough not to pump.
   - +16 dB makeup.
   - Both channels share one detector, so the stereo image doesn't shift.
-- **Peak limiter:** keeps the bus at −0.5 dBFS. It's smooth rather than clipping: it sees each peak coming and turns down over 1.5 ms before it arrives. At the default Comp it hardly ever acts.
-- **Lookahead:** both look 1.5 ms ahead, because the drums are delayed by 1.5 ms. That doesn't matter for a drum machine, since there's nothing to play in time with but the drums themselves.
+- **Peak limiter:** keeps the bus at −0.5 dBFS. It's smooth rather than clipping: it sees each peak coming and turns down over 1.3 ms before it arrives. At the default Comp it hardly ever acts.
+- **Lookahead:** both look 1.3 ms ahead (64 samples), because the drums are delayed by 1.3 ms. That doesn't matter for a drum machine, since there's nothing to play in time with but the drums themselves.
 - **Measured** (every style, volume 100):
 
   | Comp | rock (RMS) | synth (RMS) |
@@ -500,10 +500,10 @@ The compressor settings are fixed voicing (constants in `DrumMachine.cpp`), like
   - Once stopped and silent it uses almost nothing (0.1 %), and the output is the guitar alone, bit for bit.
 - **Sample reads:** samples are read straight from flash in the audio interrupt, which needs only a few percent of the flash's bandwidth. Switching IRs while the drums play peaks at the same 55 % CPU as without them, with no dropouts.
 - **Memory:**
-  - RAM1: about 3 KB of data (two pattern buffers, the synth voices' state, 16 sample voices and the bus's 1.5 ms lookahead) and about 6.8 KB of code (the real-time part).
+  - RAM1: about 3 KB of data (two pattern buffers, the synth voices' state, 16 sample voices and the bus's 1.3 ms lookahead) and about 6.8 KB of code (the real-time part).
   - RAM2: 22 KB for a song loaded from the SD card (hits and bar table) and the `/DRUMS` file list, 16 KB for its bass part, and 13.6 KB for the bass's strings and buffers.
   - The bass's real-time code is about 1 KB of RAM1; the drum machine's once-per-hit work (starting a hit, a bar line, a bass note) runs from flash to make room for it.
-  - Flash: the rock kit's samples (613 KB), the built-in songs (about 9 KB), setup, the MIDI reader, and the style and kit tables.
+  - Flash: the rock kit's samples (666 KB), the built-in songs (about 9 KB), setup, the MIDI reader, and the style and kit tables.
 
 ## Defaults
 

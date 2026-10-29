@@ -6,7 +6,7 @@
 //
 // Copy .wav impulse responses to the SD card (root or /IR folder). Any sample
 // rate, mono or stereo, 8/16/24/32-bit PCM or 32/64-bit float; files are
-// resampled to 44.1 kHz, trimmed and loudness-normalized on load.
+// resampled to 48 kHz, trimmed and loudness-normalized on load.
 //
 // Control: USB serial (type "?" for help) and the OLED + encoder panel
 // (DISPLAY.md, pins in config.h).

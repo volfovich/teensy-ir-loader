@@ -12,8 +12,8 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
 
 ## Features
 
-- **Long IRs:** up to 4096 samples (93 ms at 44.1 kHz), longer than any cabinet has audible response. Longer files are cut there with a short fade (`IR_MAX_LENGTH` in `include/config.h`).
-- **Zero added latency from the convolution.** The partition size equals the audio block size, so total latency is only the audio buffering, about 1.5 ms at the default 32-sample blocks, plus the codec's converter delay.
+- **Long IRs:** up to 4096 samples (85 ms at 48 kHz), longer than any cabinet has audible response. Longer files are cut there with a short fade (`IR_MAX_LENGTH` in `include/config.h`).
+- **Zero added latency from the convolution.** The partition size equals the audio block size, so total latency is only the audio buffering, about 1.3 ms at the default 32-sample blocks, plus the codec's converter delay.
 - **Just copy WAVs to the SD card:**
   - Files can go in the root folder or an `/IR` folder.
   - Any sample rate from 8 to 384 kHz is accepted and resampled on the Teensy. The file is streamed from the card, so its length does not matter. Above 192 kHz loading is slower.
@@ -141,29 +141,29 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 
 ## Latency and CPU
 
-The block size is set in `platformio.ini`. The 32-sample row is measured with `s` (2026-10-29); the others are scaled from it. Run `s` on the device to see real numbers.
+The block size and the sample rate (48 kHz) are set in `platformio.ini`. The 32-sample row was measured with `s` at 44.1 kHz (2026-10-29) and scaled to 48 kHz (+9 %); the others are scaled from it. Run `s` on the device to see real numbers.
 
 | `AUDIO_BLOCK_SAMPLES` | I/O buffering | Convolver CPU, 4096-sample IR | During a 25 ms IR switch |
 |---|---|---|---|
-| 16 | ~0.7 ms | ~22 % | ~40 % |
-| **32 (default)** | **~1.5 ms** | **~11 %** | ~20 % |
-| 64 | ~2.9 ms | ~6 % | ~11 % |
-| 128 | ~5.8 ms | ~3.5 % | ~6 % |
+| 16 | ~0.7 ms | ~24 % | ~43 % |
+| **32 (default)** | **~1.3 ms** | **~12 %** | ~22 % |
+| 64 | ~2.7 ms | ~6.5 % | ~12 % |
+| 128 | ~5.3 ms | ~4 % | ~6.5 % |
 
 The codec's ADC and DAC add their own fixed delay on top of the buffering. To measure your exact total, loop LINE OUT back into LINE IN R and record both channels.
 
 CPU cost scales with IR length. A 2048-sample cabinet IR uses about half the figures above.
 
-The reverb adds about 7.5 % CPU (hall; gated 6 %, measured with 32-sample blocks), the delay about 4.5 % and the drum machine about 3.5 % (recorded kits, with the bass and the drum-bus compressor), while each is on (or playing) or still ringing out. None of them uses any CPU once its tail has died away. Run `s` to see the current values. The delay's fixed voicing is set in `include/config.h`; see [DELAY.md](DELAY.md#fixed-voicing-configh).
+The reverb adds about 8 % CPU (hall; gated about 6.5 %), the delay about 4.7 % and the drum machine about 5 % (recorded kits at 240 BPM, with the bass and the drum-bus compressor), measured at 48 kHz with 32-sample blocks, while each is on (or playing) or still ringing out. None of them uses any CPU once its tail has died away. Run `s` to see the current values. The delay's fixed voicing is set in `include/config.h`; see [DELAY.md](DELAY.md#fixed-voicing-configh).
 
 Smaller blocks cost more CPU because the same IR is split into more partitions, and every partition is processed each block. At 16 samples there is still plenty of headroom, so try it if you want the lowest possible latency.
 
-Memory use with 32-sample blocks (2026-10-29):
+Memory use with 32-sample blocks at 48 kHz (2026-10-29):
 
-- **RAM1 (fast DTCM/ITCM):** about 300 of 512 KB. This holds the real-time code (about 52 KB), the IR spectra and the input history used every block (about 100 KB), and one delay line (about 130 KB). Cold code (SD card, printf, the UI) runs from flash; see [DISPLAY.md, RAM1 strategy](DISPLAY.md#ram1-strategy).
-- **RAM2 (OCRAM/DMAMEM):** about 425 of 512 KB. This holds the reverb's lines (136 KB), the other delay line (about 130 KB), the bass, and the file list and file-loading buffers.
+- **RAM1 (fast DTCM/ITCM):** about 320 of 512 KB. This holds the real-time code (about 52 KB), the IR spectra and the input history used every block (about 100 KB), and one delay line (about 141 KB). Cold code (SD card, printf, the UI) runs from flash; see [DISPLAY.md, RAM1 strategy](DISPLAY.md#ram1-strategy).
+- **RAM2 (OCRAM/DMAMEM):** about 450 of 512 KB. This holds the reverb's lines (145 KB), the other delay line (about 141 KB), the bass, and the file list and file-loading buffers.
 
-About 200 KB stays free in RAM1 for the stack, and 88 KB in RAM2 for the heap.
+About 195 KB stays free in RAM1 for the stack, and 64 KB in RAM2 for the heap.
 
 ## How it works
 

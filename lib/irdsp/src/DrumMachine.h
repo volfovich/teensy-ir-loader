@@ -86,7 +86,7 @@ class DrumMachine {
  public:
   static constexpr int kMaxSteps = 24;
   static constexpr float kMinBpm = 40.0f, kMaxBpm = 240.0f;
-  // The drum bus is delayed by this many samples (1.5 ms at 44.1 kHz), the
+  // The drum bus is delayed by this many samples (1.3 ms at 48 kHz), the
   // drum-bus compressor's lookahead.
   static constexpr int kLatency = 64;
   // process() blocks longer than this are split (the bass's block buffer).
@@ -98,7 +98,7 @@ class DrumMachine {
   // for a dead note.
   static constexpr int kBassHookVoice = 32;
 
-  explicit DrumMachine(float sampleRate = 44100.0f);
+  explicit DrumMachine(float sampleRate);
 
   // ---- Control (background) -------------------------------------------------
   void setStyle(int idx);      // at the next bar (at once when stopped)

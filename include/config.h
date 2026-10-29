@@ -11,13 +11,14 @@
 // The convolver's partition size equals the block size, so the convolution
 // itself adds zero latency; total latency is ~2 blocks of I/O buffering plus
 // the codec's converters:
-//   128 -> ~5.8 ms   64 -> ~2.9 ms   32 -> ~1.5 ms   16 -> ~0.7 ms  (+ codec)
+//   128 -> ~5.3 ms   64 -> ~2.7 ms   32 -> ~1.3 ms   16 -> ~0.7 ms  (+ codec)
+// at 48 kHz (AUDIO_SAMPLE_RATE_EXACT in platformio.ini).
 // Smaller blocks cost more CPU (see README for numbers).
 
 // ---------------------------------------------------------------------------
 // Impulse responses
 // ---------------------------------------------------------------------------
-// Longest IR in samples at 44.1 kHz. 4096 samples = 93 ms, longer than any
+// Longest IR in samples at 48 kHz. 4096 samples = 85 ms, longer than any
 // cabinet has audible response; longer files are cut there with a short
 // fade. Memory (DTCM) and convolution CPU scale with it: 8192 doubles both.
 // Must be a multiple of AUDIO_BLOCK_SAMPLES.
@@ -46,8 +47,8 @@
 // delay, after the digital racks of the era (see DELAY.md).
 // ---------------------------------------------------------------------------
 // Longest delay time. The two float delay lines need 2 x 4 bytes per sample
-// of delay (750 ms = 265 KB), one in RAM1 and one in RAM2: every 100 ms takes
-// about 17.6 KB from each.
+// of delay (750 ms = 288 KB at 48 kHz), one in RAM1 and one in RAM2: every
+// 100 ms takes about 19 KB from each.
 #define DELAY_MAX_MS 750
 // Fixed voicing.
 #define DELAY80_RIGHT_RATIO 0.75f        // right time = left time x this (0.1 .. 1)

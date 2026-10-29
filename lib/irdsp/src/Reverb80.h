@@ -16,7 +16,8 @@
 // Era is the converters of the period, as in StudioDelay: the wet input's
 // bandwidth falls from 16 to 6 kHz and its resolution from 16 to 10 bits.
 //
-// Line lengths are in samples, tuned for 44.1 kHz. The modes share one block
+// Line lengths are in samples, tuned for 48 kHz (at another rate the times
+// scale with it; the decay times stay right). The modes share one block
 // of memory, so a mode change while the reverb sounds fades the tail out
 // (20 ms), clears the lines a few KB per block, then starts the new mode.
 //
@@ -33,22 +34,24 @@
 
 namespace irdsp {
 
+constexpr int sumOf(const int* v, int n) { return n ? v[0] + sumOf(v + 1, n - 1) : 0; }
+
 class Reverb80 {
  public:
   enum Mode : int { kHall = 0, kGated = 1 };
 
-  static constexpr int kPreMax = 6620;  // 150 ms + margin
-  static constexpr int kDiffLen[4] = {142, 107, 379, 277};
-  static constexpr int kHallLen[8] = {2003, 2341, 2729, 3011, 3313, 3637, 3943, 4271};
+  static constexpr int kPreMax = 7205;  // 150 ms + margin
+  static constexpr int kDiffLen[4] = {155, 113, 409, 307};
+  static constexpr int kHallLen[8] = {2179, 2549, 2969, 3271, 3607, 3967, 4289, 4649};
   static constexpr int kModPad = 24;    // room for the modulated reads
-  static constexpr int kGateMax = 26464;  // 600 ms + margin
+  static constexpr int kGateMax = 28804;  // 600 ms + margin
   static constexpr int kTaps = 24;      // per side (gated)
-  static constexpr int kHallFloats = 2003 + 2341 + 2729 + 3011 + 3313 + 3637 + 3943 + 4271 + 8 * kModPad;
+  static constexpr int kHallFloats = sumOf(kHallLen, 8) + 8 * kModPad;
   static constexpr int kSharedFloats = kHallFloats > kGateMax ? kHallFloats : kGateMax;
-  // Total buffer size for init(), in floats (about 136 KB).
-  static constexpr int kMemFloats = kPreMax + (142 + 107 + 379 + 277) + kSharedFloats;
+  // Total buffer size for init(), in floats (about 145 KB).
+  static constexpr int kMemFloats = kPreMax + sumOf(kDiffLen, 4) + kSharedFloats;
 
-  explicit Reverb80(float sampleRate = 44100.0f) : fs_(sampleRate) {
+  explicit Reverb80(float sampleRate) : fs_(sampleRate) {
     lfo_[0].setRate(0.53f, sampleRate);
     lfo_[1].setRate(0.89f, sampleRate);
   }
@@ -295,7 +298,7 @@ class Reverb80 {
   static constexpr float kHallOut = 0.3f * 1.41421356f, kGateOut = 1.45f;
   // Output taps: one per line, at these points; lines 0, 3, 5, 6 feed the
   // left side and 1, 2, 4, 7 the right.
-  static constexpr int kTap[8] = {113, 211, 1913, 2203, 397, 331, 1301, 977};
+  static constexpr int kTap[8] = {127, 229, 2081, 2399, 431, 359, 1409, 1063};
   static constexpr bool kTapLeft[8] = {true, false, false, true, false, true, true, false};
 
   const float fs_;

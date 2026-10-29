@@ -31,7 +31,7 @@ enum class ChannelMode : uint8_t { kFirst = 0, kMix = 1 };
 enum class Normalize : uint8_t { kNone = 0, kEnergy = 1, kPeak = 2 };
 
 struct IRPrepOptions {
-  double targetRate = 44100.0;
+  double targetRate = 48000.0;
   ChannelMode channels = ChannelMode::kFirst;
   Normalize normalize = Normalize::kEnergy;
   float trimTailDb = -80.0f;     // drop tail below this (relative to peak); 0 = off

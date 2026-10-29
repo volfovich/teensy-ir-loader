@@ -14,6 +14,6 @@ These WAVs are an adaptation, and they are shared under the same license. They w
 - **Selection:** one velocity layer for each sound (rim, open hat, ride, crash, rack tom, floor tom). The source files are listed in `kit.txt`.
 - **Trimming:** the leading silence was cut, and the tails were shortened with a fade-out (lengths in `kit.txt`).
 - **Levels:** each sample was scaled to its drum's peak level in `kit.txt` times its velocity.
-- **Format:** 16-bit mono 44.1 kHz WAV.
+- **Format:** 16-bit mono 48 kHz WAV, resampled from the 44.1 kHz sources.
 
 To rebuild all the WAVs from the originals, run `python3 tools/import_kit.py kits/rock`.

@@ -389,6 +389,7 @@ The audio path stays in ITCM: `AudioGraph` with the convolver and effects, the d
 | Before (2026-10-28) | 130,024 B (4 banks, 1 KB padding) | 35,360 B | 71,712 B |
 | Cold-file linker script | 61,736 B (2 banks) | 107,040 B | 71,712 B |
 | + 4096-sample IR limit | 61,544 B (2 banks) | 205,344 B | 88,096 B |
+| + 48 kHz (2026-10-29) | 52,472 B (2 banks) | 195,232 B | 64,384 B |
 
 **Rules**
 

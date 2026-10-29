@@ -4,8 +4,9 @@
 For each sample line in kits/<kit>/kit.txt it reads the source file: a
 file in the kit folder (originals/Kick1.wav), or else kit.txt's `source` URL
 + the file name, downloaded unless it is already in the cache. It decodes it
-(FLAC needs the `flac` tool: brew install flac) and writes a 16-bit mono
-44.1 kHz WAV into the kit folder:
+(FLAC needs the `flac` tool: brew install flac), resamples it to the
+firmware's rate (FS in make_kits.py) if it was recorded at another one, and
+writes a 16-bit mono WAV into the kit folder:
 
   - the leading silence is trimmed, so the hit starts on its step (0.5 ms
     before the onset, faded in)
@@ -21,6 +22,7 @@ file in the kit folder (originals/Kick1.wav), or else kit.txt's `source` URL
 The WAVs are committed; tools/make_kits.py compiles them into the firmware.
 """
 import math
+import operator
 import os
 import subprocess
 import sys
@@ -62,6 +64,44 @@ def decode(path):
     return rate, mono
 
 
+def bessel_i0(v):
+    total, term, k = 1.0, 1.0, 1
+    while term > 1e-12 * total:
+        term *= (v / (2 * k)) ** 2
+        total += term
+        k += 1
+    return total
+
+
+def resample(x, rate, fs):
+    """Band-limited resampling from rate to fs: a Kaiser-windowed sinc
+    (beta 9, 32 zero crossings a side, cutoff at 98 % of the lower Nyquist),
+    one filter phase per output position between two input samples."""
+    g = math.gcd(rate, fs)
+    up, down = fs // g, rate // g
+    fc = 0.5 * min(1.0, fs / rate) * 0.98  # cycles per input sample
+    half = int(math.ceil(32 / (2 * fc)))   # input samples a side
+    beta = 9.0
+    norm = bessel_i0(beta)
+    phases = []
+    for p in range(up):
+        frac = p / up
+        taps = []
+        for k in range(-half + 1, half + 1):
+            u = k - frac
+            r = u / half
+            win = bessel_i0(beta * math.sqrt(1 - r * r)) / norm if abs(r) < 1 else 0.0
+            arg = 2 * fc * u
+            taps.append(2 * fc * (math.sin(math.pi * arg) / (math.pi * arg) if arg else 1.0) * win)
+        phases.append(taps)
+    padded = [0.0] * half + list(x) + [0.0] * (half + 1)
+    y = []
+    for n in range(len(x) * up // down):
+        i, p = divmod(n * down, up)
+        y.append(sum(map(operator.mul, padded[i + 1:i + 1 + 2 * half], phases[p])))
+    return y
+
+
 def shape(x, rate, s):
     peak = max(abs(v) for v in x) or 1.0
     on = next(i for i, v in enumerate(x) if abs(v) >= peak * 10 ** (ONSET_DB / 20))
@@ -95,8 +135,8 @@ def main():
             fetch(kit["source"] + s["source"], src)
         rate, x = decode(src)
         if rate != FS:
-            sys.exit("%s: %d Hz; only %d Hz sources for now" % (s["source"], rate, FS))
-        shaped.append(shape(x, rate, s))
+            x = resample(x, rate, FS)
+        shaped.append(shape(x, FS, s))
     for i, s in enumerate(samples):
         if s["peak"] is None:
             continue

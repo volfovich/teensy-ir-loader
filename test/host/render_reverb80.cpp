@@ -17,7 +17,7 @@
 #include "DrumMachine.h"
 #include "Reverb80.h"
 
-static const int kFs = 44100, kB = 32;
+static const int kFs = 48000, kB = 32;
 
 static bool writeWav(const std::string& path, const std::vector<float>& l, const std::vector<float>& r) {
   FILE* f = std::fopen(path.c_str(), "wb");

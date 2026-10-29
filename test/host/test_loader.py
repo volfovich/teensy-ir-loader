@@ -9,6 +9,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 IRTOOL = os.path.join(HERE, "irtool")
+RATE = 48000  # the firmware's rate (irtool's target, as on the Teensy)
 TMP = tempfile.mkdtemp(prefix="irtest_")
 failures = 0
 
@@ -66,10 +67,10 @@ def bandlimited_ir(rate, dur=0.12, fmax=16000.0):
     freqs = [180, 950, 2400, 5100, 9800, fmax]
     s = sum(np.sin(2 * np.pi * f * t + i) / (i + 1) for i, f in enumerate(freqs))
     w = np.exp(-0.5 * ((t - 0.05) / 0.012) ** 2)
-    return s * w * 0.4 * (44100.0 / rate)
+    return s * w * 0.4 * (RATE / rate)
 
 
-print("Format decoding (44.1 kHz, no trim, no normalization)")
+print("Format decoding (48 kHz, no trim, no normalization)")
 rng = np.random.default_rng(1)
 left = rng.uniform(-0.9, 0.9, 3000) * np.exp(-np.arange(3000) / 600)
 right = -left[::-1].copy()
@@ -84,29 +85,29 @@ for fmt, bp, ext, tol, label in [
     (1, 3, True, 2e-7, "24-bit PCM, WAVE_FORMAT_EXTENSIBLE"),
     (3, 4, True, 1e-7, "32-bit float, WAVE_FORMAT_EXTENSIBLE"),
 ]:
-    info, y = run(f"fmt_{fmt}_{bp}_{ext}", wav_bytes(stereo, 44100, fmt, bp, ext), 8192, "none", 0)
+    info, y = run(f"fmt_{fmt}_{bp}_{ext}", wav_bytes(stereo, RATE, fmt, bp, ext), 8192, "none", 0)
     ok = y is not None and len(y) == 3000 and np.max(np.abs(y - left)) <= tol * 1.01
     check(ok, f"{label} stereo -> left channel", "" if y is not None else info)
 
-info, y = run("mix", wav_bytes(np.stack([left, left * 0.5], 1), 44100, 3, 4), 8192, "none", 0, 1)
+info, y = run("mix", wav_bytes(np.stack([left, left * 0.5], 1), RATE, 3, 4), 8192, "none", 0, 1)
 check(y is not None and np.allclose(y, left * 0.75, atol=1e-6), "channel mix mode averages channels")
 
 junk = b"JUNK" + struct.pack("<I", 5) + b"abcde\x00" + b"LIST" + struct.pack("<I", 4) + b"INFO"
-info, y = run("chunks", wav_bytes(left, 44100, 1, 2, extra_chunks=junk), 8192, "none", 0)
+info, y = run("chunks", wav_bytes(left, RATE, 1, 2, extra_chunks=junk), 8192, "none", 0)
 check(y is not None and len(y) == 3000, "skips odd-sized JUNK and LIST chunks")
 
 info, y = run("bad", b"RIFX" + b"\x00" * 60)
 check(y is None and "ERROR" in info, "rejects non-WAV data", f"({info})")
 
 print("Resampling (compared with the continuous-time reference)")
-for rate, fmax in [(48000, 16000.0), (96000, 18000.0), (88200, 18000.0), (22050, 9500.0), (32000, 14000.0)]:
+for rate, fmax in [(44100, 16000.0), (96000, 18000.0), (88200, 18000.0), (22050, 9500.0), (32000, 14000.0)]:
     src = bandlimited_ir(rate, fmax=fmax)
-    ref = bandlimited_ir(44100, fmax=fmax)
+    ref = bandlimited_ir(RATE, fmax=fmax)
     for mode in ["table", "exact"]:
         info, y = run(f"rs_{rate}_{mode}", wav_bytes(src, rate, 3, 4), 8192, "none", 0, 0, mode)
         n = min(len(ref), len(y)) - 200
         err = np.max(np.abs(y[200:n] - ref[200:n])) / np.max(np.abs(ref))
-        check(err < 2e-3, f"{rate} Hz -> 44100 Hz ({mode} kernel)", f"rel err {err:.1e}, len {len(y)}")
+        check(err < 2e-3, f"{rate} Hz -> {RATE} Hz ({mode} kernel)", f"rel err {err:.1e}, len {len(y)}")
 
 # High frequency content above the new Nyquist must be removed (anti-alias).
 t = np.arange(4800) / 96000
@@ -129,19 +130,19 @@ info, y = run("r384", wav_bytes(hi_rate, 384000, 3, 4), 8192, "energy", 1)
 check(y is not None and len(y) > 8000 and "truncated=1" in info, "1 s IR at 384 kHz streams through the load buffer", f"({info[:40]})")
 
 delayed = np.concatenate([np.zeros(100), left])
-info, y = run("lead", wav_bytes(delayed, 44100, 3, 4), 8192, "none", 1)
+info, y = run("lead", wav_bytes(delayed, RATE, 3, 4), 8192, "none", 1)
 check("lead=100" in info and np.allclose(y[:50], left[:50], atol=1e-7), "100 samples of leading silence removed")
 
 tail = np.concatenate([left[:2000], np.zeros(5000)])
-info, y = run("tail", wav_bytes(tail, 44100, 3, 4), 8192, "none", 1)
+info, y = run("tail", wav_bytes(tail, RATE, 3, 4), 8192, "none", 1)
 check(len(y) <= 2000, "silent tail removed (saves CPU)", f"({len(y)} samples)")
 
-info, y = run("energy", wav_bytes(left, 44100, 1, 2), 8192, "energy", 0)
+info, y = run("energy", wav_bytes(left, RATE, 1, 2), 8192, "energy", 0)
 check(abs(np.sum(y.astype(np.float64) ** 2) - 1) < 1e-4, "energy normalization -> unit energy")
-info, y = run("peak", wav_bytes(left * 0.1, 44100, 1, 2), 8192, "peak", 0)
+info, y = run("peak", wav_bytes(left * 0.1, RATE, 1, 2), 8192, "peak", 0)
 check(abs(np.max(np.abs(y)) - 1) < 1e-6, "peak normalization -> peak 1.0")
 
-info, y = run("silent", wav_bytes(np.zeros(1000), 44100, 1, 2), 8192, "energy", 1)
+info, y = run("silent", wav_bytes(np.zeros(1000), RATE, 1, 2), 8192, "energy", 1)
 check(y is None and "silent" in info, "rejects a silent IR", f"({info})")
 
 print("\nALL LOADER TESTS PASSED" if not failures else f"\n{failures} FAILURE(S)")
