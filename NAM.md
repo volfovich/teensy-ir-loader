@@ -1,6 +1,6 @@
 # Amp block (NAM A2): plan
 
-**Status (2026-10-29): M0 to M3 done.** The A2-Lite engine is built and measured on the Teensy (32.4 % of the CPU at 48 kHz, see [M0 results](#m0-results)), the firmware runs at 48 kHz ([M1 results](#m1-results)), the engine matches NeuralAmpModelerCore on a real A2 model, and `.nam` files are read ([M2 and M3 results](#m2-and-m3-results)). The firmware integration (Step 4) is still a plan. This is the research and the build plan for an amp block that plays [Neural Amp Modeler](https://www.neuralampmodeler.com/) **A2** profiles (`.nam` files) on the Teensy 4.0.
+**Status (2026-10-29): M0 to M4 done: the amp block works over serial** (`amp`, `amp list`, `amp <n>`, see [Serial commands](#serial-commands)), measured on the Teensy at 33 % CPU ([M4 results](#m4-results)). Still to do: the panel (M5). This is the research and the build plan for an amp block that plays [Neural Amp Modeler](https://www.neuralampmodeler.com/) **A2** profiles (`.nam` files) on the Teensy 4.0.
 
 ```
 shield LINE IN (L) ──► AMP (NAM A2-Lite) ──► IR (cab) ──► delay ──► reverb ──► LINE OUT L/R + headphones
@@ -202,12 +202,16 @@ An A2 file is about 670 KB of JSON (NeuralAmpModelerCore's example), most of it 
 
 ## Step 4: the firmware
 
+**Built** (except the panel, M5).
+
 **Files**
 
 | File | Contents |
 |---|---|
-| `src/AmpLibrary.{h,cpp}` | Scans `/AMP/*.nam` (sorted, hidden files skipped, up to 64; the names in DMAMEM), loads a model into a staging `NamA2Weights` in DMAMEM, remembers it in the settings. Like `IRLibrary`. |
-| `src/AudioConvolverIR.h` | The amp stage, before the convolver, and its CPU share. |
+| `src/AmpLibrary.{h,cpp}` | Scans `/AMP/*.nam` (sorted, hidden files skipped, up to 64; the names in DMAMEM), loads a model's weights into a staging buffer in DMAMEM, sets the gains, remembers the model in the settings. Like `IRLibrary`. |
+| `lib/irdsp/src/AmpStage.h` | The amp block around the network: on/off, model changes, gains (portable, tested in `test_nam`). |
+| `src/AudioConvolverIR.h` | Runs the amp stage before the convolver, and measures its CPU share. |
+| `src/SdSource.h` | An SD file as a `ByteSource`, shared with `IRLibrary`. |
 | `src/Params.cpp`, `lib/oledui/src/ParamDefs.cpp` | The amp's settings. |
 | `src/Settings.{h,cpp}` | The model's path in the EEPROM record. |
 | `src/SerialUI.cpp` | The `amp` commands. |
@@ -220,17 +224,20 @@ An A2 file is about 670 KB of JSON (NeuralAmpModelerCore's example), most of it 
 in → × input gain → NamA2 → × level (−18 − loudness) → × output level → on/off blend → convolver
 ```
 
-- **On/off** is an `FxSlot`-style 20 ms blend with the dry input. When it's off and the blend has reached the dry signal, the network isn't run (no CPU), and its history is cleared.
-- **Changing the model:**
+- **On:** the network starts from a cleared state and warms up for its receptive field (132 ms) while the dry signal goes on, then a 20 ms crossfade to the amp.
+- **Off:** a 20 ms crossfade back to the dry signal; then the network stops (no CPU).
+- **Changing the model** while the amp is on:
   1. Fade the amp's output down (20 ms).
   2. The audio side copies the staged weights in (7.5 KB) and clears the history.
   3. Run the network muted for 132 ms (the warm-up).
   4. Fade up (20 ms).
   
-  That's a 170 ms dip in the sound. Two networks for a crossfade, as the IRs have, would need a second 87 KB history, which won't fit.
+  That's a 170 ms gap in the sound; with the amp off the weights are just swapped in. Two networks for a crossfade, as the IRs have, would need a second 87 KB history, which won't fit.
 - **`s`** gets an `Amp:` line (the model, on/off, the levels) and the amp's CPU share.
 
-**Settings** (new rows at the end of the saved block in `ParamDefs.cpp`, after `kBassTone`)
+### Serial commands
+
+The settings are new rows at the end of the saved block in `ParamDefs.cpp`, after `kBassTone`, so `?` lists them and `s` shows them.
 
 | Command | Range | Default | What it does |
 |---|---|---|---|
@@ -239,11 +246,27 @@ in → × input gain → NamA2 → × level (−18 − loudness) → × output l
 | `amp out` | −24 … +24 dB, 0.5 | 0 | Output level after the model's own levelling. |
 | `amp cal` | toggle | on | Use the file's `input_level_dbu` ([below](#input-level-and-calibration)). |
 
-**Other commands:** `amp list`, `amp <n|name>` (load), `amp info` (the name, gear, type, `loudness`, `input_level_dbu`, sample rate and the submodel used), and `r` rescans `/AMP` too.
+| Command | What it does |
+|---|---|
+| `amp list` | The models in `/AMP`; `>` marks the loaded one. |
+| `amp <n>` / `amp <name>` | Loads model n, or the first whose file name contains the text (`amp boosted_amp_gain_5`). |
+| `amp info` | What the loaded model says about itself: gear, type, sample rate, loudness and the level it gets, calibration. |
+| `r` | Rescans the card: IRs, amp models and drum songs. |
 
-**EEPROM:** the record gets an `ampPath` after `irPath`, with a new magic. The current `IRLP` record is read once and carried over, as `fromLegacy()` does for the one before it.
+At startup the model saved last time is loaded (else the first that loads), even with the amp off, so `amp` alone switches it on.
 
-**Panel**
+**EEPROM:** the record has an `ampPath` after `irPath`, with a new magic (`IRLQ`). The previous record (`IRLP`) is read once and carried over, as `fromLegacy()` does for the one before it.
+
+### M4 results
+
+Measured on 2026-10-29 with the user's eight captures of a JCM800 2203, plain and boosted by an OD808 (scottcorgan, TONE3000), in `/AMP`:
+
+- **Loading:** about 0.9 s per model from the SD card (two passes over a 670 KB file). They are A2 containers; the Lite network is found and read. They have no input calibration, so `amp in` sets the drive.
+- **CPU:** the amp alone 33.3 % (the M0 benchmark said 32.4 %). With the IR and the reverb: 56.4 % average, 66.4 % max. **Everything at once** (the amp, drums and bass at 240 BPM with crashes, the delay, the reverb, four IR switches): **66.0 % average, 85.3 % max**, no clipped samples. With the amp off it costs nothing (23.2 %, as before).
+- **Memory:** 96 KB of RAM1 left for the stack, 51 KB of RAM2; the code still fits in two ITCM banks (8 KB to spare). The network and the stage run from ITCM, the loaders from flash (checked with `nm`).
+- **The stage** (`test_nam`): dry during the warm-up, then exactly the network with its gains; a new model goes silent within 20 ms and stays silent for the warm-up; off goes back to dry and idle; no clicks at any change.
+
+### Panel (M5)
 
 - The home blocks become **AMP › IR › DLY › REV › DRM**. Push opens the model list, hold switches the amp on/off.
 - An **Amp** page in the menu: On, Model (the list; push loads, as in the IR list), In, Out, Cal.
@@ -299,7 +322,7 @@ The worst case is close to the limit. Ways to buy room, in order:
 | **M1** | [Step 1](#step-1-the-whole-system-at-48-khz): the whole system at 48 kHz. | **Done** ([results](#m1-results)). |
 | **M2** | [Step 2](#step-2-the-a2-lite-engine): the engine. | **Done** ([results](#m2-and-m3-results)). |
 | **M3** | [Step 3](#step-3-reading-nam-files): the loader and `namtool`. | **Done** on the PC ([results](#m2-and-m3-results)); a TONE3000 capture and the load time on the device come with M4. |
-| **M4** | [Step 4](#step-4-the-firmware): serial and settings. | Load, switch, on/off and `s` on the device, no dropouts. |
+| **M4** | [Step 4](#step-4-the-firmware): serial and settings. | **Done** ([results](#m4-results)). |
 | **M5** | The panel. | Home block, Amp page, renders. |
 | **M6** | Docs. | README (features, hardware, commands, budgets), DISPLAY.md (menu tree, RAM1 table), this file rewritten from a plan into a description. |
 

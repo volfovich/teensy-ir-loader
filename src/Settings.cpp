@@ -7,8 +7,19 @@
 
 Settings g_settings;
 
-static const uint32_t kSettingsMagic = 0x49524C50;  // "IRLP": values by ui::Param
+static const uint32_t kSettingsMagic = 0x49524C51;  // "IRLQ": the amp model, values by ui::Param
 static uint32_t g_saveAt = 0;  // millis() when a pending save is due (0 = none)
+
+// The record before the amp model ("IRLP", up to 2026-10-29): the same
+// without ampPath, read once to carry its settings over.
+static const uint32_t kNoAmpMagic = 0x49524C50;
+struct NoAmpSettings {
+  uint32_t magic;
+  uint16_t count;
+  uint16_t reserved;
+  char irPath[IR_PATH_MAX];
+  int16_t v[ui::kParamCount];  // count of them were written
+};
 
 // The record of the firmware before the parameter table ("IRLB", up to
 // 2026-10-29), read once to carry its settings over.
@@ -35,6 +46,7 @@ static void fromLegacy(const LegacySettings& o) {
   using namespace ui;
   int16_t* v = g_settings.v;
   memcpy(g_settings.irPath, o.irPath, IR_PATH_MAX);
+  memset(g_settings.ampPath, 0, IR_PATH_MAX);
   v[kDelayOn] = o.delayOn;
   v[kDelayMix] = o.delayMix;
   v[kDelayTime] = o.delayTimeMs;
@@ -74,12 +86,21 @@ static void fromLegacy(const LegacySettings& o) {
   v[kBassVolume] = o.bassVolume;
   v[kBassKey] = o.bassKey;
   v[kBassTone] = o.bassTone;
-  g_settings.count = kParamCount;
+  g_settings.count = kAmpOn;  // the settings it had; the amp's get their defaults
 }
 
 void loadSettings() {
   EEPROM.get(0, g_settings);
-  if (g_settings.magic == kLegacyMagic) {
+  if (g_settings.magic == kNoAmpMagic) {
+    NoAmpSettings old;
+    EEPROM.get(0, old);
+    memset(&g_settings, 0, sizeof(g_settings));
+    memcpy(g_settings.irPath, old.irPath, IR_PATH_MAX);
+    g_settings.count = old.count < ui::kParamCount ? old.count : ui::kParamCount;
+    memcpy(g_settings.v, old.v, sizeof(int16_t) * g_settings.count);
+    g_settings.magic = kSettingsMagic;
+    scheduleSave();
+  } else if (g_settings.magic == kLegacyMagic) {
     LegacySettings old;
     EEPROM.get(0, old);
     fromLegacy(old);
@@ -104,6 +125,7 @@ void loadSettings() {
     scheduleSave();
   }
   g_settings.irPath[IR_PATH_MAX - 1] = 0;
+  g_settings.ampPath[IR_PATH_MAX - 1] = 0;
 }
 
 void scheduleSave() { g_saveAt = millis() + 3000; if (!g_saveAt) g_saveAt = 1; }

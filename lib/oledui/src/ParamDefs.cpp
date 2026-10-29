@@ -63,6 +63,10 @@ static const ParamDef kParams[kValueCount] = {
     {"bass vol",     "Bass volume",        "Volume",         0,  100,  70, 1, U::kPercent, nullptr},
     {"bass key",     "Bass key",           "Key",            0,   11,   4, 1, U::kName,    kKeyNames},
     {"bass tone",    "Bass tone",          "Tone",           0,  100,  50, 1, U::kPercent, nullptr},
+    {"amp",          "Amp",                "On",             0,    1,   0, 1, U::kOnOff,   nullptr},
+    {"amp in",       "Amp input",          "Input",        -48,   48,   0, 1, U::kHalfDb,  nullptr},
+    {"amp out",      "Amp output",         "Output",       -48,   48,   0, 1, U::kHalfDb,  nullptr},
+    {"amp cal",      "Amp calibration",    "Calibrate",      0,    1,   1, 1, U::kOnOff,   nullptr},
     // Not saved.
     {"drum",         "Drums",              "Play",           0,    1,   0, 1, U::kOnOff,   nullptr},
     {nullptr,        "Loop from",          "Loop from",      0,  512,   0, 1, U::kNone,    nullptr},

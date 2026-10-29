@@ -1,10 +1,11 @@
-// AudioConvolverIR.h - Teensy Audio Library object wrapping the convolver
-// and the delay and reverb that follow it.
+// AudioConvolverIR.h - Teensy Audio Library object wrapping the amp, the
+// convolver and the delay and reverb that follow them.
 //
 // One mono input (guitar), two outputs (0 = left, 1 = right). The whole chain
 // runs in 32-bit float inside update():
 //
-//   in -> IR convolution -> IR bypass blend x output gain = core (mono)
+//   in -> amp (NAM A2-Lite, optional, see AmpStage.h) = amped
+//   amped -> IR convolution -> IR bypass blend x output gain = core (mono)
 //   core   -> studio 80s delay (mono in, stereo out, dry/wet) -> dL, dR
 //   dL, dR -> 80s reverb, hall or gated (stereo, dry/wet)      -> out L / R
 //   + drum machine and bass (stereo, added to the outputs, never through
@@ -17,13 +18,14 @@
 //
 // The effects' and the drums' own setters are safe to call from the
 // background (see their headers): reach them through delay(), reverb() and
-// drums().
+// drums(), and the amp's through amp().
 #pragma once
 
 #include <Arduino.h>
 #include <AudioStream.h>
 #include <math.h>
 
+#include "AmpStage.h"
 #include "DrumMachine.h"
 #include "FxStage.h"
 #include "PartitionedConvolver.h"
@@ -36,21 +38,26 @@ class AudioConvolverIR : public AudioStream {
   using Engine = irdsp::PartitionedConvolver<AUDIO_BLOCK_SAMPLES, IR_MAX_LENGTH>;
   using DelayStage = irdsp::FxStage<irdsp::StudioDelay, AUDIO_BLOCK_SAMPLES, false>;
   using ReverbStage = irdsp::FxStage<irdsp::Reverb80, AUDIO_BLOCK_SAMPLES, true>;
+  using Amp = irdsp::AmpStage<AUDIO_BLOCK_SAMPLES>;
+  static constexpr int kAmpHistoryFloats = Amp::kHistoryFloats;
   static constexpr int kReverbMemFloats = irdsp::Reverb80::kMemFloats;
   static constexpr int kBassBufLen = irdsp::DrumMachine::kBassBufLen;
 
   AudioConvolverIR()
       : AudioStream(1, inputQueue_),
+        amp_(AUDIO_SAMPLE_RATE_EXACT),
         delay_(AUDIO_SAMPLE_RATE_EXACT),
         reverb_(AUDIO_SAMPLE_RATE_EXACT),
         drums_(AUDIO_SAMPLE_RATE_EXACT) {}
 
   // Hands over the effects' memory before the audio runs: the reverb's lines
-  // (kReverbMemFloats), the delay's two lines (delayLen floats each) and the
-  // bass's buffer (kBassBufLen). Until then the effects stay off.
-  void begin(float* reverbMem, float* delayA, float* delayB, int delayLen, float* bassBuf);
+  // (kReverbMemFloats), the delay's two lines (delayLen floats each), the
+  // bass's buffer (kBassBufLen) and the amp's history (kAmpHistoryFloats).
+  // Until then the effects stay off.
+  void begin(float* reverbMem, float* delayA, float* delayB, int delayLen, float* bassBuf, float* ampHistory);
 
   Engine& engine() { return engine_; }
+  Amp& amp() { return amp_; }
   irdsp::StudioDelay& delay() { return delay_.fx(); }
   irdsp::Reverb80& reverb() { return reverb_.fx(); }
   irdsp::DrumMachine& drums() { return drums_; }
@@ -82,9 +89,10 @@ class AudioConvolverIR : public AudioStream {
   }
 
   // CPU load of this object, in percent of one core, and the shares of it
-  // spent in the delay, the reverb and the drums.
+  // spent in the amp, the delay, the reverb and the drums.
   float cpuPercent() const { return cyclesToPercent(cyclesAvg_); }
   float cpuPercentMax() const { return cyclesToPercent(cyclesMax_); }
+  float ampCpuPercent() const { return cyclesToPercent(amp_.cyclesAvg()); }
   float delayCpuPercent() const { return cyclesToPercent(delay_.cyclesAvg()); }
   float reverbCpuPercent() const { return cyclesToPercent(reverb_.cyclesAvg()); }
   float drumCpuPercent() const { return cyclesToPercent(drumCyclesAvg_); }
@@ -93,7 +101,7 @@ class AudioConvolverIR : public AudioStream {
   void update(void) override {
     const uint32_t t0 = ARM_DWT_CYCCNT;
     constexpr int B = AUDIO_BLOCK_SAMPLES;
-    float x[B], y[B], dl[B], dr[B], ol[B], orr[B];
+    float x[B], a[B], y[B], dl[B], dr[B], ol[B], orr[B];
 
     audio_block_t* in = receiveReadOnly(0);
     float pk = 0.0f;  // this block's
@@ -110,7 +118,13 @@ class AudioConvolverIR : public AudioStream {
     inPeak_ = fmaxf(inPeak_, pk);
     dispInPeak_ = fmaxf(dispInPeak_, pk);
 
-    engine_.process(x, y);
+    // The amp (idle: the input as it is).
+    const uint32_t ta = ARM_DWT_CYCCNT;
+    const bool amped = amp_.process(x, a);
+    amp_.addCycles(ARM_DWT_CYCCNT - ta);
+    const float* src = amped ? a : x;
+
+    engine_.process(src, y);
 
     // Per-sample linear ramps for gain and bypass (no zipper noise).
     const float g0 = gainCur_, g1 = gainTarget_;
@@ -120,8 +134,8 @@ class AudioConvolverIR : public AudioStream {
       const float a = (float)(i + 1) / (float)B;
       const float g = g0 + (g1 - g0) * a;
       const float w = w0 + (w1 - w0) * a;
-      // Gain applies to the processed signal; bypass passes the dry input.
-      y[i] = w * g * y[i] + (1.0f - w) * x[i];
+      // Gain applies to the processed signal; bypass passes the IR's input.
+      y[i] = w * g * y[i] + (1.0f - w) * src[i];
     }
     gainCur_ = g1;
     wetCur_ = w1;
@@ -207,6 +221,7 @@ class AudioConvolverIR : public AudioStream {
   }
 
   audio_block_t* inputQueue_[1];
+  Amp amp_;
   Engine engine_;
   DelayStage delay_;
   ReverbStage reverb_;

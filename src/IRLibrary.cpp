@@ -3,9 +3,11 @@
 #include <Arduino.h>
 #include <SD.h>
 
+#include "AmpLibrary.h"
 #include "AudioGraph.h"
 #include "DrumSongs.h"
 #include "IRLoader.h"
+#include "SdSource.h"
 #include "Settings.h"
 #include "config.h"
 
@@ -75,21 +77,12 @@ void scanCard() {
   qsort(g_files, g_numFiles, IR_PATH_MAX, cmpPath);
   Serial.printf("Found %d IR file(s).\n", g_numFiles);
   scanDrumSongs();
+  scanAmps();
 }
 
 // ---------------------------------------------------------------------------
 // IR loading
 // ---------------------------------------------------------------------------
-class SdSource : public irdsp::ByteSource {
- public:
-  explicit SdSource(File& f) : f_(f) {}
-  int read(void* dst, int n) override { return f_.read(dst, n); }
-  bool seek(uint32_t pos) override { return f_.seek(pos); }
-
- private:
-  File& f_;
-};
-
 bool loadIRIndex(int idx) {
   if (idx < 0 || idx >= g_numFiles) return false;
   auto& eng = convolver.engine();

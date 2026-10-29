@@ -14,6 +14,7 @@
 
 #include <vector>
 
+#include "AmpStage.h"
 #include "NamA2.h"
 #include "NamFile.h"
 
@@ -179,6 +180,120 @@ static bool writeWav(const char* path, const std::vector<float>& x) {
   return fclose(f) == 0;
 }
 
+// The amp stage: dry while warming up, then exactly the network (with its
+// gains); a new model fades to silence, warms up silent, fades in; off goes
+// back to dry and idle. No clicks anywhere.
+static void testAmpStage(const std::vector<float>& w1) {
+  printf("  amp stage: on, new model, off\n");
+  constexpr int B = 32;
+  using Stage = AmpStage<B>;
+  std::vector<float> w2 = w1;
+  for (size_t i = 0; i < w2.size(); i += 7) w2[i] *= -0.8f;  // another model
+  std::vector<float> hist(Stage::kHistoryFloats), refHist(Stage::kHistoryFloats);
+  Stage* st = new Stage(48000.0f);
+  NamA2<B>* ref = new NamA2<B>;
+  st->begin(hist.data());
+  ref->begin(refHist.data());
+  const float gIn = 1.5f, gOut = 0.7f;
+  st->setGains(gIn, gOut);
+
+  long t = 0;  // samples
+  auto sig = [](long n) { return 0.3f * sinf(2.0f * 3.14159265f * 220.0f * (float)n / 48000.0f); };
+  float in[B], out[B], prev = 0.0f, maxStep = 0.0f;
+  auto block = [&](bool* idle) {
+    for (int i = 0; i < B; i++) in[i] = sig(t + i);
+    *idle = !st->process(in, out);
+    if (*idle) memcpy(out, in, sizeof(out));
+    for (int i = 0; i < B; i++) maxStep = fmaxf(maxStep, fabsf(out[i] - prev)), prev = out[i];
+    t += B;
+  };
+  bool idle;
+  block(&idle);
+  CHECK(idle, "no model: idle");
+  st->loadWeights(w1.data());
+  block(&idle);
+  CHECK(idle && st->weightsTaken() && st->hasModel(), "a model while off: taken at once, still idle");
+
+  // On: dry for the warm-up (the reference network starts with it).
+  st->setOn(true);
+  ref->reset();
+  ref->setWeights(w1.data());
+  bool dry = true;
+  float r[B], x[B];
+  for (int b = 0; b < Stage::kWarmBlocks; b++) {
+    block(&idle);
+    for (int i = 0; i < B; i++) dry = dry && out[i] == in[i], x[i] = in[i] * gIn;
+    ref->process(x, r);
+  }
+  CHECK(dry && !idle, "on: the dry signal during the warm-up (%d blocks)", Stage::kWarmBlocks);
+  // Then a 20 ms crossfade, then the network times the output gain.
+  for (int b = 0; b < 30; b++) {
+    block(&idle);
+    for (int i = 0; i < B; i++) x[i] = in[i] * gIn;
+    ref->process(x, r);
+  }
+  double err = 0, level = 0;
+  for (int b = 0; b < 100; b++) {
+    block(&idle);
+    for (int i = 0; i < B; i++) x[i] = in[i] * gIn;
+    ref->process(x, r);
+    for (int i = 0; i < B; i++) err = fmax(err, fabs(out[i] - gOut * r[i])), level = fmax(level, fabs(out[i]));
+  }
+  CHECK(err < 1e-6 && level > 0.01, "  ... then exactly the network with its gains (error %g)", err);
+  const float steadyStep = maxStep;
+
+  // A new model while on: silence within 20 ms, a silent warm-up, then in.
+  st->loadWeights(w2.data());
+  int silentFrom = -1, blocks = 0;
+  for (; blocks < 40 && silentFrom < 0; blocks++) {
+    block(&idle);
+    bool silent = true;
+    for (int i = 0; i < B; i++) silent = silent && out[i] == 0.0f;
+    if (silent) silentFrom = blocks;
+  }
+  CHECK(silentFrom >= 0 && silentFrom <= 31 && st->weightsTaken(), "new model: silent within 20 ms (%d blocks)",
+        silentFrom);
+  ref->reset();
+  ref->setWeights(w2.data());
+  int silentBlocks = 1;
+  for (;; silentBlocks++) {
+    block(&idle);
+    for (int i = 0; i < B; i++) x[i] = in[i] * gIn;
+    ref->process(x, r);
+    bool silent = true;
+    for (int i = 0; i < B; i++) silent = silent && out[i] == 0.0f;
+    if (!silent || silentBlocks > 400) break;
+  }
+  CHECK(silentBlocks >= Stage::kWarmBlocks && silentBlocks <= Stage::kWarmBlocks + 2,
+        "  ... the warm-up in silence (%d blocks, ~%.0f ms)", silentBlocks, silentBlocks * B / 48.0);
+  for (int b = 0; b < 30; b++) {
+    block(&idle);
+    for (int i = 0; i < B; i++) x[i] = in[i] * gIn;
+    ref->process(x, r);
+  }
+  err = 0;
+  for (int b = 0; b < 100; b++) {
+    block(&idle);
+    for (int i = 0; i < B; i++) x[i] = in[i] * gIn;
+    ref->process(x, r);
+    for (int i = 0; i < B; i++) err = fmax(err, fabs(out[i] - gOut * r[i]));
+  }
+  CHECK(err < 1e-6, "  ... then the new model (error %g)", err);
+
+  // Off: back to dry within 20 ms, then idle.
+  st->setOn(false);
+  int idleAfter = -1;
+  for (int b = 0; b < 60 && idleAfter < 0; b++) {
+    block(&idle);
+    if (idle) idleAfter = b;
+  }
+  CHECK(idleAfter >= 0 && idleAfter <= 32 && !st->active(), "off: back to dry and idle (%d blocks)", idleAfter);
+  CHECK(maxStep < 2.0f * fmaxf(steadyStep, 0.3f * 2.0f * 3.14159265f * 220.0f / 48000.0f) + 0.02f,
+        "no clicks at any change (largest step %g, steady %g)", maxStep, steadyStep);
+  delete st;
+  delete ref;
+}
+
 // NamA2 with A2.nam's Lite network against NeuralAmpModelerCore's output.
 // Core warms the network up on reset and NamA2 starts from silence, so they
 // agree once the receptive field (6,346 samples) has passed.
@@ -300,6 +415,7 @@ int main(int argc, char** argv) {
   }
 
   testGolden();
+  testAmpStage(w);
 
   printf(g_fail ? "test_nam: %d FAILED\n" : "test_nam: all passed\n", g_fail);
   return g_fail ? 1 : 0;

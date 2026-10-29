@@ -50,6 +50,7 @@ SECTIONS
 		*liboledui.a:*(.text*)
 		*libirdsp.a:IRLoader.cpp.o(.text*)
 		*libirdsp.a:MidiDrums.cpp.o(.text*)
+		*libirdsp.a:NamFile.cpp.o(.text*)
 		*libAudio.a:control_sgtl5000.cpp.o(.text*)
 		*src/main.cpp.o(.text*)
 		*src/SerialUI.cpp.o(.text*)
@@ -59,6 +60,7 @@ SECTIONS
 		*src/DrumSongs.cpp.o(.text*)
 		*src/Oled.cpp.o(.text*)
 		*src/Params.cpp.o(.text*)
+		*src/AmpLibrary.cpp.o(.text*)
 		. = ALIGN(4);
 		KEEP(*(.init))
 		__preinit_array_start = .;
@@ -79,6 +81,7 @@ SECTIONS
 		*liboledui.a:*(.rodata*)
 		*libirdsp.a:IRLoader.cpp.o(.rodata*)
 		*libirdsp.a:MidiDrums.cpp.o(.rodata*)
+		*libirdsp.a:NamFile.cpp.o(.rodata*)
 		*src/main.cpp.o(.rodata*)
 		*src/SerialUI.cpp.o(.rodata*)
 		*src/Settings.cpp.o(.rodata*)
@@ -87,6 +90,7 @@ SECTIONS
 		*src/DrumSongs.cpp.o(.rodata*)
 		*src/Oled.cpp.o(.rodata*)
 		*src/Params.cpp.o(.rodata*)
+		*src/AmpLibrary.cpp.o(.rodata*)
 		. = ALIGN(4);
 	} > FLASH
 

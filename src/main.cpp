@@ -1,10 +1,11 @@
 // Teensy 4.0 + Audio Shield guitar IR loader
 //
-//   tube amp line out -> shield LINE IN (L) -> convolution -> studio 80s delay
-//                     -> 80s reverb -> LINE OUT L/R + headphones
+//   tube amp line out -> shield LINE IN (L) -> [NAM amp, optional] -> convolution
+//                     -> studio 80s delay -> 80s reverb -> LINE OUT L/R + headphones
 //                     (32-bit float throughout; drums and bass added after)
 //
-// Copy .wav impulse responses to the SD card (root or /IR folder). Any sample
+// Copy .wav impulse responses to the SD card (root or /IR folder), and NAM A2
+// amp models (.nam) to /AMP. Any sample
 // rate, mono or stereo, 8/16/24/32-bit PCM or 32/64-bit float; files are
 // resampled to 48 kHz, trimmed and loudness-normalized on load.
 //
@@ -15,6 +16,7 @@
 //   Params      reading and changing any setting (the table: ParamDefs.cpp)
 //   Settings    the settings saved in EEPROM
 //   IRLibrary   SD card file list and IR loading
+//   AmpLibrary  the NAM amp models in /AMP and loading them (NAM.md)
 //   DrumSongs   the drum songs, built-in and from the SD card
 //   SerialUI    serial commands and level meter
 //   Controls    the panel's encoder and keys
@@ -22,6 +24,7 @@
 //   DisplayUI   the panel: lib/oledui's screens and menu on the OLED
 #include <Arduino.h>
 
+#include "AmpLibrary.h"
 #include "AudioGraph.h"
 #include "Controls.h"
 #include "DisplayUI.h"
@@ -50,6 +53,7 @@ void setup() {
 
   scanCard();
   loadStartupIR();
+  loadStartupAmp();
   // The drum song saved last time (an SD file may have gone: then none).
   if (getParam(ui::kDrumSong) && !selectDrumSong(getParam(ui::kDrumSong), true)) setParam(ui::kDrumSong, 0);
   displayBootDone();

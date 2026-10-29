@@ -30,6 +30,9 @@ enum Param : uint8_t {
   kBassOn, kBassVolume,
   kBassKey,  // the styles' key, 0 = C .. 11 = B
   kBassTone,
+  kAmpOn,
+  kAmpIn, kAmpOut,  // half-dB steps
+  kAmpCal,          // use the model's input calibration
   kParamCount,
   // Not saved.
   kDrumsPlay = kParamCount,

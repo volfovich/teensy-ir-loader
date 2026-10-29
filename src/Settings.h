@@ -1,5 +1,5 @@
-// Settings.h - the persistent settings in EEPROM: the last IR and the value
-// of every saved setting (ui::Param 0 .. kParamCount-1, see ParamDefs.h).
+// Settings.h - the persistent settings in EEPROM: the last IR and amp model
+// and the value of every saved setting (ui::Param 0 .. kParamCount-1, see ParamDefs.h).
 // Read and change them through Params.h.
 #pragma once
 
@@ -13,6 +13,7 @@ struct Settings {
   uint16_t count;  // values in the record: kParamCount of the firmware that wrote it
   uint16_t reserved;
   char irPath[IR_PATH_MAX];
+  char ampPath[IR_PATH_MAX];
   int16_t v[ui::kParamCount];
 };
 
