@@ -27,6 +27,8 @@ struct FakeHost : ui::MenuHost {
     v[ui::kTrainerTarget] = 140; v[ui::kDrumKit] = 1; v[ui::kDrumCrash] = 2;
     v[ui::kBassOn] = 1; v[ui::kBassVolume] = 70; v[ui::kBassKey] = 4; v[ui::kBassTone] = 50;
     v[ui::kAmpOn] = 1; v[ui::kAmpIn] = 6; v[ui::kAmpOut] = -3; v[ui::kAmpCal] = 1;
+    v[ui::kAmpGate] = -64; v[ui::kAmpBass] = 0; v[ui::kAmpMid] = -4; v[ui::kAmpTreble] = 3;
+    v[ui::kAmpPresence] = 8;
   }
   static const char* styleName(int i) {
     static const char* names[] = {"metronome", "rock",          "offbeat 8ths", "offbeat 16ths",

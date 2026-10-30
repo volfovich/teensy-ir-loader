@@ -59,6 +59,15 @@
 #define DELAY80_DUCK_RELEASE_MS 200.0f   // how fast the repeats swell back after you stop
 
 // ---------------------------------------------------------------------------
+// Amp (before the IR): NAM A2-Lite models from /AMP (see NAM.md).
+// ---------------------------------------------------------------------------
+// The loudness every model is levelled to, in dB (the model's gain is this
+// minus its "loudness"; the amp's output setting comes on top). NAM players
+// use -18; the amp here stands in for a tube amp's line out, which is hotter,
+// so -12 makes output 0 dB about as loud.
+#define AMP_LEVEL_DB -12.0f
+
+// ---------------------------------------------------------------------------
 // Hardware
 // ---------------------------------------------------------------------------
 #define SDCARD_CS_PIN 10  // SD slot on the Teensy 4 Audio Shield (Rev D)

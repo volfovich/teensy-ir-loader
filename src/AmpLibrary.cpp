@@ -79,13 +79,17 @@ float ampCalibrationDb() {
   return lineInFullScaleDbu() - g_info.inputLevelDbu;
 }
 
-float ampLevelDb() { return g_current < 0 || isnan(g_info.loudness) ? 0.0f : -18.0f - g_info.loudness; }
+float ampLevelDb() { return g_current < 0 || isnan(g_info.loudness) ? 0.0f : AMP_LEVEL_DB - g_info.loudness; }
 
 void ampApplyGains() {
   const float cal = ampCalibrationDb();
   const float in = 0.5f * (float)getParam(kAmpIn) + (isnan(cal) ? 0.0f : cal);
   const float out = ampLevelDb() + 0.5f * (float)getParam(kAmpOut);
   convolver.amp().setGains(powf(10.0f, in / 20.0f), powf(10.0f, out / 20.0f));
+  const int gate = getParam(kAmpGate);
+  convolver.amp().setGate(gate <= paramDef(kAmpGate).min ? 0.0f : powf(10.0f, (float)gate / 20.0f));
+  convolver.amp().setTone(0.5f * getParam(kAmpBass), 0.5f * getParam(kAmpMid), 0.5f * getParam(kAmpTreble),
+                          0.5f * getParam(kAmpPresence));
 }
 
 bool loadAmpIndex(int idx) {

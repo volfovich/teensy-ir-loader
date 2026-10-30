@@ -71,8 +71,9 @@ static const MenuItem kTrainerItems[] = {
 
 // The amp block (NAM.md): on/off first; Model opens the list of /AMP.
 static const MenuItem kAmpItems[] = {
-    SETTING(kAmpOn), {"Model", K::kScreen, kScreenAmp, 0, kAlways}, SETTING(kAmpIn), SETTING(kAmpOut),
-    SETTING(kAmpCal),
+    SETTING(kAmpOn), {"Model", K::kScreen, kScreenAmp, 0, kAlways}, SETTING(kAmpIn),
+    SETTING(kAmpBass), SETTING(kAmpMid), SETTING(kAmpTreble), SETTING(kAmpPresence),
+    SETTING(kAmpOut), SETTING(kAmpGate), SETTING(kAmpCal),
 };
 
 // The bass playing with the drums: on/off first, so it is one push away.

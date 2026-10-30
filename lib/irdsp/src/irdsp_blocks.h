@@ -47,7 +47,7 @@ struct Shelf {
   static constexpr float kStep = 0.02f;
 };
 
-// 2-pole lowpass / highpass / bandpass (RBJ cookbook, transposed direct
+// 2-pole lowpass / highpass / bandpass / shelves / peak (RBJ cookbook, transposed direct
 // form II). The coefficients may change between samples; the state carries
 // over.
 struct Biquad {
@@ -82,6 +82,37 @@ struct Biquad {
     b2 = -alpha * inv;
     a1 = -2.0f * c * inv;
     a2 = (1.0f - alpha) * inv;
+  }
+  // Shelves and a peak (RBJ cookbook): gain in dB at the shelf / the peak.
+  void setLowShelf(float hz, float sampleRate, float db, float q = 0.70710678f) {
+    const float A = powf(10.0f, db / 40.0f), w = 6.2831853f * hz / sampleRate;
+    const float c = cosf(w), sa = 2.0f * sqrtf(A) * sinf(w) / (2.0f * q);
+    const float inv = 1.0f / ((A + 1.0f) + (A - 1.0f) * c + sa);
+    b0 = A * ((A + 1.0f) - (A - 1.0f) * c + sa) * inv;
+    b1 = 2.0f * A * ((A - 1.0f) - (A + 1.0f) * c) * inv;
+    b2 = A * ((A + 1.0f) - (A - 1.0f) * c - sa) * inv;
+    a1 = -2.0f * ((A - 1.0f) + (A + 1.0f) * c) * inv;
+    a2 = ((A + 1.0f) + (A - 1.0f) * c - sa) * inv;
+  }
+  void setHighShelf(float hz, float sampleRate, float db, float q = 0.70710678f) {
+    const float A = powf(10.0f, db / 40.0f), w = 6.2831853f * hz / sampleRate;
+    const float c = cosf(w), sa = 2.0f * sqrtf(A) * sinf(w) / (2.0f * q);
+    const float inv = 1.0f / ((A + 1.0f) - (A - 1.0f) * c + sa);
+    b0 = A * ((A + 1.0f) + (A - 1.0f) * c + sa) * inv;
+    b1 = -2.0f * A * ((A - 1.0f) + (A + 1.0f) * c) * inv;
+    b2 = A * ((A + 1.0f) + (A - 1.0f) * c - sa) * inv;
+    a1 = 2.0f * ((A - 1.0f) - (A + 1.0f) * c) * inv;
+    a2 = ((A + 1.0f) - (A - 1.0f) * c - sa) * inv;
+  }
+  void setPeak(float hz, float sampleRate, float db, float q) {
+    const float A = powf(10.0f, db / 40.0f), w = 6.2831853f * hz / sampleRate;
+    const float c = cosf(w), alpha = sinf(w) / (2.0f * q);
+    const float inv = 1.0f / (1.0f + alpha / A);
+    b0 = (1.0f + alpha * A) * inv;
+    b1 = -2.0f * c * inv;
+    b2 = (1.0f - alpha * A) * inv;
+    a1 = b1;
+    a2 = (1.0f - alpha / A) * inv;
   }
   inline float process(float x) {
     const float y = b0 * x + z1;

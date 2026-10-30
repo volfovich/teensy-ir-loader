@@ -101,6 +101,8 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `amp list` / `amp <n\|name>` / `amp info` | List the models in `/AMP` / load one by number or part of its name / what the loaded one says about itself |
 | `amp in -24..24` / `amp out -24..24` | Drive into the model / level after it, in dB |
 | `amp cal` | Toggle the model's input calibration (on by default; only calibrated captures have one) |
+| `amp bass` / `amp treble` `-12..12`, `amp mid` / `amp presence` `-10..10` | Tone controls after the model, in dB (0 = flat): low shelf 120 Hz, peak 650 Hz, high shelf 2.5 kHz, peak 5 kHz |
+| `amp gate -90..-30` / `amp gate off` | Noise gate threshold on the input, in dBFS (default −64): set it a few dB above the meter's idle reading |
 | `b` | Toggle IR bypass (the signal before the IR, with a click-free fade). The delay and reverb are not affected. |
 | `dl` | Toggle the delay on/off (the repeats ring out). All delay commands are explained in [DELAY.md](DELAY.md#controls). |
 | `dmix 0..100` | Delay dry/wet blend (0 = dry only, 100 = repeats only) |
@@ -249,7 +251,7 @@ The tests check:
 - Anti-aliasing, trimming, truncation and normalization.
 - The NAM amp network against a plain reference and against NeuralAmpModelerCore on a real A2 model, and reading `.nam` files (see [NAM.md](NAM.md#m2-and-m3-results)).
 
-`test/host/namtool model.nam` reads a NAM model the way the Teensy will and prints what it found.
+`test/host/namtool model.nam` reads a NAM model the way the Teensy will and prints what it found. `tools/amp_selftest.py model.nam` checks that the Teensy plays the loaded model exactly as the PC does (see [NAM.md](NAM.md#checking-the-device-against-the-pc)).
 
 `test/host/irtool file.wav out.f32` runs the exact on-device loading pipeline on a file, which is useful for seeing how the Teensy will interpret an IR before copying it to the card.
 

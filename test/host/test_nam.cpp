@@ -294,6 +294,113 @@ static void testAmpStage(const std::vector<float>& w1) {
   delete ref;
 }
 
+// The noise gate: the input's noise floor alone gives silence; a note opens
+// it within a block or two; a note dying into the noise is faded out, never
+// cut; gate off leaves the amp as it was.
+static void testAmpGate(const std::vector<float>& w) {
+  printf("  amp stage: the noise gate\n");
+  constexpr int B = 32;
+  using Stage = AmpStage<B>;
+  std::vector<float> hist(Stage::kHistoryFloats);
+  Stage* st = new Stage(48000.0f);
+  st->begin(hist.data());
+  st->loadWeights(w.data());
+  st->setGate(powf(10.0f, -64.0f / 20.0f));
+  st->setOn(true);
+  const float noise = powf(10.0f, -75.0f / 20.0f);
+  float in[B], out[B];
+  long t = 0;
+  auto run = [&](int blocks, float note, float decay, int* openedAt) {
+    bool silent = true;
+    for (int b = 0; b < blocks; b++) {
+      for (int i = 0; i < B; i++, t++)
+        in[i] = noise * urand() + note * powf(decay, (float)b) * sinf(2.0f * 3.14159265f * 220.0f * (float)t / 48000.0f);
+      const float before = st->gateGain();
+      st->process(in, out);
+      if (openedAt && *openedAt < 0 && st->gateGain() == 1.0f) *openedAt = b;
+      // Closing: never faster than the 8 ms release.
+      if (st->gateGain() < before && st->gateGain() > 0.0f)
+        silent = silent && st->gateGain() >= before * expf(-(float)B / (48000.0f * 0.008f)) * 0.999f;
+      else if (b >= blocks - 150)  // the last 100 ms
+        for (int i = 0; i < B; i++) silent = silent && out[i] == 0.0f;
+    }
+    return silent;
+  };
+  CHECK(run(Stage::kWarmBlocks + 1500, 0.0f, 1.0f, nullptr), "noise at -75 dBFS alone: silence");
+  int opened = -1;
+  run(30, 0.1f, 1.0f, &opened);
+  CHECK(opened >= 0 && opened <= 1, "a note at -20 dBFS opens it within 2 blocks (%d)", opened);
+  bool open = true;
+  for (int b = 0; b < 20; b++) open = open && (run(1, 0.1f, 1.0f, nullptr), st->gateGain() == 1.0f);
+  CHECK(open, "  ... and it stays open");
+  CHECK(run(3000, 0.1f, 0.99f, nullptr) && st->gateGain() == 0.0f,
+        "a note dying into the noise: faded out at the release rate, then silence");
+  // Closed, with noise peaking near -73 dBFS and short ticks (pick and
+  // string noise) to -62 dBFS: it stays shut (the old peak detector
+  // chattered here).
+  int reopened = 0;
+  for (int b = 0; b < 3000; b++) {
+    for (int i = 0; i < B; i++, t++) {
+      float g = 0.0f;
+      for (int k = 0; k < 4; k++) g += urand();
+      in[i] = noise * 1.25f * 0.33f * g + (t % 33600 < 24 ? 8e-4f * sinf((float)t * 0.9f) : 0.0f);
+    }
+    st->process(in, out);
+    if (st->gateGain() > 0.0f) reopened++;
+  }
+  CHECK(reopened == 0, "closed: noise spikes and small ticks don't reopen it (%d blocks open)", reopened);
+  st->setGate(0.0f);
+  run(1, 0.0f, 1.0f, nullptr);
+  CHECK(st->gateGain() == 1.0f, "gate off: open, the noise passes");
+  delete st;
+}
+
+// The tone controls: flat at 0 dB (untouched), and each knob's gain at its
+// ends where it acts most.
+static void testToneStack() {
+  printf("  tone controls\n");
+  const float fs = 48000.0f;
+  auto gainDb = [&](const float knobs[4], float hz) {
+    ToneStack t(fs);
+    t.set(knobs[0], knobs[1], knobs[2], knobs[3]);
+    float x[32];
+    double in2 = 0, out2 = 0;
+    for (int b = 0; b < 600; b++) {
+      for (int i = 0; i < 32; i++) x[i] = sinf(2.0f * 3.14159265f * hz * (float)(b * 32 + i) / fs);
+      double e = 0;
+      for (int i = 0; i < 32; i++) e += (double)x[i] * x[i];
+      t.process(x, 32);
+      if (b >= 300) {
+        in2 += e;
+        for (int i = 0; i < 32; i++) out2 += (double)x[i] * x[i];
+      }
+    }
+    return 10.0 * log10(out2 / in2);
+  };
+  const float flat[4] = {0, 0, 0, 0};
+  ToneStack t(fs);
+  t.set(0, 0, 0, 0);
+  float x[32], y[32];
+  for (int i = 0; i < 32; i++) x[i] = y[i] = urand();
+  t.process(y, 32);
+  CHECK(!memcmp(x, y, sizeof(x)), "all at 0 dB: the signal untouched");
+  CHECK(fabs(gainDb(flat, 1000.0f)) < 0.01, "flat at 1 kHz");
+  struct Case { int knob; float value, hz, lo, hi; const char* what; } cases[] = {
+      {0, 12.0f, 40.0f, 11.0f, 12.5f, "bass +12 dB: +12 dB at 40 Hz"},
+      {0, -12.0f, 40.0f, -12.5f, -11.0f, "bass -12 dB: -12 dB at 40 Hz"},
+      {1, -10.0f, 650.0f, -10.1f, -9.9f, "middle -10 dB: -10 dB at 650 Hz"},
+      {2, 12.0f, 12000.0f, 11.0f, 12.5f, "treble +12 dB: +12 dB at 12 kHz"},
+      {3, 10.0f, 5000.0f, 9.9f, 10.1f, "presence +10 dB: +10 dB at 5 kHz"},
+      {3, 10.0f, 200.0f, -0.1f, 0.3f, "  ... and nothing at 200 Hz"},
+  };
+  for (const Case& c : cases) {
+    float k[4] = {0, 0, 0, 0};
+    k[c.knob] = c.value;
+    const double g = gainDb(k, c.hz);
+    CHECK(g >= c.lo && g <= c.hi, "%s (%.2f dB)", c.what, g);
+  }
+}
+
 // NamA2 with A2.nam's Lite network against NeuralAmpModelerCore's output.
 // Core warms the network up on reset and NamA2 starts from silence, so they
 // agree once the receptive field (6,346 samples) has passed.
@@ -416,6 +523,8 @@ int main(int argc, char** argv) {
 
   testGolden();
   testAmpStage(w);
+  testAmpGate(w);
+  testToneStack();
 
   printf(g_fail ? "test_nam: %d FAILED\n" : "test_nam: all passed\n", g_fail);
   return g_fail ? 1 : 0;

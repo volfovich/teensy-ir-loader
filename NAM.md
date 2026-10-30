@@ -1,6 +1,6 @@
 # Amp block (NAM A2): plan
 
-**Status (2026-10-29): M0 to M5 done: the amp block works over serial and on the panel** (`amp`, `amp list`, `amp <n>`, see [Serial commands](#serial-commands)), measured on the Teensy at 33 % CPU ([M4 results](#m4-results)), with its own home block and menu page ([Panel](#panel-m5)). This is the research and the build plan for an amp block that plays [Neural Amp Modeler](https://www.neuralampmodeler.com/) **A2** profiles (`.nam` files) on the Teensy 4.0.
+**Status (2026-10-30): M0 to M5 done, plus a noise gate and a device self-test: the amp block works over serial and on the panel** (`amp`, `amp list`, `amp <n>`, see [Serial commands](#serial-commands)), measured on the Teensy at 33 % CPU ([M4 results](#m4-results)), with its own home block and menu page ([Panel](#panel-m5)). This is the research and the build plan for an amp block that plays [Neural Amp Modeler](https://www.neuralampmodeler.com/) **A2** profiles (`.nam` files) on the Teensy 4.0.
 
 ```
 shield LINE IN (L) ──► AMP (NAM A2-Lite) ──► IR (cab) ──► delay ──► reverb ──► LINE OUT L/R + headphones
@@ -21,6 +21,9 @@ shield LINE IN (L) ──► AMP (NAM A2-Lite) ──► IR (cab) ──► dela
 - [Step 3: reading .nam files](#step-3-reading-nam-files)
 - [Step 4: the firmware](#step-4-the-firmware)
 - [Input level and calibration](#input-level-and-calibration)
+- [Tone controls](#tone-controls)
+- [Noise gate](#noise-gate)
+- [Checking the device against the PC](#checking-the-device-against-the-pc)
 - [CPU and memory budget](#cpu-and-memory-budget)
 - [Milestones](#milestones)
 - [Tests](#tests)
@@ -245,12 +248,16 @@ The settings are new rows at the end of the saved block in `ParamDefs.cpp`, afte
 | `amp in` | −24 … +24 dB, 0.5 | 0 | Input trim: drives the model harder or softer. |
 | `amp out` | −24 … +24 dB, 0.5 | 0 | Output level after the model's own levelling. |
 | `amp cal` | toggle | on | Use the file's `input_level_dbu` ([below](#input-level-and-calibration)). |
+| `amp bass` / `amp treble` | −12 … +12 dB, 0.5 | 0 | Tone controls after the model; 0 is flat ([below](#tone-controls)). |
+| `amp mid` / `amp presence` | −10 … +10 dB, 0.5 | 0 | The same, for the middle and the presence. |
+| `amp gate` | off, −90 … −30 dB, 1 | −64 dB | The noise gate's threshold on the input, in dBFS ([below](#noise-gate)). `amp gate off` turns it off. |
 
 | Command | What it does |
 |---|---|
 | `amp list` | The models in `/AMP`; `>` marks the loaded one. |
 | `amp <n>` / `amp <name>` | Loads model n, or the first whose file name contains the text (`amp boosted_amp_gain_5`). |
 | `amp info` | What the loaded model says about itself: gear, type, sample rate, loudness and the level it gets, calibration. |
+| `amp selftest <n>` | Runs the loaded model on n floats sent over USB and sends back its output, for `tools/amp_selftest.py` ([below](#checking-the-device-against-the-pc)). |
 | `r` | Rescans the card: IRs, amp models and drum songs. |
 
 At startup the model saved last time is loaded (else the first that loads), even with the amp off, so `amp` alone switches it on.
@@ -273,8 +280,8 @@ Measured on 2026-10-29 with the user's eight captures of a JCM800 2203, plain an
 - The home blocks are **AMP › IR › DLY › REV › DRM**. Push on AMP opens the model list, hold switches the amp on/off. Five blocks fit with a pixel to spare each side of the letters, so an off block shows only its box's top and bottom lines.
 - **Row 0** shows the model's name while the cursor is on AMP (`_` as spaces), scrolling when it's long; elsewhere the IR's, as before.
 - **The model list** works like the IR list (push loads, the list stays, the last row rescans). It leaves out the words every name shares, and rows off the cursor keep both ends of a long name: `06 OD800~ain 39`.
-- **The Amp page**, first in the menu: On, Model (`7/8`, opens the list), Input, Output, Calibrate.
-- Tested in `test_ui` (the AMP block, the list, the page, the names), with renders `02g`, `02h`, `23`–`25` in `screenshots/`.
+- **The Amp page**, first in the menu: On, Model (`7/8`, opens the list), Input, Bass, Middle, Treble, Presence, Output, Gate, Calibrate: in the order of an amp's knobs, then the rest.
+- Tested in `test_ui` (the AMP block, the list, the page, the names), with renders `02g`, `02h`, `23`–`25e` in `screenshots/`.
 
 ## Input level and calibration
 
@@ -287,7 +294,75 @@ Measured on 2026-10-29 with the user's eight captures of a JCM800 2203, plain an
 - Without the field (an uncalibrated capture), it is `amp in` alone.
 - The Meter screen and `m` still show the shield's input, so the level procedure in the README is unchanged.
 
-**Output:** `−18 − loudness` dB evens out the models' levels, as the NAM plugin does, then `amp out`. The IR's own normalization follows.
+**Output:** `AMP_LEVEL_DB − loudness` dB evens out the models' levels, then `amp out`. The IR's own normalization follows.
+
+- The NAM plugin levels to −18 dB. Played that way, the models came out 6–9 dB quieter than the tube amp's line out they replace, so the firmware levels to **−12 dB** (`AMP_LEVEL_DB` in `include/config.h`). `amp out` 0 dB is now about as loud as the old rig.
+- `amp info` shows a model's loudness and the level it gets (`Loudness: -11.2 dB -> level -0.8 dB`). This is not the input calibration: most captures have none (`Calibration: -`).
+
+## Tone controls
+
+**Bass, Middle, Treble and Presence** come after the model and before the IR, in `ToneStack.h`. Each knob is a gain in dB, in half-dB steps, and **0 dB is flat**.
+
+| Knob | Filter | Range |
+|---|---|---|
+| Bass | low shelf at 120 Hz | −12 … +12 dB |
+| Middle | peak at 650 Hz, Q 0.7 | −10 … +10 dB |
+| Treble | high shelf at 2.5 kHz | −12 … +12 dB |
+| Presence | peak at 5 kHz, Q 0.7 (covers about 2.5–10 kHz) | −10 … +10 dB |
+
+The value is the gain where the knob acts most: Treble at +3 dB lifts everything above about 5 kHz by 3 dB; Middle at −4 dB cuts 650 Hz by 4 dB.
+
+- **An EQ, not a model of a tone stack.** The NAM plugin does the same. The capture already has the amp's own tone stack, set the way it was captured. A second, modelled Marshall stack would colour the sound twice, and it isn't flat in any setting.
+- **Presence** sits above Treble, where a cab IR cuts hardest. It brings back the bite and air (see [the high end](#results-the-high-end-2026-10-30)).
+- **Cost:** four biquads on 32 samples, a fraction of a percent of CPU. A knob at 0 dB is skipped, so with all at 0 the signal is untouched.
+- **Tests** (`test_nam`): all at 0 dB leaves the signal untouched; each knob gives its full gain where it acts most; Presence leaves 200 Hz alone.
+
+## Noise gate
+
+**Why:** with nothing played, the shield's input sits at about **−73 dBFS** peak: its own noise, plus whatever is in front of it. A high-gain model amplifies that by **50 dB or more** (measured: −35 dBFS out from the Orange Rockerverb capture, with −15 dB output gain). That is the hiss between notes.
+
+- Turning the guitar's volume down doesn't help, because the noise comes in after the guitar.
+- The model adds no noise of its own: silence in gives silence out.
+- A real amp's first tube stage is about 25 dB quieter than the shield's converter, so the real amp hisses less with the same settings.
+
+**The gate** works like the NAM plugin's (in `AmpStage.h`):
+
+- It **listens to the input**, before `amp in`, so its threshold reads like the level meter.
+- It **mutes the amp's output**, so the tails are cut cleanly.
+- **Opening:** within about 1 ms once the input rises above the threshold.
+- **Closing:** when the input stays 6 dB below the threshold for an unbroken 20 ms, fading out with an 8 ms time constant. After a palm mute the output is down 60 dB in about **140 ms** (simulated with the Marshall Law capture; the first version took 600 ms).
+- **The level it reads:** each block's mean power, taken at once when it rises and falling with 5 ms. The 20 ms hold is longer than a low string's cycle (12 ms for low E), so the dips between cycles don't close it. The first version used block peaks with a 10 ms fall. Noise spikes and pick ticks crossed the threshold with it, so the gate flickered open and shut as a note died: a sputter. A simulation with the Marshall Law capture, a dying chord and realistic noise reopened it 4–5 times; this one opens once and closes once, on three captures (Marshall Law, Chug Norris, a boosted JCM800) and notes dying fast or slow. For noise this level reads about 5 dB below the meter's peaks, so the default leaves more margin than the meter suggests.
+- **The default, −64 dB,** is 9 dB above the measured idle level.
+
+**Setting it:** open the meter (`m`, or Levels > Meter) and read the input with the strings muted. Set the gate a few dB above that reading. Set it too high and soft notes and long sustains get cut.
+
+## Checking the device against the PC
+
+`tools/amp_selftest.py` checks that the Teensy plays a model exactly as the PC does:
+
+1. It runs the loaded model on the device with `amp selftest`, feeding it a signal over USB.
+2. It runs the same `.nam` file through `test/host/namtool` on the PC.
+3. It compares the two outputs. `namtool` uses the firmware's engine and file reader, and the engine matches NeuralAmpModelerCore ([M2 and M3 results](#m2-and-m3-results)).
+
+```
+python3 tools/amp_selftest.py "AMP/06 - MARSHALL LAW RAW.nam"          # the golden signal
+python3 tools/amp_selftest.py model.nam --input di.wav --save out.f32  # a DI recording, 48 kHz
+```
+
+- **The model file:** pass a copy of the model loaded on the device; the script checks the name with `amp info`.
+- **The amp:** it is switched off for the test and back on after.
+- **Expect:** the two outputs agree to float rounding, about 1e-6. Anything more is a firmware bug.
+
+### Results: the high end (2026-10-30)
+
+The user found every model a little dull. These checks used 14 of their captures (six Orange Rockerverb "RAW" models and the eight JCM800s) and their cab IR (`OH Mdrn-Prog`):
+
+- **The device:** `amp_selftest.py` on `06 - MARSHALL LAW RAW` gives a maximum difference of **2.4e-7**, 138 dB below the signal. The Teensy plays the model exactly as the PC does.
+- **The engine:** against NeuralAmpModelerCore's Lite network on every one of the 14 models, the error is at most 9e-6.
+- **Lite against Full:** Core rendered both networks on a strummed riff plus the golden signal. In the 2–12.7 kHz bands Lite is within **0.5 dB** of Full on the JCM800s and within 0.2–2.2 dB on the Oranges. So Lite is not darker.
+  - Lite does differ from Full in the detail (error-to-signal 0.02–0.04 on the JCMs, 0.06–0.18 on the high-gain Oranges): the same tone, less exact.
+- **Where the top goes:** the cab IR. Without the IR the models' 8 kHz band is 3–8 dB below their loudest band; through `OH Mdrn-Prog` it is **about 30 dB** below. A brighter IR, or more Treble and Presence ([tone controls](#tone-controls)), is the place to look.
+- **The gate on the device:** at rest, with the gate at −64 dB, the output is silent (the meter's −120 dBFS floor). With the gate off it is −34 dBFS.
 
 ## CPU and memory budget
 
@@ -339,6 +414,7 @@ On the PC (`make -C test/host test`):
   - The same output for every block size from 16 to 128, and for odd chunk lengths.
   - The history copy-back: no step in the output when it happens.
   - 60 s of loud noise stays finite; `reset()` gives exact silence from silence plus the biases' steady output.
+- **The noise gate** (in `test_nam`): noise at −75 dBFS alone gives silence; a note at −20 dBFS opens it within two blocks and keeps it open; a note dying into the noise fades out no faster than the release, then silence; once closed, noise spikes and ticks to −62 dBFS don't reopen it; gate off lets everything through.
 - **The golden test** (in `test_nam`): NeuralAmpModelerCore's A2 example model, run once through Core by `nam/make_reference.sh` on a test signal (plucked notes, a sweep, noise bursts). Its Lite output is committed; ours must match within 1e-5 and 100 dB (it does: 4.8e-7, 130 dB).
 - **`test_namfile`, the loader:**
   - The keys in any order; the Lite submodel picked from either position.
@@ -354,8 +430,6 @@ On the Teensy:
 
 ## Open questions
 
-- **A noise gate** in front of the amp. High-gain models amplify the shield's noise floor, and most NAM players have one.
-- **A tone stack or EQ** after the amp (bass, mid, treble, presence). It overlaps with the README's "tone controls" idea.
 - **Home screen row 0:** the IR's name, the model's, or the model's only while the amp is on.
 - **A1 models:** an A1-nano engine (tanh, 4 channels) is possible later, if it's asked for.
 

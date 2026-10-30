@@ -20,10 +20,13 @@ const char* ampPath(int idx);
 // What the loaded model's file says about itself.
 const irdsp::NamInfo& ampInfo();
 
-// Sets the amp's input and output gains from the settings (amp in / out /
-// cal, the line-in sensitivity) and the model: call when any of them change.
+// Sets the amp's input and output gains, its tone controls and its noise gate
+// from the settings (amp in / out / cal / gate / bass / mid / treble /
+// presence, the line-in sensitivity) and the model: call when any of them
+// change.
 void ampApplyGains();
 // The calibration gain into the model (dB), or NAN if it has none or it's off.
 float ampCalibrationDb();
-// The model's levelling gain (dB): -18 - its loudness, 0 if it has none.
+// The model's levelling gain (dB): AMP_LEVEL_DB - its loudness, 0 if it has
+// none.
 float ampLevelDb();

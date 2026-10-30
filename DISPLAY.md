@@ -223,7 +223,12 @@ Every setting is one row of the parameter table (`lib/oledui/src/ParamDefs.cpp`)
 | **Amp** | On | toggle | `amp` |
 | | Model | the model list (push = load) | `amp list`, `amp <n>` |
 | | Input | −24 to +24 dB, 0.5 | `amp in` |
+| | Bass | −12 to +12 dB, 0.5 (0 = flat) | `amp bass` |
+| | Middle | −10 to +10 dB, 0.5 | `amp mid` |
+| | Treble | −12 to +12 dB, 0.5 | `amp treble` |
+| | Presence | −10 to +10 dB, 0.5 | `amp presence` |
 | | Output | −24 to +24 dB, 0.5 | `amp out` |
+| | Gate | OFF, −90 to −30 dB, 1 | `amp gate` |
 | | Calibrate | toggle | `amp cal` |
 | **IR** | file list (push = load) | — | `l`, `<n>` |
 | | Rescan SD card | action | `r` |

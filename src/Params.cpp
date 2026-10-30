@@ -113,7 +113,12 @@ static void applyParam(int id, int v) {
     case kAmpOn: convolver.amp().setOn(v); break;
     case kAmpIn:
     case kAmpOut:
-    case kAmpCal: ampApplyGains(); break;
+    case kAmpCal:
+    case kAmpGate:
+    case kAmpBass:
+    case kAmpMid:
+    case kAmpTreble:
+    case kAmpPresence: ampApplyGains(); break;
     case kDrumsPlay:
       if (v) dm.start();
       else dm.stop();

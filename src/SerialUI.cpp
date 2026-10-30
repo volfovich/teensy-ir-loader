@@ -41,6 +41,8 @@ static void argHint(int id, char* buf, int n) {
     if (len < n) snprintf(buf + len, n - len, ">");
   } else if (d.unit == Unit::kHalfDb) {
     snprintf(buf, n, "<dB>");
+  } else if (d.unit == Unit::kDbOff) {
+    snprintf(buf, n, "<dB|off>");
   } else {
     int lo, hi;
     paramLimits(id, &lo, &hi);
@@ -65,6 +67,7 @@ void printHelp() {
   Serial.print("  amp list              list the amp models (/AMP/*.nam)\n"
                "  amp <n|name>          load amp model n, or the first whose name contains it\n"
                "  amp info              what the loaded model says about itself\n"
+               "  amp selftest <n>      runs the model on n floats sent over USB (tools/amp_selftest.py)\n"
                "  drum loop <a> <b>|off  loop bars a..b of the song\n"
                "  drum train <step> <every> <target>  set the speed trainer and switch it on\n"
                "  m                     toggle the live level meter\n"
@@ -108,6 +111,30 @@ static void printAmpInfo() {
   else if (!getParam(kAmpCal)) Serial.printf("Calibration: %.1f dBu at 0 dBFS (amp cal off)\n", m.inputLevelDbu);
   else Serial.printf("Calibration: %.1f dBu at 0 dBFS -> %+.1f dB at line-in sens %d\n", m.inputLevelDbu,
                      ampCalibrationDb(), getParam(kLineIn));
+}
+
+// amp selftest <n>: the loaded model, on n raw floats from the USB serial
+// (a multiple of the block size), each block answered with its output as raw
+// floats. tools/amp_selftest.py compares that with namtool on a PC.
+static void ampSelftest(const char* arg) {
+  constexpr int B = AUDIO_BLOCK_SAMPLES;
+  const long n = arg ? atol(arg) : 0;
+  if (n <= 0 || n % B) {
+    Serial.printf("amp selftest <samples, a multiple of %d>\n", B);
+    return;
+  }
+  if (!convolver.amp().beginOffline()) {
+    Serial.println("Load a model and turn the amp off first.");
+    return;
+  }
+  Serial.printf("selftest %ld\n", n);
+  float x[B], y[B];
+  for (long done = 0; done < n; done += B) {
+    if (Serial.readBytes((char*)x, sizeof(x)) != sizeof(x)) break;  // 1 s timeout
+    convolver.amp().processOffline(x, y);
+    Serial.write((const uint8_t*)y, sizeof(y));
+  }
+  convolver.amp().endOffline();
 }
 
 static void printStyles() {
@@ -186,7 +213,7 @@ static void printStatus() {
   Serial.printf("Amp:       %s", effectState(kAmpOn, convolver.amp().active()));
   if (ampCurrent() >= 0) Serial.printf(", %s", ampPath(ampCurrent()));
   else Serial.print(", no model (/AMP)");
-  printValues({kAmpIn, kAmpOut, kAmpCal});
+  printValues({kAmpIn, kAmpBass, kAmpMid, kAmpTreble, kAmpPresence, kAmpOut, kAmpGate, kAmpCal});
   Serial.println();
   Serial.printf("Delay:     %s", effectState(kDelayOn, convolver.delayActive()));
   printValues({kDelayMix, kDelayTime, kDelayRepeats, kDelayTone, kDelayMod, kDelayDuck, kDelayDrive, kDelayEra});
@@ -227,7 +254,8 @@ static char* splitWord(char* s) {
 // True if the line was one of them.
 static bool specialCommand(const char* cmd, char* arg) {
   if (!strcmp(cmd, "amp") && arg) {
-    // amp list | info | <n> | <name>; amp on|off|in|out|cal are settings.
+    // amp list | info | <n> | <name>; amp on|off|in|out|cal|gate and the tone
+    // controls are settings.
     char word[16];
     snprintf(word, sizeof(word), "%.*s", (int)strcspn(arg, " "), arg);
     if (!strcmp(word, "list")) {
@@ -238,11 +266,17 @@ static bool specialCommand(const char* cmd, char* arg) {
       printAmpInfo();
       return true;
     }
+    if (!strcmp(word, "selftest")) {
+      ampSelftest(strchr(arg, ' '));
+      return true;
+    }
     if (isdigit((unsigned char)arg[0])) {
       if (!loadAmpIndex(atoi(arg) - 1)) Serial.println("No such amp model (type 'amp list').");
       return true;
     }
-    if (strcmp(word, "on") && strcmp(word, "off") && strcmp(word, "in") && strcmp(word, "out") && strcmp(word, "cal")) {
+    if (strcmp(word, "on") && strcmp(word, "off") && strcmp(word, "in") && strcmp(word, "out") && strcmp(word, "cal") &&
+        strcmp(word, "gate") && strcmp(word, "bass") && strcmp(word, "mid") && strcmp(word, "treble") &&
+        strcmp(word, "presence")) {
       const int i = findAmp(arg);
       if (i < 0) Serial.println("No such amp model (type 'amp list').");
       else loadAmpIndex(i);

@@ -146,6 +146,20 @@ int main(int argc, char** argv) {
   menu.draw(c);
   snap("25_edit_amp_input");
   menu.back();
+  menu.turn(3, 0);  // Treble
+  menu.draw(c);
+  snap("25b_menu_amp_tone");
+  menu.push();
+  menu.draw(c);
+  snap("25c_edit_amp_treble");
+  menu.back();
+  menu.turn(3, 0);  // Gate
+  menu.draw(c);
+  snap("25d_menu_amp_gate");
+  menu.push();
+  menu.draw(c);
+  snap("25e_edit_amp_gate");
+  menu.back();
 
   ui::drawMeterScreen(c, m);
   snap("10_meter");

@@ -257,6 +257,11 @@ static void testFormat() {
   ui::formatValue(gain, 0, false, b, sizeof(b)); ok = ok && !std::strcmp(b, "0.0dB");
   ui::formatValue(time, 380, true, b, sizeof(b)); ok = ok && !std::strcmp(b, "380 ms");
   check(ok, "half dB and ms (-6.0dB, +3.5 dB, -0.5dB, 0.0dB, 380 ms)", ok);
+  const ui::ParamDef& gate = ui::paramDef(ui::kAmpGate);
+  ok = true;
+  ui::formatValue(gate, -64, true, b, sizeof(b)); ok = ok && !std::strcmp(b, "-64 dB");
+  ui::formatValue(gate, gate.min, true, b, sizeof(b)); ok = ok && !std::strcmp(b, "OFF");
+  check(ok, "dB with an off end (the gate: -64 dB, OFF)", ok);
   ui::formatValue(ui::paramDef(ui::kBassKey), 6, true, b, sizeof(b));
   check(!std::strcmp(b, "F#"), "a name from the table's choices (key 6: F#)", 0);
   char n[32];
@@ -285,7 +290,9 @@ static void testParams() {
   ok = ok && !ui::parseValue(ui::paramDef(ui::kDelayTime), "45x", &v);
   ok = ok && ui::parseValue(ui::paramDef(ui::kOutGain), "-6", &v) && v == -12;
   ok = ok && ui::parseValue(ui::paramDef(ui::kOutGain), "3.5", &v) && v == 7;
-  check(ok, "on/off, integers, dB in half steps", ok);
+  ok = ok && ui::parseValue(ui::paramDef(ui::kAmpGate), "-70", &v) && v == -70;
+  ok = ok && ui::parseValue(ui::paramDef(ui::kAmpGate), "off", &v) && v == ui::paramDef(ui::kAmpGate).min;
+  check(ok, "on/off, integers, dB in half steps, the gate's off", ok);
   ok = true;
   ok = ok && ui::parseValue(ui::paramDef(ui::kReverbMode), "gated", &v) && v == 1;
   ok = ok && ui::parseValue(ui::paramDef(ui::kReverbMode), "0", &v) && v == 0;
@@ -616,7 +623,18 @@ static void testAmpPanel() {
   p.turn(2, t + 1000);
   p.push(t);
   check(h.v[ui::kAmpIn] == 8, "  ... Input: +3.0 -> +4.0 dB (half-dB steps)", h.v[ui::kAmpIn]);
-  p.turn(2, t);
+  p.turn(1, t);
+  p.push(t);
+  p.turn(5, t + 2000);
+  p.push(t);
+  check(h.v[ui::kAmpBass] == 5, "  ... Bass: 0.0 -> +2.5 dB (half-dB steps)", h.v[ui::kAmpBass]);
+  p.turn(5, t);
+  p.push(t);
+  p.turn(-4, t + 4000);
+  p.push(t);
+  check(h.v[ui::kAmpGate] == -68, "  ... Gate (after Middle, Treble, Presence, Output): -64 -> -68 dB",
+        h.v[ui::kAmpGate]);
+  p.turn(1, t);
   p.push(t);
   check(h.v[ui::kAmpCal] == 0, "  ... Calibrate toggles", h.v[ui::kAmpCal]);
   char b[16];
