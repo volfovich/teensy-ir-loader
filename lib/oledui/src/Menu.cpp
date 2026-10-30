@@ -19,11 +19,13 @@ static constexpr uint8_t kAlways = kNoItem;
 static const MenuItem kTop[] = {
     {"Amp", K::kSubmenu, kAmpOn, kPageAmp, kAlways},
     {"IR", K::kScreen, kScreenIR, 0, kAlways},
+    {"Doubler", K::kSubmenu, kDblOn, kPageDoubler, kAlways},
     {"Delay", K::kSubmenu, kDelayOn, kPageDelay, kAlways},
     {"Reverb", K::kSubmenu, kReverbOn, kPageReverb, kAlways},
     {"Drums", K::kSubmenu, kDrumsPlay, kPageDrums, kAlways},
     {"Levels", K::kSubmenu, kNoItem, kPageLevels, kAlways},
     SETTING(kBypass),
+    {"Tuner", K::kScreen, kScreenTuner, 0, kAlways},
     {"Meter", K::kScreen, kScreenMeter, 0, kAlways},
     {"Status", K::kScreen, kScreenStatus, 0, kAlways},
 };
@@ -70,10 +72,15 @@ static const MenuItem kTrainerItems[] = {
 };
 
 // The amp block (NAM.md): on/off first; Model opens the list of /AMP.
+// Release only with the gate on.
 static const MenuItem kAmpItems[] = {
     SETTING(kAmpOn), {"Model", K::kScreen, kScreenAmp, 0, kAlways}, SETTING(kAmpIn),
     SETTING(kAmpBass), SETTING(kAmpMid), SETTING(kAmpTreble), SETTING(kAmpPresence),
-    SETTING(kAmpOut), SETTING(kAmpGate), SETTING(kAmpCal),
+    SETTING(kAmpOut), SETTING(kAmpGate), SETTING_IF(kAmpGateRel, kIsAmpGateOn), SETTING(kAmpCal),
+};
+
+static const MenuItem kDoublerItems[] = {
+    SETTING(kDblOn), SETTING(kDblTime), SETTING(kDblWidth),
 };
 
 // The bass playing with the drums: on/off first, so it is one push away.
@@ -96,6 +103,7 @@ static const MenuPage kPages[] = {
     PAGE("TRAINER", kTrainerItems),
     PAGE("BASS", kBassItems),
     PAGE("AMP", kAmpItems),
+    PAGE("DOUBLER", kDoublerItems),
 };
 static_assert(sizeof(kPages) / sizeof(kPages[0]) == kPageCount, "a page per MenuPageId");
 #undef PAGE

@@ -18,9 +18,10 @@
 //             floor, amplified 50 dB or more by a high-gain model, isn't
 //             heard between notes. Opens within 1 ms above the threshold;
 //             closes when the input stays 6 dB below it for an unbroken
-//             20 ms, fading out with an 8 ms time constant (a palm mute to
-//             -60 dB in about 140 ms). Its level is the blocks' power, so
-//             noise spikes don't make it flicker.
+//             20 ms, then fades out exponentially, reaching -60 dB after the
+//             release time (setGateRelease, 50 ms by default: a palm mute is
+//             gone in about 140 ms). Its level is the blocks' power, so noise
+//             spikes don't make it flicker.
 //
 // Threading model: setOn(), setGains() and loadWeights() are called from the
 // background; process() runs once per block in the audio interrupt. A
@@ -46,11 +47,13 @@ class AmpStage {
 
   explicit AmpStage(float sampleRate)
       : tone_(sampleRate),
+        fs_(sampleRate),
         step_((float)B / (sampleRate * 0.02f)),
         gateOpenStep_((float)B / (sampleRate * 0.001f)),
         envFall_(expf(-(float)B / (sampleRate * 0.005f))),
-        gateFall_(expf(-(float)B / (sampleRate * 0.008f))),
-        gateHold_((int)(sampleRate * 0.02f / (float)B)) {}
+        gateHold_((int)(sampleRate * 0.02f / (float)B)) {
+    setGateRelease(50.0f);
+  }
 
   // Hands over the network's history memory (kHistoryFloats).
   void begin(float* history) { net_.begin(history); }
@@ -68,6 +71,8 @@ class AmpStage {
   // The noise gate's threshold, linear on the input's scale (full scale 1);
   // 0 = no gate.
   void setGate(float threshold) { gateThr_ = threshold; }
+  // The gate's fade from open to -60 dB, in ms.
+  void setGateRelease(float ms) { gateFall_ = expf(-6.9078f * (float)B / (fs_ * ms * 0.001f)); }
   // New weights (nama2::kWeightCount floats in .nam order), swapped in once
   // the amp is silent.
   void loadWeights(const float* w) { pending_ = w; }
@@ -188,11 +193,11 @@ class AmpStage {
 
   Net net_;
   ToneStack tone_;
-  const float step_, gateOpenStep_, envFall_, gateFall_;
+  const float fs_, step_, gateOpenStep_, envFall_;
   const int gateHold_;  // blocks
   // Settings (written from the background, read once per block).
   volatile bool on_ = false;
-  volatile float inTarget_ = 1.0f, outTarget_ = 1.0f, gateThr_ = 0.0f;
+  volatile float inTarget_ = 1.0f, outTarget_ = 1.0f, gateThr_ = 0.0f, gateFall_ = 0.0f;
   volatile bool offline_ = false;
   const float* volatile pending_ = nullptr;
   // State (audio interrupt only, except reads of the flags).

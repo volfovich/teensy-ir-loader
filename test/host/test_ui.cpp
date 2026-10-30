@@ -71,7 +71,7 @@ static void testMenu() {
   m.open();
   check(m.current()->id == ui::kAmpOn && m.current()->kind == ui::Kind::kSubmenu, "the top level starts with Amp",
         m.current()->id);
-  check(m.turn(2, 0) == ui::Menu::kRedraw && m.current()->id == ui::kDelayOn, "turn moves past IR to Delay",
+  check(m.turn(3, 0) == ui::Menu::kRedraw && m.current()->id == ui::kDelayOn, "turn moves past IR, Doubler to Delay",
         m.current()->id);
   m.push();
   check(m.pageIndex() == 1, "push enters the delay page", m.pageIndex());
@@ -112,7 +112,7 @@ static void testReverbPage() {
   FakeHost h;
   ui::Menu m(ui::menuPages(), h);
   m.open();
-  m.turn(3, 0);
+  m.turn(4, 0);
   m.push();
   m.turn(100, 0);
   check(m.current()->id == ui::kReverbEra, "hall: last row Era (Mod shown, Gate hidden)", m.current()->id);
@@ -131,12 +131,38 @@ static void testReverbPage() {
   check(h.v[ui::kReverbMode] == 0 && m.current()->id == ui::kReverbMode, "push on Mode: gated -> hall", h.v[ui::kReverbMode]);
 }
 
+static void testDoublerPage() {
+  std::printf("Doubler page\n");
+  FakeHost h;
+  ui::Menu m(ui::menuPages(), h);
+  m.open();
+  m.turn(2, 0);
+  check(m.current()->id == ui::kDblOn && m.current()->kind == ui::Kind::kSubmenu, "Doubler after IR (a page)",
+        m.current()->id);
+  m.push();
+  check(m.pageIndex() == ui::kPageDoubler && m.current()->id == ui::kDblOn, "  ... its first row: On", m.pageIndex());
+  m.push();
+  check(h.v[ui::kDblOn] == 0, "  ... push turns it off", h.v[ui::kDblOn]);
+  m.turn(1, 0);
+  m.push();
+  m.turn(100, 1000);
+  m.push();
+  check(h.v[ui::kDblTime] == 35, "  ... Time up to 35 ms", h.v[ui::kDblTime]);
+  m.push();
+  m.turn(-100, 2000);
+  m.push();
+  check(h.v[ui::kDblTime] == 1, "  ... and down to 1 ms", h.v[ui::kDblTime]);
+  m.turn(1, 0);
+  check(m.current()->id == ui::kDblWidth, "  ... then Width, the last row", m.current()->id);
+  check(ui::paramDef(ui::kDblTime).def == 10, "  ... Time defaults to 10 ms", ui::paramDef(ui::kDblTime).def);
+}
+
 static void testSongRows() {
   std::printf("Drums page: songs\n");
   FakeHost h;
   ui::Menu m(ui::menuPages(), h);
   m.open();
-  m.turn(4, 0);
+  m.turn(5, 0);
   m.push();
   m.turn(3, 0);
   check(m.current()->id == ui::kDrumSong, "Song after Bass and Style", m.current()->id);
@@ -167,7 +193,7 @@ static void testDrumsPage() {
   FakeHost h;
   ui::Menu m(ui::menuPages(), h);
   m.open();
-  m.turn(4, 0);
+  m.turn(5, 0);
   check(m.current()->id == ui::kDrumsPlay, "Drums on the top level after Reverb", m.current()->id);
   m.push();
   m.turn(100, 0);
@@ -551,7 +577,13 @@ static void testPanel() {
   check(p.screen() == P::kIrList, "  ... CONFIRM works like push (IR)", p.screen());
   p.back(t);
   check(p.screen() == P::kMenu, "  ... back from the IR list: the menu", p.screen());
-  p.turn(6, t);
+  p.turn(7, t);
+  p.push(t);
+  check(p.screen() == P::kTuner, "Tuner (after Bypass)", p.screen());
+  check(!p.tick(t + 60000) && p.screen() == P::kTuner, "  ... no timeout on the tuner", p.screen());
+  p.back(t);
+  check(p.screen() == P::kMenu, "  ... back: the menu", p.screen());
+  p.turn(1, t);
   p.push(t);
   check(p.screen() == P::kMeter, "Meter", p.screen());
   p.turn(2, t);
@@ -571,6 +603,17 @@ static void testPanel() {
   p.back(t);
   check(!p.tick(t + P::kTimeoutMs - 1) && p.screen() == P::kMenu, "menu: still open after 29.999 s", p.screen());
   check(p.tick(t + P::kTimeoutMs) && p.screen() == P::kHome, "  ... home after 30 s", p.screen());
+
+  // Holding BACK opens the tuner (its press has gone back a step first).
+  p.back(t);
+  check(p.backHold(t) && p.screen() == P::kTuner, "BACK held (from home, via the menu): the tuner", p.screen());
+  check(!p.backHold(t), "  ... held again: stays", p.screen());
+  p.push(t);
+  check(p.screen() == P::kMenu, "  ... push closes it, back to the menu", p.screen());
+  p.back(t);
+  p.backHold(t);
+  p.back(t);
+  check(p.screen() == P::kHome, "  ... from home: BACK returns home", p.screen());
 
   // The IR list's marquee scrolls long names only.
   p.turn(1, t);
@@ -635,8 +678,17 @@ static void testAmpPanel() {
   check(h.v[ui::kAmpGate] == -68, "  ... Gate (after Middle, Treble, Presence, Output): -64 -> -68 dB",
         h.v[ui::kAmpGate]);
   p.turn(1, t);
+  check(p.menu().current()->id == ui::kAmpGateRel, "  ... Release after Gate (the gate on)", p.menu().current()->id);
+  p.push(t);
+  p.turn(4, t + 6000);
+  p.push(t);
+  check(h.v[ui::kAmpGateRel] == 70, "  ... Release: 50 -> 70 ms (5 ms steps)", h.v[ui::kAmpGateRel]);
+  p.turn(1, t);
   p.push(t);
   check(h.v[ui::kAmpCal] == 0, "  ... Calibrate toggles", h.v[ui::kAmpCal]);
+  h.v[ui::kAmpGate] = ui::paramDef(ui::kAmpGate).min;
+  p.turn(-1, t);
+  check(p.menu().current()->id == ui::kAmpGate, "  ... the gate OFF: Release hidden", p.menu().current()->id);
   char b[16];
   check(h.valueText(ui::kScreenAmp, b, sizeof(b)) && !std::strcmp(b, "7/8"), "  ... Model shows 7/8", 0);
 }
@@ -648,6 +700,7 @@ int main() {
   testReverbPage();
   testDrumsPage();
   testSongRows();
+  testDoublerPage();
   testFormat();
   testParams();
   testMeter();

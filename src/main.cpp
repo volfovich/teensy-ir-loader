@@ -1,7 +1,7 @@
 // Teensy 4.0 + Audio Shield guitar IR loader
 //
 //   tube amp line out -> shield LINE IN (L) -> [NAM amp, optional] -> convolution
-//                     -> studio 80s delay -> 80s reverb -> LINE OUT L/R + headphones
+//                     -> doubler -> studio 80s delay -> 80s reverb -> LINE OUT L/R + headphones
 //                     (32-bit float throughout; drums and bass added after)
 //
 // Copy .wav impulse responses to the SD card (root or /IR folder), and NAM A2
@@ -19,6 +19,7 @@
 //   AmpLibrary  the NAM amp models in /AMP and loading them (NAM.md)
 //   DrumSongs   the drum songs, built-in and from the SD card
 //   SerialUI    serial commands and level meter
+//   Tuner       the tuner (pitch from the input while it is open)
 //   Controls    the panel's encoder and keys
 //   Oled        SH1106 / SSD1306 driver on its own I2C bus
 //   DisplayUI   the panel: lib/oledui's screens and menu on the OLED

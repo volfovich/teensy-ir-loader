@@ -1,5 +1,6 @@
 #include "Screens.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -215,6 +216,59 @@ void drawMeterScreen(Canvas& c, const UiModel& m) {
   if (m.in.peakDb <= MeterState::kFloorDb) snprintf(buf, sizeof(buf), "%s", "pk <-48");
   else snprintf(buf, sizeof(buf), "pk %.1f", m.in.peakDb);
   c.textRight(Canvas::kW, 6, buf);
+}
+
+void drawTuner(Canvas& c, const UiModel& m) {
+  static const char* const kNames[] = {"C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"};
+  char buf[24];
+  c.clear();
+  if (m.tunerValid) snprintf(buf, sizeof(buf), "%.1f Hz", m.tunerHz);
+  else snprintf(buf, sizeof(buf), "%s", "A=440");
+  titleBar(c, "TUNER", buf);
+  // The bar: a line, ticks at -50, -25, +25, +50 and the centre taller.
+  const int cx = Canvas::kW / 2, y = 57, half = 60;
+  c.hline(cx - half, cx + half, y);
+  for (int k = -2; k <= 2; k++) c.vline(cx + k * half / 2, y - (k ? 2 : 6), y + (k ? 2 : 6));
+  if (!m.tunerValid) {
+    c.textCenter(2, "-", Font::kBig);
+    return;
+  }
+  // The note big (the octave small after it), the cents right.
+  const int nw = Canvas::width(kNames[m.tunerNote], Font::kBig);
+  const int x0 = cx - (nw + Canvas::kCharW) / 2;
+  c.text(x0, 2, kNames[m.tunerNote], Font::kBig);
+  snprintf(buf, sizeof(buf), "%d", m.tunerOctave);
+  c.text(x0 + nw, 4, buf);
+  const bool inTune = m.tunerCents > -kTunerInTuneCents && m.tunerCents < kTunerInTuneCents;
+  if (inTune) c.invert(x0 - 4, 18, nw + Canvas::kCharW + 8, 30);
+  snprintf(buf, sizeof(buf), "%+d", (int)lroundf(m.tunerCents));
+  c.textRight(Canvas::kW, 4, buf);
+  if (!inTune) c.text(Canvas::kLeft, 4, m.tunerCents < 0 ? ">" : "<");  // which way to turn
+  // The needle: 3 px wide, the bar's height.
+  float cents = m.tunerCents < -50 ? -50 : (m.tunerCents > 50 ? 50 : m.tunerCents);
+  const int nx = cx + (int)lroundf(cents * (float)half / 50.0f);
+  c.fill(nx - 1, y - 8, 3, 15, true);
+}
+
+void drawBusy(Canvas& c, const char* what, const char* name) {
+  char buf[24];
+  c.clear();
+  titleBar(c, what, nullptr);
+  // The name on up to two rows, broken at a space when one is near.
+  const int len = (int)strlen(name), cols = Canvas::kCols;
+  int cut = len <= cols ? len : cols;
+  if (len > cols)
+    for (int i = cols; i > cols / 2; i--)
+      if (name[i] == ' ') {
+        cut = i;
+        break;
+      }
+  snprintf(buf, sizeof(buf), "%.*s", cut, name);
+  c.textCenter(3, buf);
+  const char* rest = name + cut;
+  while (*rest == ' ') rest++;
+  snprintf(buf, sizeof(buf), "%.*s", cols, rest);
+  if (*buf) c.textCenter(5, buf);
 }
 
 }  // namespace ui

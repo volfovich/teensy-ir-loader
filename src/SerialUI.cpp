@@ -12,6 +12,7 @@
 #include "DrumSongs.h"
 #include "IRLibrary.h"
 #include "Params.h"
+#include "Tuner.h"
 #include "config.h"
 
 using namespace ui;
@@ -68,6 +69,7 @@ void printHelp() {
                "  amp <n|name>          load amp model n, or the first whose name contains it\n"
                "  amp info              what the loaded model says about itself\n"
                "  amp selftest <n>      runs the model on n floats sent over USB (tools/amp_selftest.py)\n"
+               "  tuner                 the tuner for 5 s (the guitar is muted meanwhile)\n"
                "  drum loop <a> <b>|off  loop bars a..b of the song\n"
                "  drum train <step> <every> <target>  set the speed trainer and switch it on\n"
                "  m                     toggle the live level meter\n"
@@ -213,7 +215,12 @@ static void printStatus() {
   Serial.printf("Amp:       %s", effectState(kAmpOn, convolver.amp().active()));
   if (ampCurrent() >= 0) Serial.printf(", %s", ampPath(ampCurrent()));
   else Serial.print(", no model (/AMP)");
-  printValues({kAmpIn, kAmpBass, kAmpMid, kAmpTreble, kAmpPresence, kAmpOut, kAmpGate, kAmpCal});
+  printValues({kAmpIn, kAmpBass, kAmpMid, kAmpTreble, kAmpPresence, kAmpOut, kAmpGate});
+  if (getParam(kAmpGate) > paramDef(kAmpGate).min) printValues({kAmpGateRel});
+  printValues({kAmpCal});
+  Serial.println();
+  Serial.printf("Doubler:   %s", getParam(kDblOn) ? "on" : "off");
+  printValues({kDblTime, kDblWidth});
   Serial.println();
   Serial.printf("Delay:     %s", effectState(kDelayOn, convolver.delayActive()));
   printValues({kDelayMix, kDelayTime, kDelayRepeats, kDelayTone, kDelayMod, kDelayDuck, kDelayDrive, kDelayEra});
@@ -223,8 +230,9 @@ static void printStatus() {
   printValues({kReverbMode, kReverbMix, kReverbSize, kReverbTone, kReverbPreDelay, kReverbEra});
   printValues({getParam(kReverbMode) ? kReverbGate : kReverbMod});
   Serial.println();
-  Serial.printf("CPU:       IR + effects %.1f%% avg / %.1f%% max (amp %.1f%%, delay %.1f%%, reverb %.1f%%, drums %.1f%%), audio total %.1f%% max\n",
-                convolver.cpuPercent(), convolver.cpuPercentMax(), convolver.ampCpuPercent(), convolver.delayCpuPercent(),
+  Serial.printf("CPU:       IR + effects %.1f%% avg / %.1f%% max (amp %.1f%%, doubler %.1f%%, delay %.1f%%, reverb %.1f%%, drums %.1f%%), audio total %.1f%% max\n",
+                convolver.cpuPercent(), convolver.cpuPercentMax(), convolver.ampCpuPercent(),
+                convolver.doublerCpuPercent(), convolver.delayCpuPercent(),
                 convolver.reverbCpuPercent(), convolver.drumCpuPercent(), AudioProcessorUsageMax());
   Serial.printf("Memory:    audio blocks %d / %d used (max)\n", AudioMemoryUsageMax(), AUDIO_MEMORY_BLOCKS);
   Serial.printf("Levels:    in %.1f dBFS, out %.1f dBFS peak, clipped samples %lu\n",
@@ -238,6 +246,29 @@ static void printStatus() {
 }
 
 // ---- Commands --------------------------------------------------------------------
+
+// tuner: 5 s of readings, one per change ("E2  +3.1 cents  82.56 Hz").
+static void runTuner() {
+  static const char* const kNames[] = {"C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"};
+  const bool wasOpen = convolver.tunerOn();
+  if (!wasOpen) tunerOpen(true);
+  Serial.println("Tuner (5 s, the guitar muted):");
+  const uint32_t t0 = millis();
+  bool any = false;
+  while (millis() - t0 < 5000) {
+    if (serviceTuner(millis())) {
+      const TunerReading& r = tunerReading();
+      if (r.valid)
+        Serial.printf("  %-2s%d  %+5.1f cents  %7.2f Hz\n", kNames[r.note.index], r.note.octave, r.note.cents, r.hz);
+      else
+        Serial.println("  -");
+      any = true;
+    }
+    yield();
+  }
+  if (!any) Serial.println("  - (no pitch)");
+  if (!wasOpen) tunerOpen(false);
+}
 
 // Splits off the first word of s: returns the rest (after the spaces), or
 // nullptr if there is none.
@@ -254,8 +285,8 @@ static char* splitWord(char* s) {
 // True if the line was one of them.
 static bool specialCommand(const char* cmd, char* arg) {
   if (!strcmp(cmd, "amp") && arg) {
-    // amp list | info | <n> | <name>; amp on|off|in|out|cal|gate and the tone
-    // controls are settings.
+    // amp list | info | <n> | <name>; amp on|off|in|out|cal|gate|release and
+    // the tone controls are settings.
     char word[16];
     snprintf(word, sizeof(word), "%.*s", (int)strcspn(arg, " "), arg);
     if (!strcmp(word, "list")) {
@@ -276,7 +307,7 @@ static bool specialCommand(const char* cmd, char* arg) {
     }
     if (strcmp(word, "on") && strcmp(word, "off") && strcmp(word, "in") && strcmp(word, "out") && strcmp(word, "cal") &&
         strcmp(word, "gate") && strcmp(word, "bass") && strcmp(word, "mid") && strcmp(word, "treble") &&
-        strcmp(word, "presence")) {
+        strcmp(word, "presence") && strcmp(word, "release")) {
       const int i = findAmp(arg);
       if (i < 0) Serial.println("No such amp model (type 'amp list').");
       else loadAmpIndex(i);
@@ -393,6 +424,8 @@ static void handleCommand(char* line) {
     scanCard();
     loadStartupIR();
     loadStartupAmp();
+  } else if (!strcmp(line, "tuner")) {
+    runTuner();
   } else if (!strcmp(line, "?") || !strcmp(line, "help")) {
     printHelp();
   } else {

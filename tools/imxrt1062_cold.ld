@@ -61,6 +61,7 @@ SECTIONS
 		*src/Oled.cpp.o(.text*)
 		*src/Params.cpp.o(.text*)
 		*src/AmpLibrary.cpp.o(.text*)
+		*src/Tuner.cpp.o(.text*)
 		. = ALIGN(4);
 		KEEP(*(.init))
 		__preinit_array_start = .;
@@ -91,6 +92,7 @@ SECTIONS
 		*src/Oled.cpp.o(.rodata*)
 		*src/Params.cpp.o(.rodata*)
 		*src/AmpLibrary.cpp.o(.rodata*)
+		*src/Tuner.cpp.o(.rodata*)
 		. = ALIGN(4);
 	} > FLASH
 

@@ -24,8 +24,8 @@ struct NamInfo {
   char name[48] = "";       // metadata: the model's display name
   char gearMake[32] = "";   // e.g. "Marshall"
   char gearModel[32] = "";  // e.g. "JCM800 2203"
-  char gearType[16] = "";   // amp, pedal, pedal_amp, amp_cab, amp_pedal_cab, preamp, studio
-  char toneType[16] = "";   // clean, overdrive, crunch, hi_gain, fuzz
+  char gearType[24] = "";   // amp, pedal, pedal_amp, amp_cab, amp_pedal_cab, preamp, studio
+  char toneType[24] = "";   // clean, overdrive, crunch, hi_gain, fuzz (some say "neuralampmodeler")
   float sampleRate = 48000.0f;
   // NAN when the file doesn't have them.
   float loudness = NAN;        // dB on the trainer's standard input (the Lite network's own when it has one)

@@ -29,16 +29,21 @@ static float g_delayA[kDelayLen];
 DMAMEM static float g_delayB[kDelayLen];
 // The bass's strings and its block buffers (13.6 KB).
 DMAMEM static float g_bassMem[AudioConvolverIR::kBassBufLen];
+// The doubler's line (8 KB) and the tuner's ring (16 KB).
+DMAMEM static float g_doublerLine[AudioConvolverIR::kDoublerFloats];
+DMAMEM static float g_tunerRing[AudioConvolverIR::kTunerRing];
 // The amp network's history (87 KB): read every block, so in DTCM (OCRAM
 // measured 12 % slower).
 static float g_ampHistory[AudioConvolverIR::kAmpHistoryFloats];
 
 FLASHMEM void AudioConvolverIR::begin(float* reverbMem, float* delayA, float* delayB, int delayLen,
-                                      float* bassBuf, float* ampHistory) {
+                                      float* bassBuf, float* ampHistory, float* doublerLine, float* tunerRing) {
   engine_.setFadeLength((int)(AUDIO_SAMPLE_RATE_EXACT * IR_FADE_MS / 1000.0f));
   __disable_irq();
   reverb_.fx().init(reverbMem);
   delay_.fx().init(delayA, delayB, delayLen);
+  doubler_.init(doublerLine);
+  tunerRing_ = tunerRing;
   __enable_irq();
   drums_.setBassBuffer(bassBuf);
   amp_.begin(ampHistory);
@@ -46,7 +51,7 @@ FLASHMEM void AudioConvolverIR::begin(float* reverbMem, float* delayA, float* de
 
 FLASHMEM void audioBegin() {
   AudioMemory(AUDIO_MEMORY_BLOCKS);
-  convolver.begin(g_reverbMem, g_delayA, g_delayB, kDelayLen, g_bassMem, g_ampHistory);
+  convolver.begin(g_reverbMem, g_delayA, g_delayB, kDelayLen, g_bassMem, g_ampHistory, g_doublerLine, g_tunerRing);
   codec.enable();
   codec.setRate((int)AUDIO_SAMPLE_RATE_EXACT);
   codec.inputSelect(AUDIO_INPUT_LINEIN);

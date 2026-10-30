@@ -38,6 +38,12 @@ struct UiModel {
   // Status.
   float cpu = 0, cpuMax = 0;
   int blocksUsed = 0, blocksMax = 0;
+
+  // Tuner: the note (0 = C .. 11 = B), its octave and how far off, while
+  // tunerValid.
+  bool tunerValid = false;
+  int tunerNote = 0, tunerOctave = 0;
+  float tunerCents = 0, tunerHz = 0;
 };
 
 // The file name without the folder and the extension (.wav, .nam).
@@ -80,5 +86,12 @@ static constexpr int kIrBrowserRows = 3;
 static constexpr int kIrBrowserNameChars = 12;  // of a name, per row
 void drawStatus(Canvas& c, const UiModel& m);
 void drawMeterScreen(Canvas& c, const UiModel& m);
+// The note big, the cents as a needle on a +-50 bar below it; the note
+// inverted within kTunerInTuneCents.
+void drawTuner(Canvas& c, const UiModel& m);
+static constexpr float kTunerInTuneCents = 3.0f;
+// The whole screen while the panel waits: a title ("Loading") and the
+// model's name on up to two rows. Drawn once, before a slow job.
+void drawBusy(Canvas& c, const char* what, const char* name);
 
 }  // namespace ui

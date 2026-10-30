@@ -13,3 +13,6 @@ void displayBootDone();
 // Call every loop() pass: controls, redraws, and at most one page sent
 // (about 3.3 ms of I2C).
 void serviceDisplay();
+// Shows a box ("Loading", the name) at once, before a slow job that keeps
+// loop() busy; the panel redraws itself after it.
+void displayBusy(const char* what, const char* name);

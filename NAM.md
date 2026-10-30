@@ -23,6 +23,7 @@ shield LINE IN (L) ──► AMP (NAM A2-Lite) ──► IR (cab) ──► dela
 - [Input level and calibration](#input-level-and-calibration)
 - [Tone controls](#tone-controls)
 - [Noise gate](#noise-gate)
+- [Loading a model](#loading-a-model)
 - [Checking the device against the PC](#checking-the-device-against-the-pc)
 - [CPU and memory budget](#cpu-and-memory-budget)
 - [Milestones](#milestones)
@@ -251,6 +252,7 @@ The settings are new rows at the end of the saved block in `ParamDefs.cpp`, afte
 | `amp bass` / `amp treble` | −12 … +12 dB, 0.5 | 0 | Tone controls after the model; 0 is flat ([below](#tone-controls)). |
 | `amp mid` / `amp presence` | −10 … +10 dB, 0.5 | 0 | The same, for the middle and the presence. |
 | `amp gate` | off, −90 … −30 dB, 1 | −64 dB | The noise gate's threshold on the input, in dBFS ([below](#noise-gate)). `amp gate off` turns it off. |
+| `amp release` | 10 … 500 ms, 5 | 50 ms | How fast the gate closes: its fade from open to −60 dB. |
 
 | Command | What it does |
 |---|---|
@@ -280,7 +282,7 @@ Measured on 2026-10-29 with the user's eight captures of a JCM800 2203, plain an
 - The home blocks are **AMP › IR › DLY › REV › DRM**. Push on AMP opens the model list, hold switches the amp on/off. Five blocks fit with a pixel to spare each side of the letters, so an off block shows only its box's top and bottom lines.
 - **Row 0** shows the model's name while the cursor is on AMP (`_` as spaces), scrolling when it's long; elsewhere the IR's, as before.
 - **The model list** works like the IR list (push loads, the list stays, the last row rescans). It leaves out the words every name shares, and rows off the cursor keep both ends of a long name: `06 OD800~ain 39`.
-- **The Amp page**, first in the menu: On, Model (`7/8`, opens the list), Input, Bass, Middle, Treble, Presence, Output, Gate, Calibrate: in the order of an amp's knobs, then the rest.
+- **The Amp page**, first in the menu: On, Model (`7/8`, opens the list), Input, Bass, Middle, Treble, Presence, Output, Gate, Release (while the gate is on), Calibrate: in the order of an amp's knobs, then the rest.
 - Tested in `test_ui` (the AMP block, the list, the page, the names), with renders `02g`, `02h`, `23`–`25e` in `screenshots/`.
 
 ## Input level and calibration
@@ -330,11 +332,18 @@ The value is the gain where the knob acts most: Treble at +3 dB lifts everything
 - It **listens to the input**, before `amp in`, so its threshold reads like the level meter.
 - It **mutes the amp's output**, so the tails are cut cleanly.
 - **Opening:** within about 1 ms once the input rises above the threshold.
-- **Closing:** when the input stays 6 dB below the threshold for an unbroken 20 ms, fading out with an 8 ms time constant. After a palm mute the output is down 60 dB in about **140 ms** (simulated with the Marshall Law capture; the first version took 600 ms).
+- **Closing:** when the input stays 6 dB below the threshold for an unbroken 20 ms, then fading out exponentially. **Release** (`amp release`, 10–500 ms, default 50) is the time that fade takes to reach −60 dB. At the default, after a palm mute the output is down 60 dB in about **140 ms** (simulated with the Marshall Law capture; the first version took 600 ms). Short releases cut the hiss at once; long ones let a chord ring out naturally under the gate. The 20 ms hold stays fixed: it is what keeps the gate from chattering.
+- **Tests** (`test_nam`): releases of 10 and 200 ms reach −60 dB at the set time, within a block.
 - **The level it reads:** each block's mean power, taken at once when it rises and falling with 5 ms. The 20 ms hold is longer than a low string's cycle (12 ms for low E), so the dips between cycles don't close it. The first version used block peaks with a 10 ms fall. Noise spikes and pick ticks crossed the threshold with it, so the gate flickered open and shut as a note died: a sputter. A simulation with the Marshall Law capture, a dying chord and realistic noise reopened it 4–5 times; this one opens once and closes once, on three captures (Marshall Law, Chug Norris, a boosted JCM800) and notes dying fast or slow. For noise this level reads about 5 dB below the meter's peaks, so the default leaves more margin than the meter suggests.
 - **The default, −64 dB,** is 9 dB above the measured idle level.
 
 **Setting it:** open the meter (`m`, or Levels > Meter) and read the input with the strings muted. Set the gate a few dB above that reading. Set it too high and soft notes and long sustains get cut.
+
+## Loading a model
+
+Reading a `.nam` file from the SD card takes about 0.9 s, and `loop()` is busy all that time, so the panel can't redraw or react. So `loadAmpIndex()` first shows a `Loading` screen with the model's name (from the panel, a serial command or startup). The old model keeps playing until the new one is read; the change itself fades out, warms the new model up in silence and fades in, a gap of about 170 ms. Removing that gap would take a second 87 KB history to warm the new model up beside the old one, and there is no room for one.
+
+`amp info`'s `Type:` line used to cut a 16-letter tone type (`neuralampmodeler`, which some trainers write there) to `neuralampmodele`. The fields are 24 characters now.
 
 ## Checking the device against the PC
 
@@ -432,6 +441,7 @@ On the Teensy:
 
 - **Home screen row 0:** the IR's name, the model's, or the model's only while the amp is on.
 - **A1 models:** an A1-nano engine (tanh, 4 channels) is possible later, if it's asked for.
+- **Presets:** whole sounds (model, IR, tone, gate, doubler, delay, reverb) saved as numbered files on the SD card and recalled from the panel or serial. Asked about; left for later.
 
 ## Sources
 

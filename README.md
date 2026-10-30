@@ -30,6 +30,9 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► amp ──────�
   - They run in 32-bit float in the same audio object as the convolution, so the path from the IR through the delay and reverb never drops to 16 bits.
   - Switching an effect off is click-free and lets its tail ring out. When the tail has died away, the effect stops using CPU and passes its input through bit-identically.
 - **Optional amp block** (details in [NAM.md](NAM.md)): plays Neural Amp Modeler **A2** captures (`.nam` files in `/AMP` on the SD card) before the IR, so a guitar (through a buffer) or a preamp can go straight in. It runs the A2-Lite network, levels each model by its loudness, and uses the capture's input calibration when it has one. Off by default; with a real amp's line out, leave it off.
+  - After the model, **tone controls** (bass, middle, treble, presence) and a **noise gate** with an adjustable release.
+- **Doubler after the IR:** spreads the guitar like two takes panned left and right. The original goes left and a copy goes right, 1–35 ms later (10 by default). The width runs from centre to hard left and right. Listen in stereo: on one speaker from the left output you hear only the original.
+- **Tuner:** hold BACK (or Menu > Tuner) for a chromatic tuner on the OLED, accurate to well under a cent. The guitar is muted while it is open.
 - **Practice drum machine** (details in [DRUMS.md](DRUMS.md)):
   - **Songs:** five built-in 32-bar songs in the style of classic rock songs, and any General MIDI drum file (`.mid`) copied to `/DRUMS` on the SD card, with section looping.
   - Eight one-bar styles at 40–240 BPM, with sample-accurate timing: metronome, rock, three practice beats (hat only on the offbeat 8ths, offbeat 16ths, or triplets), pop, blues shuffle and 6/8 ballad.
@@ -103,6 +106,10 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `amp cal` | Toggle the model's input calibration (on by default; only calibrated captures have one) |
 | `amp bass` / `amp treble` `-12..12`, `amp mid` / `amp presence` `-10..10` | Tone controls after the model, in dB (0 = flat): low shelf 120 Hz, peak 650 Hz, high shelf 2.5 kHz, peak 5 kHz |
 | `amp gate -90..-30` / `amp gate off` | Noise gate threshold on the input, in dBFS (default −64): set it a few dB above the meter's idle reading |
+| `amp release 10..500` | How fast the gate closes: the fade from open to −60 dB, in ms (default 50). Short cuts the hiss at once; long lets notes die naturally. |
+| `dbl [on\|off]` | Toggle the doubler (after the IR, before the delay) |
+| `dbl time 1..35` / `dbl width 0..100` | How late the copy comes (ms, default 10), and the stereo spread (%, 100 = hard left and right) |
+| `tuner` | The tuner for 5 s: prints the note, cents and frequency as they change (the guitar is muted meanwhile) |
 | `b` | Toggle IR bypass (the signal before the IR, with a click-free fade). The delay and reverb are not affected. |
 | `dl` | Toggle the delay on/off (the repeats ring out). All delay commands are explained in [DELAY.md](DELAY.md#controls). |
 | `dmix 0..100` | Delay dry/wet blend (0 = dry only, 100 = repeats only) |
@@ -142,7 +149,7 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `out 13..31` | Line-out level (13 = loudest, 3.16 V peak-to-peak) |
 | `hp 0..100` | Headphone volume |
 | `m` | Live input/output meter |
-| `s` | Status: CPU load (including the amp's, delay's and reverb's shares), effect settings, peak levels, clip count, latency |
+| `s` | Status: CPU load (including the amp's, doubler's, delay's and reverb's shares), effect settings, peak levels, clip count, latency |
 | `r` | Rescan the SD card (after swapping cards): IRs, amp models and drum songs |
 | `?` | This list, with the current values |
 
@@ -200,10 +207,11 @@ src/SdSource.h              an SD file as the loaders' byte source
 src/DrumSongs.{h,cpp}       drum songs: the built-in ones and MIDI files in /DRUMS
 src/Settings.{h,cpp}        the settings saved in EEPROM
 src/SerialUI.{h,cpp}        serial commands and level meter
+src/Tuner.{h,cpp}           the tuner: pitch from the input while it is open
 src/Controls.{h,cpp}        the panel's encoder (interrupt-driven) and keys
 src/Oled.{h,cpp}            minimal SH1106 / SSD1306 driver on its own I2C bus (Wire1)
 src/DisplayUI.{h,cpp}       the OLED panel: settings and model for lib/oledui, sending changed pages
-src/AudioConvolverIR.h      Teensy Audio Library object (amp, IR, gain, bypass, delay, reverb, meters, CPU stats)
+src/AudioConvolverIR.h      Teensy Audio Library object (amp, IR, gain, bypass, doubler, delay, reverb, tuner tap, meters, CPU stats)
 lib/irdsp/src/              portable DSP core (no Arduino dependencies)
   PartitionedConvolver.h    the UPOLS convolution engine
   StudioDelay.h             the studio 80s dual delay
@@ -213,7 +221,10 @@ lib/irdsp/src/              portable DSP core (no Arduino dependencies)
   DrumKit.h                 the drum kit format (DrumKitData.cpp is generated from kits/)
   Reverb80.{h,cpp}          the 80s reverb (Lexicon-style hall, AMS-style gated)
   FxStage.h, FxSlot.h       per effect: on/off with trails, dry/wet mix, idle detection and clearing
-  AmpStage.h                the amp block: on/off, model changes and gains around the network
+  AmpStage.h                the amp block: on/off, model changes and gains around the network, the noise gate
+  ToneStack.h               the tone controls after the network
+  Doubler.h                 the doubler (a delayed copy, panned opposite)
+  PitchDetect.h             the tuner's pitch detection (YIN)
   NamA2.h                   the Neural Amp Modeler A2-Lite network (NAM.md)
   NamFile.{h,cpp}           reading the A2-Lite network out of a .nam file
   irdsp_blocks.h            shared shelving filter, biquad filters, Hermite read, LFO and mix law
@@ -249,7 +260,9 @@ The tests check:
 - WAV decoding for every supported format.
 - Resampling accuracy from 22.05, 32, 44.1, 88.2, 96 and 192 kHz to 48 kHz.
 - Anti-aliasing, trimming, truncation and normalization.
-- The NAM amp network against a plain reference and against NeuralAmpModelerCore on a real A2 model, and reading `.nam` files (see [NAM.md](NAM.md#m2-and-m3-results)).
+- The NAM amp network against a plain reference and against NeuralAmpModelerCore on a real A2 model, and reading `.nam` files (see [NAM.md](NAM.md#m2-and-m3-results)). Also the gate (and its release time) and the tone controls.
+- The doubler: exact left and right from 1 to 35 ms, time changes without a click, width, on/off.
+- The tuner: sines and plucked strings from 55 Hz to 1 kHz to within 0.1 cent, no pitch from noise or silence, and the note names.
 
 `test/host/namtool model.nam` reads a NAM model the way the Teensy will and prints what it found. `tools/amp_selftest.py model.nam` checks that the Teensy plays the loaded model exactly as the PC does (see [NAM.md](NAM.md#checking-the-device-against-the-pc)).
 
@@ -257,6 +270,7 @@ The tests check:
 
 ## Ideas for next steps
 
-- **Tone controls:** low-cut, high-cut and a presence biquad after the convolver.
+- **Presets:** save and recall whole sounds (model, IR, tone, gate, doubler, delay, reverb) as numbered presets on the SD card.
+- **Tone controls:** low-cut and high-cut after the convolver.
 - **Two-IR blending:** the engine already evaluates two IRs during crossfades.
 - **USB audio:** build with `-D USB_MIDI_AUDIO_SERIAL` and add `AudioOutputUSB` to record directly into a computer (verify it with your chosen block size).

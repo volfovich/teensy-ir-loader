@@ -318,9 +318,9 @@ static void testAmpGate(const std::vector<float>& w) {
       const float before = st->gateGain();
       st->process(in, out);
       if (openedAt && *openedAt < 0 && st->gateGain() == 1.0f) *openedAt = b;
-      // Closing: never faster than the 8 ms release.
+      // Closing: never faster than the release (50 ms to -60 dB).
       if (st->gateGain() < before && st->gateGain() > 0.0f)
-        silent = silent && st->gateGain() >= before * expf(-(float)B / (48000.0f * 0.008f)) * 0.999f;
+        silent = silent && st->gateGain() >= before * expf(-6.9078f * (float)B / (48000.0f * 0.05f)) * 0.999f;
       else if (b >= blocks - 150)  // the last 100 ms
         for (int i = 0; i < B; i++) silent = silent && out[i] == 0.0f;
     }
@@ -349,6 +349,21 @@ static void testAmpGate(const std::vector<float>& w) {
     if (st->gateGain() > 0.0f) reopened++;
   }
   CHECK(reopened == 0, "closed: noise spikes and small ticks don't reopen it (%d blocks open)", reopened);
+  // The release: the time from the first fall to -60 dB.
+  for (float rel : {10.0f, 200.0f}) {
+    st->setGateRelease(rel);
+    run(30, 0.1f, 1.0f, nullptr);
+    int from = -1, to = -1;
+    for (int b = 0; b < 2000 && to < 0; b++) {
+      const float before = st->gateGain();
+      run(1, 0.0f, 1.0f, nullptr);
+      if (from < 0 && st->gateGain() < before) from = b;
+      if (from >= 0 && st->gateGain() <= 1e-3f) to = b;
+    }
+    const float ms = (float)(to - from + 1) * (float)B / 48.0f;
+    CHECK(from >= 0 && to >= 0 && fabsf(ms - rel) <= 0.67f * 1.5f, "release %.0f ms: -60 dB after %.1f ms", rel, ms);
+  }
+  st->setGateRelease(50.0f);
   st->setGate(0.0f);
   run(1, 0.0f, 1.0f, nullptr);
   CHECK(st->gateGain() == 1.0f, "gate off: open, the noise passes");

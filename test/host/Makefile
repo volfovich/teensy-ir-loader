@@ -5,7 +5,7 @@ INC = -I../../lib/irdsp/src -I../../lib/oledui/src
 UI_SRC = $(wildcard ../../lib/oledui/src/*.cpp)
 UI_DEPS = $(UI_SRC) $(wildcard ../../lib/oledui/src/*.h) ui_fake.h
 
-all: test_convolver test_fxstage test_reverb80 render_reverb80 test_midi test_studio_delay test_drums render_drums test_bass render_bass test_ui render_ui irtool test_nam test_namfile namtool
+all: test_convolver test_fxstage test_reverb80 render_reverb80 test_midi test_studio_delay test_drums render_drums test_bass render_bass test_ui render_ui irtool test_nam test_namfile namtool test_doubler test_pitch
 
 test_convolver: test_convolver.cpp ../../lib/irdsp/src/*.h
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_convolver.cpp
@@ -88,6 +88,12 @@ test_namfile: test_namfile.cpp $(NAM_DEPS)
 namtool: namtool.cpp $(NAM_DEPS)
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ namtool.cpp $(NAM_SRC)
 
+test_doubler: test_doubler.cpp ../../lib/irdsp/src/Doubler.h ../../lib/irdsp/src/irdsp_blocks.h
+	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_doubler.cpp
+
+test_pitch: test_pitch.cpp ../../lib/irdsp/src/PitchDetect.h
+	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_pitch.cpp
+
 irtool: irtool.cpp ../../lib/irdsp/src/IRLoader.cpp ../../lib/irdsp/src/IRLoader.h
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ irtool.cpp ../../lib/irdsp/src/IRLoader.cpp
 
@@ -102,10 +108,12 @@ test: all
 	./test_ui
 	./test_nam
 	./test_namfile
+	./test_doubler
+	./test_pitch
 	python3 test_loader.py
 
 clean:
-	rm -f test_convolver test_fxstage test_reverb80 render_reverb80 test_midi test_studio_delay test_drums render_drums test_bass render_bass test_ui render_ui irtool test_nam test_namfile namtool
+	rm -f test_convolver test_fxstage test_reverb80 render_reverb80 test_midi test_studio_delay test_drums render_drums test_bass render_bass test_ui render_ui irtool test_nam test_namfile namtool test_doubler test_pitch
 	rm -rf out
 
 .PHONY: all test render screenshots clean

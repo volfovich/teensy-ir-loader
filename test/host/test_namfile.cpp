@@ -187,6 +187,13 @@ static void testMadeFiles() {
           "metadata: names (with escapes), levels, NaN", r.info.name);
   }
   {
+    // Some trainers write their own name as the tone type: 16 letters, kept whole.
+    std::string text = container({{0.5, wavenet(3, lite, 0.25f, true, -20.0f)}}, false);
+    text.replace(text.find("hi_gain"), 7, "neuralampmodeler");
+    const Result r = read(text);
+    check(r.ok && !strcmp(r.info.toneType, "neuralampmodeler"), "metadata: a 16-letter tone type", r.info.toneType);
+  }
+  {
     const Result r = read(wavenet(3, lite, 0.5f, false, -18.0f));
     check(r.ok && weightsAre(r, 0.5f) && !r.info.container && r.info.loudness == -18.0f, "a plain Lite WaveNet",
           r.err);

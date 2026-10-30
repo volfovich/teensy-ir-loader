@@ -16,8 +16,10 @@
 //            list); the last row rescans the card; BACK
 //   meter:   turn = line-in sensitivity; CONFIRM = reset clips and peaks; BACK
 //   status:  BACK
-// After 30 s without input the panel returns home (not from the meter,
-// which is used while playing). Long names scroll: the list's cursor row,
+//   tuner:   (the guitar muted) BACK or push closes it
+//   anywhere: hold BACK = the tuner
+// After 30 s without input the panel returns home (not from the meter or
+// the tuner, which are used while playing). Long names scroll: the list's cursor row,
 // and home row 0 with the cursor on AMP (the model's name).
 #pragma once
 
@@ -31,7 +33,7 @@ namespace ui {
 
 class Panel {
  public:
-  enum Screen : uint8_t { kHome, kMenu, kIrList, kMeter, kStatus, kAmpList };
+  enum Screen : uint8_t { kHome, kMenu, kIrList, kMeter, kStatus, kAmpList, kTuner };
   static constexpr uint32_t kTimeoutMs = 30000;
   static constexpr uint32_t kMarqueeMs = 400;  // the lists' and home's scrolling name
 
@@ -45,6 +47,7 @@ class Panel {
   bool hold(uint32_t nowMs);  // the encoder held down
   bool confirm(uint32_t nowMs);
   bool back(uint32_t nowMs);
+  bool backHold(uint32_t nowMs);  // BACK held down: the tuner
   bool tick(uint32_t nowMs);  // call often: the timeout, the marquee
 
   // The whole screen.

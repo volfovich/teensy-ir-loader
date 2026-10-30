@@ -15,6 +15,7 @@
 #include "Oled.h"
 #include "Panel.h"
 #include "Params.h"
+#include "Tuner.h"
 #include "config.h"
 
 // 1: print the control events on Serial (to check the encoder's direction
@@ -43,6 +44,7 @@ class FirmwareHost final : public ui::MenuHost {
       case ui::kIsReverbHall: return getParam(ui::kReverbMode) == 0;
       case ui::kIsReverbGated: return getParam(ui::kReverbMode) == 1;
       case ui::kIsDrumSong: return getParam(ui::kDrumSong) != 0;
+      case ui::kIsAmpGateOn: return getParam(ui::kAmpGate) > ui::paramDef(ui::kAmpGate).min;
       default: return id < ui::kValueCount ? getParam(id) : 0;
     }
   }
@@ -137,6 +139,13 @@ static void fillModel(uint32_t now) {
   m.clips = clips - g_clipBase;
   m.lineIn = getParam(ui::kLineIn);
 
+  const TunerReading& t = tunerReading();
+  m.tunerValid = t.valid;
+  m.tunerNote = t.note.index;
+  m.tunerOctave = t.note.octave;
+  m.tunerCents = t.note.cents;
+  m.tunerHz = t.hz;
+
   // The Status screen, once a second; it resets the maxima like `s` does.
   if (g_panel.screen() != ui::Panel::kStatus) {
     g_statusAt = now - kStatusMs;  // at once when it opens
@@ -191,6 +200,13 @@ void displayBootDone() {
   showSplash();
 }
 
+void displayBusy(const char* what, const char* name) {
+  if (!oledPresent()) return;
+  ui::drawBusy(g_canvas, what, name);
+  while (sendOnePage()) {}
+  g_frameAt = millis();  // the box stays up for a frame after the job
+}
+
 #if CONTROLS_DEBUG
 static void printEvents(const ControlEvents& e) {
   static const char* const kNames[] = {"", "press", "release", "hold"};
@@ -210,14 +226,19 @@ void serviceDisplay() {
 #endif
   if ((int32_t)(g_splashUntil - now) > 0) return;  // input is ignored meanwhile
   // Short pushes act on release, so a hold can be told apart; CONFIRM and
-  // BACK have no hold and act on press.
+  // BACK act on press (BACK's hold opens the tuner, after the press).
   bool redraw = false;
   if (e.detents) redraw |= g_panel.turn(e.detents, now);
   if (e.push == ui::Key::kRelease) redraw |= g_panel.push(now);
   if (e.push == ui::Key::kHold) redraw |= g_panel.hold(now);
   if (e.confirm == ui::Key::kPress) redraw |= g_panel.confirm(now);
   if (e.back == ui::Key::kPress) redraw |= g_panel.back(now);
+  if (e.back == ui::Key::kHold) redraw |= g_panel.backHold(now);
   redraw |= g_panel.tick(now);
+  // The tuner listens (and mutes) while its screen shows.
+  const bool tuner = g_panel.screen() == ui::Panel::kTuner;
+  if (tuner != convolver.tunerOn()) tunerOpen(tuner);
+  redraw |= serviceTuner(now);
   if (redraw || now - g_frameAt >= kFrameMs) {
     g_frameAt = now;
     fillModel(now);

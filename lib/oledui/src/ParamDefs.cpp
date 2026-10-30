@@ -72,6 +72,10 @@ static const ParamDef kParams[kValueCount] = {
     {"amp mid",      "Amp middle",         "Middle",       -20,   20,   0, 1, U::kHalfDb,  nullptr},
     {"amp treble",   "Amp treble",         "Treble",       -24,   24,   0, 1, U::kHalfDb,  nullptr},
     {"amp presence", "Amp presence",       "Presence",     -20,   20,   0, 1, U::kHalfDb,  nullptr},
+    {"amp release",  "Amp gate release",   "Release",       10,  500,  50, 5, U::kMs,      nullptr},
+    {"dbl",          "Doubler",            "On",             0,    1,   0, 1, U::kOnOff,   nullptr},
+    {"dbl time",     "Doubler time",       "Time",           1,   35,  10, 1, U::kMs,      nullptr},
+    {"dbl width",    "Doubler width",      "Width",          0,  100, 100, 1, U::kPercent, nullptr},
     // Not saved.
     {"drum",         "Drums",              "Play",           0,    1,   0, 1, U::kOnOff,   nullptr},
     {nullptr,        "Loop from",          "Loop from",      0,  512,   0, 1, U::kNone,    nullptr},

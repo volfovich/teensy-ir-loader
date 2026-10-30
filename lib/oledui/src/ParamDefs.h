@@ -35,6 +35,8 @@ enum Param : uint8_t {
   kAmpCal,          // use the model's input calibration
   kAmpGate,         // the noise gate's threshold, dBFS; the minimum = off
   kAmpBass, kAmpMid, kAmpTreble, kAmpPresence,  // half-dB steps, 0 = flat
+  kAmpGateRel,      // the gate's fade from open to -60 dB, ms
+  kDblOn, kDblTime, kDblWidth,  // the doubler (ms, %)
   kParamCount,
   // Not saved.
   kDrumsPlay = kParamCount,

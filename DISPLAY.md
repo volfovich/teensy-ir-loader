@@ -80,6 +80,7 @@ The home screen shows the chain as blocks, AMP › IR › DLY › REV › DRM, t
 | Hold encoder (≥ 0.6 s) | The block under the cursor on/off: AMP = the amp block ([NAM.md](NAM.md)), IR = bypass, DRM and the tempo = drums start/stop |
 | CONFIRM | Drums start/stop, wherever the cursor is |
 | BACK | Open the menu (Levels, Meter, Status, Bypass …) |
+| Hold BACK (≥ 0.6 s), on any screen | The [tuner](#the-tuner) |
 
 **Editing the tempo:** the tempo is drawn inverted. Turning changes it live, 1 BPM per click and ×5 when the clicks come less than 40 ms apart, from 40 to 240 BPM. Push keeps it, BACK restores the tempo from before, and 30 s without input keeps it. It is saved like any other setting.
 
@@ -91,19 +92,19 @@ The home screen shows the chain as blocks, AMP › IR › DLY › REV › DRM, t
 | Push / CONFIRM | Enter the submenu, start editing, or run the action | Keep the value and stop editing |
 | BACK | Up one level (from the top level, back home) | Cancel: restore the value from before editing |
 
-### IR and amp lists, Meter, Status
+### IR and amp lists, Meter, Status, Tuner
 
-| Input | IR or amp list | Meter | Status |
-|---|---|---|---|
-| Turn | Move the cursor | Line-in sensitivity | — |
-| Push / CONFIRM | Load the IR or model under the cursor (or rescan); the list stays open | CONFIRM: reset the clip counter and peak holds | — |
-| BACK | Back to where it was opened from (home or the menu) | Back to the menu | Back to the menu |
+| Input | IR or amp list | Meter | Status | Tuner |
+|---|---|---|---|---|
+| Turn | Move the cursor | Line-in sensitivity | — | — |
+| Push / CONFIRM | Load the IR or model under the cursor (or rescan); the list stays open | CONFIRM: reset the clip counter and peak holds | — | Push: close |
+| BACK | Back to where it was opened from (home or the menu) | Back to the menu | Back to the menu | Close |
 
-After 30 s without input, the display returns to the home screen. The meter screen stays, because it is used while playing.
+After 30 s without input, the display returns to the home screen. The meter and tuner screens stay, because they are used while playing.
 
 **Acceleration:** when detents come less than 40 ms apart, each step counts ×5. This matters for the delay time (20–750 ms in 5 ms steps) and the output gain.
 
-Short presses act on release, so a short press and a hold on the same button can be told apart. CONFIRM and BACK act on press, because they have no hold function.
+Short presses act on release, so a short press and a hold on the same button can be told apart. CONFIRM and BACK act on press. BACK's hold opens the tuner after its press has already gone back one step, so the tuner returns to where that step left the panel (home or the menu).
 
 ## Screens
 
@@ -214,6 +215,27 @@ This screen is for setting the input level (the procedure in the README's *Level
 - **Turning the encoder changes the line-in sensitivity** (`setLineInLevel`, 0–15), so you can play and adjust at the same time.
 - CONFIRM resets the clip counter and peak holds. BACK exits.
 
+### The tuner (hold BACK, or Menu → Tuner)
+
+```
+┌────────────────┐
+│TUNER    82.5 Hz│  the frequency; A=440 with no note
+│      E2     +1 │  the note big, inverted within ±3 cents; the cents right;
+│<               │    an arrow which way to turn when out of tune
+│|----|--|--|---|│  ±50 cents, the needle on it
+└────────────────┘
+```
+
+- **The guitar is muted** while the tuner is open (a 20 ms fade, before the delay and reverb, so their tails ring out). The drums keep playing.
+- **Detection:** YIN on the input, low-passed and decimated to 24 kHz, an 85 ms window, 10 readings a second, from 50 Hz (drop A is 55 Hz) to 1 kHz. On the PC it finds sines and plucked strings to within 0.1 cent. A reading stays 0.4 s after the note fades. The work runs in `loop()`, not in the audio interrupt.
+- **The reference** is A4 = 440 Hz.
+- Over serial, `tuner` prints the readings for 5 s.
+- Renders: `27_tuner_in_tune.png`, `27b_tuner_sharp.png`, `27c_tuner_flat.png`, `27d_tuner_none.png`.
+
+### Loading a model
+
+Reading a `.nam` file takes about 0.9 s, and `loop()` is busy meanwhile, so the panel can't react. The screen shows `Loading` and the model's name (on two rows if needed) until it is done. Meanwhile the old model keeps playing; the change itself then fades out, warms the new model up in silence and fades in (about 170 ms). Render: `28_loading.png`.
+
 ## Menu tree
 
 Every setting is one row of the parameter table (`lib/oledui/src/ParamDefs.cpp`), which gives its menu row the label, range, step and unit, and its serial command the key. So every serial command has a place:
@@ -229,9 +251,13 @@ Every setting is one row of the parameter table (`lib/oledui/src/ParamDefs.cpp`)
 | | Presence | −10 to +10 dB, 0.5 | `amp presence` |
 | | Output | −24 to +24 dB, 0.5 | `amp out` |
 | | Gate | OFF, −90 to −30 dB, 1 | `amp gate` |
+| | Release (gate on) | 10–500 ms, 5 | `amp release` |
 | | Calibrate | toggle | `amp cal` |
 | **IR** | file list (push = load) | — | `l`, `<n>` |
 | | Rescan SD card | action | `r` |
+| **Doubler** | On | toggle | `dbl` |
+| | Time | 1–35 ms, 1 | `dbl time` |
+| | Width | 0–100 %, 1 | `dbl width` |
 | **Delay** | On | toggle | `dl` |
 | | Mix | 0–100 %, 1 | `dmix` |
 | | Time | 20–750 ms, 5 | `dtime` |
@@ -272,6 +298,7 @@ Every setting is one row of the parameter table (`lib/oledui/src/ParamDefs.cpp`)
 | | Line-out | 13–31 (13 = loudest) | `out` |
 | | Headphones | 0–100 %, 1 | `hp` |
 | **Bypass** | toggle | | `b` |
+| **Tuner** | full-screen tuner | | `tuner` |
 | **Meter** | full-screen meter | | `m` |
 | **Status** | status page | | `s` |
 

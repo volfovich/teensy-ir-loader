@@ -36,7 +36,7 @@ bool Panel::menuResult(Menu::Result r) {
         openList(menu_.screen() == kScreenAmp ? kAmpList : kIrList, kMenu);
       } else {
         from_ = kMenu;
-        screen_ = menu_.screen() == kScreenMeter ? kMeter : kStatus;
+        screen_ = menu_.screen() == kScreenMeter ? kMeter : (menu_.screen() == kScreenTuner ? kTuner : kStatus);
       }
       return true;
     case Menu::kRedraw:
@@ -121,6 +121,9 @@ bool Panel::push(uint32_t now) {
       if (listCursor_ >= fileCount(m_, fileList())) host_.set(kIrRescan, 1);
       else host_.set(screen_ == kAmpList ? kAmpLoad : kIrLoad, listCursor_);
       return true;
+    case kTuner:
+      screen_ = from_;
+      return true;
     default:
       return false;
   }
@@ -173,6 +176,17 @@ bool Panel::back(uint32_t now) {
   }
 }
 
+// The press before the hold has already gone back one step: the tuner
+// returns to where that left the panel (home or the menu).
+bool Panel::backHold(uint32_t now) {
+  touch(now);
+  if (screen_ == kTuner) return false;
+  tempoEdit_ = false;
+  from_ = screen_ == kMenu ? kMenu : kHome;
+  screen_ = kTuner;
+  return true;
+}
+
 // The characters the cursor row's name is scrolled by: it waits at the
 // start, scrolls to the end, waits again and starts over.
 int Panel::marqueeOffset() const {
@@ -184,7 +198,7 @@ bool Panel::tick(uint32_t now) {
     tempoEdit_ = false;  // keeps the tempo
     return true;
   }
-  if (screen_ != kHome && screen_ != kMeter && now - lastInputMs_ >= kTimeoutMs) {
+  if (screen_ != kHome && screen_ != kMeter && screen_ != kTuner && now - lastInputMs_ >= kTimeoutMs) {
     screen_ = kHome;
     return true;
   }
@@ -230,6 +244,9 @@ void Panel::draw(Canvas& c, const UiModel& m) {
       break;
     case kStatus:
       drawStatus(c, m);
+      break;
+    case kTuner:
+      drawTuner(c, m);
       break;
   }
 }
