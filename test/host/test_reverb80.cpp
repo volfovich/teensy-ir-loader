@@ -8,7 +8,8 @@
 
 #include "Reverb80.h"
 
-static const float kFs = 44100.0f;
+static const float kFs = 48000.0f;
+static const int kS = 48000;  // samples per second
 static const int kB = 32;
 static int failures = 0;
 
@@ -107,11 +108,11 @@ static void testHall() {
     // Stable at the maximum size: the tail decays after the input stops.
     Rig r(irdsp::Reverb80::kHall);
     r.rv->setSize(1.0f);
-    auto x = noise(3 * 44100, 1, 0.5f);
-    x.resize(30 * 44100, 0.0f);
+    auto x = noise(3 * kS, 1, 0.5f);
+    x.resize(30 * kS, 0.0f);
     std::vector<float> l, rr;
     r.run(x, l, rr);
-    const double a = rms2(l, rr, 3 * 44100, 4 * 44100), b = rms2(l, rr, 28 * 44100, 29 * 44100);
+    const double a = rms2(l, rr, 3 * kS, 4 * kS), b = rms2(l, rr, 28 * kS, 29 * kS);
     bool finite = true;
     for (float v : l) finite = finite && std::isfinite(v);
     check(finite && b < a * 0.1, "max size: stable, the tail decays (dB over 25 s)", db(b / a));
@@ -123,7 +124,7 @@ static void testHall() {
     r.rv->setTone(1.0f);
     r.rv->setPreDelayMs(0.0f);
     std::vector<float> l, rr;
-    r.run(impulse(30 * 44100), l, rr);
+    r.run(impulse(30 * kS), l, rr);
     const double want = 0.8 * std::pow(10.0, size), got = rt60(l, rr);
     char what[64];
     std::snprintf(what, sizeof(what), "size %.1f: RT60 %.2f s (want %.2f s, +-25 %%)", size, got, want);
@@ -134,19 +135,19 @@ static void testHall() {
     Rig r(irdsp::Reverb80::kHall);
     r.rv->setPreDelayMs(80.0f);
     std::vector<float> l, rr;
-    r.run(impulse(44100), l, rr);
+    r.run(impulse(kS), l, rr);
     size_t first = 0;
     while (first < l.size() && std::fabs(l[first]) < 1e-7f && std::fabs(rr[first]) < 1e-7f) first++;
     const size_t pre = (size_t)(0.080f * kFs);
-    check(first >= pre && first < pre + 441, "pre-delay 80 ms: first wet sample (ms)", first * 1000.0 / kFs);
+    check(first >= pre && first < pre + kS / 100, "pre-delay 80 ms: first wet sample (ms)", first * 1000.0 / kFs);
   }
   {
     // Stereo: the sides are decorrelated even from a mono input.
     Rig r(irdsp::Reverb80::kHall);
     std::vector<float> l, rr;
-    r.run(noise(4 * 44100, 2, 0.3f), l, rr);
+    r.run(noise(4 * kS, 2, 0.3f), l, rr);
     double xy = 0, xx = 0, yy = 0;
-    for (size_t i = 44100; i < l.size(); i++) xy += l[i] * rr[i], xx += l[i] * l[i], yy += rr[i] * rr[i];
+    for (size_t i = kS; i < l.size(); i++) xy += l[i] * rr[i], xx += l[i] * l[i], yy += rr[i] * rr[i];
     const double c = xy / std::sqrt(xx * yy);
     check(std::fabs(c) < 0.5, "L/R correlation (mono input)", c);
   }
@@ -156,10 +157,10 @@ static void testHall() {
     a.rv->setMod(0.0f);
     b.rv->setMod(1.0f);
     std::vector<float> la, ra, lb, rb;
-    a.run(impulse(3 * 44100), la, ra);
-    b.run(impulse(3 * 44100), lb, rb);
+    a.run(impulse(3 * kS), la, ra);
+    b.run(impulse(3 * kS), lb, rb);
     double d = 0, e = 0;
-    for (size_t i = 44100; i < la.size(); i++) d += (la[i] - lb[i]) * (la[i] - lb[i]), e += la[i] * la[i];
+    for (size_t i = kS; i < la.size(); i++) d += (la[i] - lb[i]) * (la[i] - lb[i]), e += la[i] * la[i];
     check(d / e > 0.1, "mod 100 vs 0: the tail moves (difference energy)", d / e);
   }
   {
@@ -170,7 +171,7 @@ static void testHall() {
     a.rv->setTone(1.0f);
     b.rv->setTone(1.0f);
     std::vector<float> la, ra, lb, rb;
-    const auto x = noise(3 * 44100, 3, 0.3f);
+    const auto x = noise(3 * kS, 3, 0.3f);
     a.run(x, la, ra);
     b.run(x, lb, rb);
     const double drop = highBandDb(la) - highBandDb(lb);
@@ -179,10 +180,10 @@ static void testHall() {
   {
     // Level: 100 % wet about as loud as the input.
     Rig r(irdsp::Reverb80::kHall);
-    const auto x = pink(6 * 44100, 4, 0.3f);
+    const auto x = pink(6 * kS, 4, 0.3f);
     std::vector<float> l, rr;
     r.run(x, l, rr);
-    const double d = db(rms2(l, rr, 3 * 44100, 6 * 44100) / rms(x, 3 * 44100, 6 * 44100));
+    const double d = db(rms2(l, rr, 3 * kS, 6 * kS) / rms(x, 3 * kS, 6 * kS));
     check(std::fabs(d) < 3.0, "wet level vs input, pink noise (dB)", d);
   }
 }
@@ -190,7 +191,7 @@ static void testHall() {
 // The burst's envelope from an impulse: RMS in 10 ms windows.
 static std::vector<double> envelope(const std::vector<float>& l, const std::vector<float>& r) {
   std::vector<double> e;
-  const size_t w = 441;
+  const size_t w = kS / 100;  // 10 ms
   for (size_t i = 0; i + w <= l.size(); i += w) e.push_back(rms2(l, r, i, i + w));
   return e;
 }
@@ -202,7 +203,7 @@ static void testGated() {
     r.rv->setGateMs(gate);
     r.rv->setPreDelayMs(0.0f);
     std::vector<float> l, rr;
-    r.run(impulse(44100), l, rr);
+    r.run(impulse(kS), l, rr);
     const auto e = envelope(l, rr);
     const int end = (int)(gate / 10.0f);  // windows
     double burst = 0;
@@ -222,10 +223,10 @@ static void testGated() {
     r.rv->setPreDelayMs(0.0f);
     std::vector<float> l, rr;
     // Noise burst input: each tap then contributes evenly.
-    auto x = noise(441, 5, 0.5f);
-    x.resize(44100, 0.0f);
+    auto x = noise(kS / 100, 5, 0.5f);
+    x.resize(kS, 0.0f);
     r.run(x, l, rr);
-    const double first = rms2(l, rr, 441 * 3, 441 * 10), last = rms2(l, rr, 441 * 20, 441 * 27);
+    const double first = rms2(l, rr, kS * 3 / 100, kS * 10 / 100), last = rms2(l, rr, kS * 20 / 100, kS * 27 / 100);
     const double d = db(last / first);
     char what[64];
     if (size == 0.5f) {
@@ -238,10 +239,10 @@ static void testGated() {
   }
   {
     Rig r(irdsp::Reverb80::kGated);
-    const auto x = pink(6 * 44100, 6, 0.3f);
+    const auto x = pink(6 * kS, 6, 0.3f);
     std::vector<float> l, rr;
     r.run(x, l, rr);
-    const double d = db(rms2(l, rr, 3 * 44100, 6 * 44100) / rms(x, 3 * 44100, 6 * 44100));
+    const double d = db(rms2(l, rr, 3 * kS, 6 * kS) / rms(x, 3 * kS, 6 * kS));
     check(std::fabs(d) < 3.0, "wet level vs input, pink noise (dB)", d);
   }
 }
@@ -251,12 +252,12 @@ static void testBoth() {
   for (int mode : {irdsp::Reverb80::kHall, irdsp::Reverb80::kGated}) {
     Rig r(mode);
     std::vector<float> l, rr;
-    r.run(noise(60 * 44100, 7, 0.9f), l, rr);
+    r.run(noise(60 * kS, 7, 0.9f), l, rr);
     bool finite = true;
     for (size_t i = 0; i < l.size(); i++) finite = finite && std::isfinite(l[i]) && std::fabs(l[i]) < 8.0f;
     while (!r.rv->clearStep(4096)) {}
     std::vector<float> l2, r2;
-    r.run(std::vector<float>(44100, 0.0f), l2, r2);
+    r.run(std::vector<float>(kS, 0.0f), l2, r2);
     double tail = 0;
     for (size_t i = 0; i < l2.size(); i++) tail = std::max(tail, (double)std::fabs(l2[i]) + std::fabs(r2[i]));
     check(finite && tail == 0.0, mode == irdsp::Reverb80::kHall ? "hall: 60 s of loud noise, then clear -> silence"

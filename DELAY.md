@@ -111,8 +111,8 @@ These are compile-time settings in `include/config.h`, under *Delay*.
 
 **Memory**
 
-- The delay uses two float lines of `DELAY_MAX_MS` each, about 129 KB per line at 750 ms. One is in RAM1 (DTCM) and the other in RAM2 (OCRAM), because neither bank has room for both.
-- Every 100 ms of `DELAY_MAX_MS` costs about 17.6 KB in each bank. See [DISPLAY.md, RAM1 strategy](DISPLAY.md#ram1-strategy) for the current budget.
+- The delay uses two float lines of `DELAY_MAX_MS` each, about 141 KB per line at 750 ms (48 kHz). One is in RAM1 (DTCM) and the other in RAM2 (OCRAM), because neither bank has room for both.
+- Every 100 ms of `DELAY_MAX_MS` costs about 19 KB in each bank. See [DISPLAY.md, RAM1 strategy](DISPLAY.md#ram1-strategy) for the current budget.
 
 **CPU**
 

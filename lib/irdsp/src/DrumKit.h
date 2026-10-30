@@ -1,7 +1,8 @@
 // DrumKit.h - sampled drum kits for DrumMachine.
 //
 // The kits are made from kits/*/ by tools/make_kits.py, which writes the
-// table and the samples (16-bit mono, 44.1 kHz, in flash on the Teensy) to
+// table and the samples (16-bit mono at the firmware's rate, 48 kHz, in flash
+// on the Teensy) to
 // DrumKitData.cpp. Kit 0 is the synthesized kit: it has no samples.
 #pragma once
 

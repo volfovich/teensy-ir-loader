@@ -90,7 +90,7 @@ class PluckBass {
     return (float)(int32_t)rng_ * (1.0f / 2147483648.0f);
   }
 
-  float fs_ = 44100.0f, tone_ = 0.5f, attStep_ = 0.015f;
+  float fs_ = 48000.0f, tone_ = 0.5f, attStep_ = 0.015f;
   Slot slot_[2];
   int cur_ = 0;
   float dcX_ = 0.0f, dcY_ = 0.0f, dcR_ = 0.997f;  // DC blocker

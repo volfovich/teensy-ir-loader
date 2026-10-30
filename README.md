@@ -3,17 +3,17 @@
 A low-latency guitar cabinet IR loader for the **Teensy 4.0 + Audio Shield (Rev D)**.
 
 ```
-tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──► delay ──────────► reverb ───────────► LINE OUT L/R + headphone jack
-                                                (IR from SD card)    (studio 80s,      (80s hall or
-                                                                      stereo)           gated, stereo)
-                                                                     each effect: dry/wet mix, on/off
-                                                         + drum machine (sampled or synthesized kit, stereo, added to the outputs)
+tube amp LINE OUT ──► shield LINE IN (L) ──► amp ──────────► FFT convolution ──► delay ──────────► reverb ───────────► LINE OUT L/R + headphone jack
+                                             (NAM A2,          (IR from SD card)    (studio 80s,      (80s hall or
+                                              optional)                              stereo)           gated, stereo)
+                                                                                    each effect: dry/wet mix, on/off
+                                                                + drum machine (sampled or synthesized kit, stereo, added to the outputs)
 ```
 
 ## Features
 
-- **Long IRs:** up to 4096 samples (93 ms at 44.1 kHz), longer than any cabinet has audible response. Longer files are cut there with a short fade (`IR_MAX_LENGTH` in `include/config.h`).
-- **Zero added latency from the convolution.** The partition size equals the audio block size, so total latency is only the audio buffering, about 1.5 ms at the default 32-sample blocks, plus the codec's converter delay.
+- **Long IRs:** up to 4096 samples (85 ms at 48 kHz), longer than any cabinet has audible response. Longer files are cut there with a short fade (`IR_MAX_LENGTH` in `include/config.h`).
+- **Zero added latency from the convolution.** The partition size equals the audio block size, so total latency is only the audio buffering, about 1.3 ms at the default 32-sample blocks, plus the codec's converter delay.
 - **Just copy WAVs to the SD card:**
   - Files can go in the root folder or an `/IR` folder.
   - Any sample rate from 8 to 384 kHz is accepted and resampled on the Teensy. The file is streamed from the card, so its length does not matter. Above 192 kHz loading is slower.
@@ -29,6 +29,10 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
 - **Both effects:**
   - They run in 32-bit float in the same audio object as the convolution, so the path from the IR through the delay and reverb never drops to 16 bits.
   - Switching an effect off is click-free and lets its tail ring out. When the tail has died away, the effect stops using CPU and passes its input through bit-identically.
+- **Optional amp block** (details in [NAM.md](NAM.md)): plays Neural Amp Modeler **A2** captures (`.nam` files in `/AMP` on the SD card) before the IR, so a guitar (through a buffer) or a preamp can go straight in. It runs the A2-Lite network, levels each model by its loudness, and uses the capture's input calibration when it has one. Off by default; with a real amp's line out, leave it off.
+  - After the model, **tone controls** (bass, middle, treble, presence) and a **noise gate** with an adjustable release.
+- **Doubler after the IR:** spreads the guitar like two takes panned left and right. The original goes left and a copy goes right, 1–35 ms later (10 by default). The width runs from centre to hard left and right. Listen in stereo: on one speaker from the left output you hear only the original.
+- **Tuner:** hold BACK (or Menu > Tuner) for a chromatic tuner on the OLED, accurate to well under a cent. The guitar is muted while it is open.
 - **Practice drum machine** (details in [DRUMS.md](DRUMS.md)):
   - **Songs:** five built-in 32-bar songs in the style of classic rock songs, and any General MIDI drum file (`.mid`) copied to `/DRUMS` on the SD card, with section looping.
   - Eight one-bar styles at 40–240 BPM, with sample-accurate timing: metronome, rock, three practice beats (hat only on the offbeat 8ths, offbeat 16ths, or triplets), pop, blues shuffle and 6/8 ballad.
@@ -40,14 +44,14 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► FFT convolution ──�
   - A count-in (2 bars by default), and a speed trainer that raises the tempo every few bars up to a target, with a count-in at each new tempo.
   - A plucked-string bass playing along: the songs' bass lines, the bass part of MIDI files, and a line for each style in a key you choose.
   - Mixed into the outputs in stereo after the effects, with their own volumes, so the drums and bass never go through your guitar effects.
-- **Remembers settings:** the last IR, your levels and the delay, reverb and drum settings are stored in EEPROM.
-- **Controls:** a 0.96" OLED with a rotary encoder and two keys (every setting, the IR list, a level meter and a status page; see [DISPLAY.md](DISPLAY.md)), and USB serial commands. Both work at the same time.
+- **Remembers settings:** the last IR and amp model, your levels and the amp, delay, reverb and drum settings are stored in EEPROM.
+- **Controls:** a 0.96" OLED with a rotary encoder and two keys (every setting, the IR and amp model lists, a level meter and a status page; see [DISPLAY.md](DISPLAY.md)), and USB serial commands. Both work at the same time.
 
 ## Hardware
 
 | Connection | Shield pad / pin | Notes |
 |---|---|---|
-| Amp line out signal | **LINE IN L** | Only the left input is processed. |
+| Amp line out signal | **LINE IN L** | Only the left input is processed. LINE IN is about 29 kΩ: fine for a line out, a preamp or a pedal, but passive pickups lose treble into it, so put a buffer (any buffered pedal) in front for the amp block. |
 | Amp line out ground | **GND** next to the line-in pads | |
 | To mixer / interface / power amp | **LINE OUT L** and **R** + GND | Stereo when the delay or reverb is on; both carry the same signal when they are off. For a mono rig use L. If the gear you feed is not AC-coupled, add a 2.2–10 µF capacitor in series. |
 | Headphones | 3.5 mm jack | **Headphones only.** The jack's ground is a *virtual* ground, so never connect it to another device's ground. |
@@ -96,7 +100,17 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `l` | List IR files (`>` marks the current one) |
 | `3` | Load IR number 3 |
 | `n` / `p` | Next / previous IR |
-| `b` | Toggle IR bypass (raw amp signal, with a click-free fade). The delay and reverb are not affected. |
+| `amp` | Toggle the amp block (NAM A2) on/off, click-free. All amp commands are explained in [NAM.md](NAM.md#serial-commands). |
+| `amp list` / `amp <n\|name>` / `amp info` | List the models in `/AMP` / load one by number or part of its name / what the loaded one says about itself |
+| `amp in -24..24` / `amp out -24..24` | Drive into the model / level after it, in dB |
+| `amp cal` | Toggle the model's input calibration (on by default; only calibrated captures have one) |
+| `amp bass` / `amp treble` `-12..12`, `amp mid` / `amp presence` `-10..10` | Tone controls after the model, in dB (0 = flat): low shelf 120 Hz, peak 650 Hz, high shelf 2.5 kHz, peak 5 kHz |
+| `amp gate -90..-30` / `amp gate off` | Noise gate threshold on the input, in dBFS (default −64): set it a few dB above the meter's idle reading |
+| `amp release 10..500` | How fast the gate closes: the fade from open to −60 dB, in ms (default 50). Short cuts the hiss at once; long lets notes die naturally. |
+| `dbl [on\|off]` | Toggle the doubler (after the IR, before the delay) |
+| `dbl time 1..35` / `dbl width 0..100` | How late the copy comes (ms, default 10), and the stereo spread (%, 100 = hard left and right) |
+| `tuner` | The tuner for 5 s: prints the note, cents and frequency as they change (the guitar is muted meanwhile) |
+| `b` | Toggle IR bypass (the signal before the IR, with a click-free fade). The delay and reverb are not affected. |
 | `dl` | Toggle the delay on/off (the repeats ring out). All delay commands are explained in [DELAY.md](DELAY.md#controls). |
 | `dmix 0..100` | Delay dry/wet blend (0 = dry only, 100 = repeats only) |
 | `dtime 20..750` | Delay time in ms (the left time; the right is ¾ of it) |
@@ -135,35 +149,35 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `out 13..31` | Line-out level (13 = loudest, 3.16 V peak-to-peak) |
 | `hp 0..100` | Headphone volume |
 | `m` | Live input/output meter |
-| `s` | Status: CPU load (including the delay's and reverb's shares), effect settings, peak levels, clip count, latency |
-| `r` | Rescan the SD card (after swapping cards) |
+| `s` | Status: CPU load (including the amp's, doubler's, delay's and reverb's shares), effect settings, peak levels, clip count, latency |
+| `r` | Rescan the SD card (after swapping cards): IRs, amp models and drum songs |
 | `?` | This list, with the current values |
 
 ## Latency and CPU
 
-The block size is set in `platformio.ini`. The 32-sample row is measured with `s` (2026-10-29); the others are scaled from it. Run `s` on the device to see real numbers.
+The block size and the sample rate (48 kHz) are set in `platformio.ini`. The 32-sample row was measured with `s` at 44.1 kHz (2026-10-29) and scaled to 48 kHz (+9 %); the others are scaled from it. Run `s` on the device to see real numbers.
 
 | `AUDIO_BLOCK_SAMPLES` | I/O buffering | Convolver CPU, 4096-sample IR | During a 25 ms IR switch |
 |---|---|---|---|
-| 16 | ~0.7 ms | ~22 % | ~40 % |
-| **32 (default)** | **~1.5 ms** | **~11 %** | ~20 % |
-| 64 | ~2.9 ms | ~6 % | ~11 % |
-| 128 | ~5.8 ms | ~3.5 % | ~6 % |
+| 16 | ~0.7 ms | ~24 % | ~43 % |
+| **32 (default)** | **~1.3 ms** | **~12 %** | ~22 % |
+| 64 | ~2.7 ms | ~6.5 % | ~12 % |
+| 128 | ~5.3 ms | ~4 % | ~6.5 % |
 
 The codec's ADC and DAC add their own fixed delay on top of the buffering. To measure your exact total, loop LINE OUT back into LINE IN R and record both channels.
 
 CPU cost scales with IR length. A 2048-sample cabinet IR uses about half the figures above.
 
-The reverb adds about 7.5 % CPU (hall; gated 6 %, measured with 32-sample blocks), the delay about 4.5 % and the drum machine about 3.5 % (recorded kits, with the bass and the drum-bus compressor), while each is on (or playing) or still ringing out. None of them uses any CPU once its tail has died away. Run `s` to see the current values. The delay's fixed voicing is set in `include/config.h`; see [DELAY.md](DELAY.md#fixed-voicing-configh).
+The amp block adds 33 % CPU while it's on (see [NAM.md](NAM.md#m4-results); everything at once peaks at 85 %). The reverb adds about 8 % CPU (hall; gated about 6.5 %), the delay about 4.7 % and the drum machine about 5 % (recorded kits at 240 BPM, with the bass and the drum-bus compressor), measured at 48 kHz with 32-sample blocks, while each is on (or playing) or still ringing out. None of them uses any CPU once its tail has died away. Run `s` to see the current values. The delay's fixed voicing is set in `include/config.h`; see [DELAY.md](DELAY.md#fixed-voicing-configh).
 
 Smaller blocks cost more CPU because the same IR is split into more partitions, and every partition is processed each block. At 16 samples there is still plenty of headroom, so try it if you want the lowest possible latency.
 
-Memory use with 32-sample blocks (2026-10-29):
+Memory use with 32-sample blocks at 48 kHz (2026-10-29):
 
-- **RAM1 (fast DTCM/ITCM):** about 300 of 512 KB. This holds the real-time code (about 52 KB), the IR spectra and the input history used every block (about 100 KB), and one delay line (about 130 KB). Cold code (SD card, printf, the UI) runs from flash; see [DISPLAY.md, RAM1 strategy](DISPLAY.md#ram1-strategy).
-- **RAM2 (OCRAM/DMAMEM):** about 425 of 512 KB. This holds the reverb's lines (136 KB), the other delay line (about 130 KB), the bass, and the file list and file-loading buffers.
+- **RAM1 (fast DTCM/ITCM):** about 415 of 512 KB. This holds the real-time code (about 57 KB), the IR spectra and the input history used every block (about 100 KB), the amp network's history and weights (about 95 KB), and one delay line (about 141 KB). Cold code (SD card, printf, the UI) runs from flash; see [DISPLAY.md, RAM1 strategy](DISPLAY.md#ram1-strategy).
+- **RAM2 (OCRAM/DMAMEM):** about 462 of 512 KB. This holds the reverb's lines (145 KB), the other delay line (about 141 KB), the bass, and the file lists and file-loading buffers.
 
-About 200 KB stays free in RAM1 for the stack, and 88 KB in RAM2 for the heap.
+About 96 KB stays free in RAM1 for the stack, and 51 KB in RAM2 for the heap.
 
 ## How it works
 
@@ -188,13 +202,16 @@ src/main.cpp                setup() and loop()
 src/AudioGraph.{h,cpp}      audio objects and the codec
 src/Params.{h,cpp}          reading and changing any setting by number (what each one does)
 src/IRLibrary.{h,cpp}       SD card scanning and IR loading
+src/AmpLibrary.{h,cpp}      the NAM amp models in /AMP: listing, loading, their gains
+src/SdSource.h              an SD file as the loaders' byte source
 src/DrumSongs.{h,cpp}       drum songs: the built-in ones and MIDI files in /DRUMS
 src/Settings.{h,cpp}        the settings saved in EEPROM
 src/SerialUI.{h,cpp}        serial commands and level meter
+src/Tuner.{h,cpp}           the tuner: pitch from the input while it is open
 src/Controls.{h,cpp}        the panel's encoder (interrupt-driven) and keys
 src/Oled.{h,cpp}            minimal SH1106 / SSD1306 driver on its own I2C bus (Wire1)
 src/DisplayUI.{h,cpp}       the OLED panel: settings and model for lib/oledui, sending changed pages
-src/AudioConvolverIR.h      Teensy Audio Library object (IR, gain, bypass, delay, reverb, meters, CPU stats)
+src/AudioConvolverIR.h      Teensy Audio Library object (amp, IR, gain, bypass, doubler, delay, reverb, tuner tap, meters, CPU stats)
 lib/irdsp/src/              portable DSP core (no Arduino dependencies)
   PartitionedConvolver.h    the UPOLS convolution engine
   StudioDelay.h             the studio 80s dual delay
@@ -204,6 +221,12 @@ lib/irdsp/src/              portable DSP core (no Arduino dependencies)
   DrumKit.h                 the drum kit format (DrumKitData.cpp is generated from kits/)
   Reverb80.{h,cpp}          the 80s reverb (Lexicon-style hall, AMS-style gated)
   FxStage.h, FxSlot.h       per effect: on/off with trails, dry/wet mix, idle detection and clearing
+  AmpStage.h                the amp block: on/off, model changes and gains around the network, the noise gate
+  ToneStack.h               the tone controls after the network
+  Doubler.h                 the doubler (a delayed copy, panned opposite)
+  PitchDetect.h             the tuner's pitch detection (YIN)
+  NamA2.h                   the Neural Amp Modeler A2-Lite network (NAM.md)
+  NamFile.{h,cpp}           reading the A2-Lite network out of a .nam file
   irdsp_blocks.h            shared shelving filter, biquad filters, Hermite read, LFO and mix law
   irdsp_fft.h               small radix-2 FFT
   IRLoader.{h,cpp}          WAV parser, resampler, IR trimming and normalization
@@ -213,7 +236,8 @@ fonts/spleen/               the panel's fonts (Spleen, BSD-2-Clause; tools/make_
 kits/rock/                  the recorded drum kit (WAVs, kit.txt, credits, our originals)
 songs/                      the built-in drum songs (text, compiled in)
 tools/                      drum kit tools: import_kit.py (build a kit's WAVs), make_kits.py (compile kits in)
-test/host/                  PC tests for the DSP core
+test/host/                  PC tests for the DSP core (nam/: the A2 test model and its reference output)
+test/teensy/                benchmarks run on the Teensy (pio run -e nambench / nammicro)
 ```
 
 ## Testing on a PC
@@ -234,13 +258,19 @@ The tests check:
 - The drum machine: sample-accurate timing, count-in, speed trainer, style and tempo change points, the shuffle grid, stopping, every style's lanes and level, sampled-kit playback (onsets, velocity layers, fades, cymbal voices), crash accents, dynamics, humanize and panning, and the real kits' samples, layers and balance (see [DRUMS.md](DRUMS.md#code-and-tests)).
 - The reverb: the hall's decay time, pre-delay, stereo, chorus, era and level, and the gated reverb's cut-off, burst shapes and level (see [REVERB.md](REVERB.md#code-and-tests)).
 - WAV decoding for every supported format.
-- Resampling accuracy at 22.05, 32, 48, 88.2, 96 and 192 kHz.
+- Resampling accuracy from 22.05, 32, 44.1, 88.2, 96 and 192 kHz to 48 kHz.
 - Anti-aliasing, trimming, truncation and normalization.
+- The NAM amp network against a plain reference and against NeuralAmpModelerCore on a real A2 model, and reading `.nam` files (see [NAM.md](NAM.md#m2-and-m3-results)). Also the gate (and its release time) and the tone controls.
+- The doubler: exact left and right from 1 to 35 ms, time changes without a click, width, on/off.
+- The tuner: sines and plucked strings from 55 Hz to 1 kHz to within 0.1 cent, no pitch from noise or silence, and the note names.
+
+`test/host/namtool model.nam` reads a NAM model the way the Teensy will and prints what it found. `tools/amp_selftest.py model.nam` checks that the Teensy plays the loaded model exactly as the PC does (see [NAM.md](NAM.md#checking-the-device-against-the-pc)).
 
 `test/host/irtool file.wav out.f32` runs the exact on-device loading pipeline on a file, which is useful for seeing how the Teensy will interpret an IR before copying it to the card.
 
 ## Ideas for next steps
 
-- **Tone controls:** low-cut, high-cut and a presence biquad after the convolver.
+- **Presets:** save and recall whole sounds (model, IR, tone, gate, doubler, delay, reverb) as numbered presets on the SD card.
+- **Tone controls:** low-cut and high-cut after the convolver.
 - **Two-IR blending:** the engine already evaluates two IRs during crossfades.
 - **USB audio:** build with `-D USB_MIDI_AUDIO_SERIAL` and add `AudioOutputUSB` to record directly into a computer (verify it with your chosen block size).

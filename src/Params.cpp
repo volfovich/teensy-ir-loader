@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <Audio.h>
 
+#include "AmpLibrary.h"
 #include "AudioGraph.h"
 #include "DrumKit.h"
 #include "DrumMachine.h"
@@ -85,7 +86,10 @@ static void applyParam(int id, int v) {
     case kReverbEra: r.setEra(v / 100.0f); break;
     case kReverbGate: r.setGateMs(v); break;
     case kOutGain: convolver.setOutputGainDb(v * 0.5f); break;
-    case kLineIn: codec.lineInLevel(v); break;
+    case kLineIn:
+      codec.lineInLevel(v);
+      ampApplyGains();  // the calibration follows the input's full scale
+      break;
     case kLineOut: codec.lineOutLevel(v); break;
     case kHeadphones: codec.volume(v / 100.0f); break;
     case kBypass: convolver.setBypass(v); break;
@@ -106,6 +110,19 @@ static void applyParam(int id, int v) {
     case kBassVolume: dm.setBassVolume(v / 100.0f); break;
     case kBassKey: dm.setBassKey(v); break;
     case kBassTone: dm.setBassTone(v / 100.0f); break;
+    case kAmpOn: convolver.amp().setOn(v); break;
+    case kAmpIn:
+    case kAmpOut:
+    case kAmpCal:
+    case kAmpGate:
+    case kAmpBass:
+    case kAmpMid:
+    case kAmpTreble:
+    case kAmpPresence:
+    case kAmpGateRel: ampApplyGains(); break;
+    case kDblOn: convolver.doubler().setOn(v); break;
+    case kDblTime:
+    case kDblWidth: convolver.doubler().set(s[kDblTime], s[kDblWidth] / 100.0f); break;
     case kDrumsPlay:
       if (v) dm.start();
       else dm.stop();

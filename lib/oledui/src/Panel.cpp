@@ -5,7 +5,7 @@
 
 namespace ui {
 
-// The IR list's marquee waits this many steps at each end of the name.
+// A scrolling name waits this many steps at each end.
 static constexpr int kMarqueePause = 3;
 
 bool Panel::toggle(uint8_t id) {
@@ -13,15 +13,16 @@ bool Panel::toggle(uint8_t id) {
   return true;
 }
 
-// The list opens on the loaded IR, about in the middle of the screen.
-void Panel::openIrList(Screen from) {
+// A list opens on the loaded file, about in the middle of the screen.
+void Panel::openList(Screen list, Screen from) {
   from_ = from;
-  screen_ = kIrList;
-  irCursor_ = m_.irCurrent >= 0 && m_.irCurrent < m_.irCount ? m_.irCurrent : 0;
-  const int entries = m_.irCount + 1;  // the IRs and "Rescan SD card"
-  int top = irCursor_ - kIrBrowserRows / 2;
+  screen_ = list;
+  const int count = fileCount(m_, fileList()), current = fileCurrent(m_, fileList());
+  listCursor_ = current >= 0 && current < count ? current : 0;
+  const int entries = count + 1;  // the files and "Rescan SD card"
+  int top = listCursor_ - kIrBrowserRows / 2;
   if (top > entries - kIrBrowserRows) top = entries - kIrBrowserRows;
-  irTop_ = top < 0 ? 0 : top;
+  listTop_ = top < 0 ? 0 : top;
   marquee_ = 0;
 }
 
@@ -31,11 +32,11 @@ bool Panel::menuResult(Menu::Result r) {
       screen_ = kHome;
       return true;
     case Menu::kOpenScreen:
-      if (menu_.screen() == kScreenIR) {
-        openIrList(kMenu);
+      if (menu_.screen() == kScreenIR || menu_.screen() == kScreenAmp) {
+        openList(menu_.screen() == kScreenAmp ? kAmpList : kIrList, kMenu);
       } else {
         from_ = kMenu;
-        screen_ = menu_.screen() == kScreenMeter ? kMeter : kStatus;
+        screen_ = menu_.screen() == kScreenMeter ? kMeter : (menu_.screen() == kScreenTuner ? kTuner : kStatus);
       }
       return true;
     case Menu::kRedraw:
@@ -63,17 +64,21 @@ bool Panel::turn(int detents, uint32_t now) {
       b = b < 0 ? 0 : (b >= kHomeBlocks ? kHomeBlocks - 1 : b);
       if (b == block_) return false;
       block_ = (uint8_t)b;
+      marquee_ = 0;
+      marqueeMs_ = now;
       return true;
     }
     case kMenu:
       return menuResult(menu_.turn(detents, now));
-    case kIrList: {
-      int c = irCursor_ + detents;
-      c = c < 0 ? 0 : (c > m_.irCount ? m_.irCount : c);  // irCount: the Rescan row
-      if (c == irCursor_) return false;
-      irCursor_ = c;
-      if (c < irTop_) irTop_ = c;
-      if (c >= irTop_ + kIrBrowserRows) irTop_ = c - kIrBrowserRows + 1;
+    case kIrList:
+    case kAmpList: {
+      const int count = fileCount(m_, fileList());
+      int c = listCursor_ + detents;
+      c = c < 0 ? 0 : (c > count ? count : c);  // count: the Rescan row
+      if (c == listCursor_) return false;
+      listCursor_ = c;
+      if (c < listTop_) listTop_ = c;
+      if (c >= listTop_ + kIrBrowserRows) listTop_ = c - kIrBrowserRows + 1;
       marquee_ = 0;
       marqueeMs_ = now;
       return true;
@@ -102,8 +107,8 @@ bool Panel::push(uint32_t now) {
         tempoTurnMs_ = 0;
         return true;
       }
-      if (block_ == kBlockIR) {
-        openIrList(kHome);
+      if (block_ == kBlockIR || block_ == kBlockAmp) {
+        openList(block_ == kBlockAmp ? kAmpList : kIrList, kHome);
         return true;
       }
       menu_.open(block_ == kBlockDelay ? kPageDelay : (block_ == kBlockReverb ? kPageReverb : kPageDrums));
@@ -112,8 +117,12 @@ bool Panel::push(uint32_t now) {
     case kMenu:
       return menuResult(menu_.push());
     case kIrList:
-      if (irCursor_ >= m_.irCount) host_.set(kIrRescan, 1);
-      else host_.set(kIrLoad, irCursor_);
+    case kAmpList:
+      if (listCursor_ >= fileCount(m_, fileList())) host_.set(kIrRescan, 1);
+      else host_.set(screen_ == kAmpList ? kAmpLoad : kIrLoad, listCursor_);
+      return true;
+    case kTuner:
+      screen_ = from_;
       return true;
     default:
       return false;
@@ -124,7 +133,7 @@ bool Panel::hold(uint32_t now) {
   touch(now);
   if (screen_ != kHome) return false;
   // The IR block is on when not bypassed: flipping bypass flips it.
-  static const uint8_t kOnOff[kHomeBlocks] = {kBypass, kDelayOn, kReverbOn, kDrumsPlay, kDrumsPlay};
+  static const uint8_t kOnOff[kHomeBlocks] = {kAmpOn, kBypass, kDelayOn, kReverbOn, kDrumsPlay, kDrumsPlay};
   return toggle(kOnOff[block_]);
 }
 
@@ -136,6 +145,7 @@ bool Panel::confirm(uint32_t now) {
     case kMenu:
       return menuResult(menu_.push());
     case kIrList:
+    case kAmpList:
       return push(now);
     case kMeter:
       host_.set(kMeterReset, 1);
@@ -161,8 +171,20 @@ bool Panel::back(uint32_t now) {
       return menuResult(menu_.back());
     default:
       screen_ = from_;
+      marquee_ = 0;
       return true;
   }
+}
+
+// The press before the hold has already gone back one step: the tuner
+// returns to where that left the panel (home or the menu).
+bool Panel::backHold(uint32_t now) {
+  touch(now);
+  if (screen_ == kTuner) return false;
+  tempoEdit_ = false;
+  from_ = screen_ == kMenu ? kMenu : kHome;
+  screen_ = kTuner;
+  return true;
 }
 
 // The characters the cursor row's name is scrolled by: it waits at the
@@ -176,15 +198,26 @@ bool Panel::tick(uint32_t now) {
     tempoEdit_ = false;  // keeps the tempo
     return true;
   }
-  if (screen_ != kHome && screen_ != kMeter && now - lastInputMs_ >= kTimeoutMs) {
+  if (screen_ != kHome && screen_ != kMeter && screen_ != kTuner && now - lastInputMs_ >= kTimeoutMs) {
     screen_ = kHome;
     return true;
   }
-  if (screen_ != kIrList || irCursor_ >= m_.irCount || !m_.irPath || now - marqueeMs_ < kMarqueeMs) return false;
-  marqueeMs_ = now;
+  // The scrolling name: the open list's cursor row, or home row 0 on AMP.
   char name[64];
-  irDisplayName(m_.irPath(irCursor_), name, sizeof(name));
-  const int over = (int)strlen(name) - kIrBrowserNameChars;
+  int room;
+  if (screen_ == kIrList || screen_ == kAmpList) {
+    if (listCursor_ >= fileCount(m_, fileList())) return false;
+    listName(m_, fileList(), listCursor_, name, sizeof(name));
+    room = kIrBrowserNameChars;
+  } else if (screen_ == kHome && block_ == kBlockAmp && !tempoEdit_) {
+    homeName(m_, block_, name, sizeof(name));
+    room = kHomeNameChars;
+  } else {
+    return false;
+  }
+  if (now - marqueeMs_ < kMarqueeMs) return false;
+  marqueeMs_ = now;
+  const int over = (int)strlen(name) - room;
   if (over <= 0) return false;
   if (++marquee_ > kMarqueePause + over + kMarqueePause) marquee_ = 0;
   return true;
@@ -193,21 +226,27 @@ bool Panel::tick(uint32_t now) {
 void Panel::draw(Canvas& c, const UiModel& m) {
   switch (screen_) {
     case kHome:
-      drawHome(c, m, block_, tempoEdit_);
+      drawHome(c, m, block_, tempoEdit_, block_ == kBlockAmp ? marqueeOffset() : 0);
       break;
     case kMenu:
       menu_.draw(c);
       break;
     case kIrList:
-      if (irCursor_ > m.irCount) irCursor_ = m.irCount;  // after a rescan found fewer
-      if (irTop_ > irCursor_) irTop_ = irCursor_;
-      drawIrBrowser(c, m, irCursor_, irTop_, marqueeOffset());
+    case kAmpList: {
+      const int count = fileCount(m, fileList());
+      if (listCursor_ > count) listCursor_ = count;  // after a rescan found fewer
+      if (listTop_ > listCursor_) listTop_ = listCursor_;
+      drawFileList(c, m, fileList(), listCursor_, listTop_, marqueeOffset());
       break;
+    }
     case kMeter:
       drawMeterScreen(c, m);
       break;
     case kStatus:
       drawStatus(c, m);
+      break;
+    case kTuner:
+      drawTuner(c, m);
       break;
   }
 }

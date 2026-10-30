@@ -11,13 +11,14 @@
 // The convolver's partition size equals the block size, so the convolution
 // itself adds zero latency; total latency is ~2 blocks of I/O buffering plus
 // the codec's converters:
-//   128 -> ~5.8 ms   64 -> ~2.9 ms   32 -> ~1.5 ms   16 -> ~0.7 ms  (+ codec)
+//   128 -> ~5.3 ms   64 -> ~2.7 ms   32 -> ~1.3 ms   16 -> ~0.7 ms  (+ codec)
+// at 48 kHz (AUDIO_SAMPLE_RATE_EXACT in platformio.ini).
 // Smaller blocks cost more CPU (see README for numbers).
 
 // ---------------------------------------------------------------------------
 // Impulse responses
 // ---------------------------------------------------------------------------
-// Longest IR in samples at 44.1 kHz. 4096 samples = 93 ms, longer than any
+// Longest IR in samples at 48 kHz. 4096 samples = 85 ms, longer than any
 // cabinet has audible response; longer files are cut there with a short
 // fade. Memory (DTCM) and convolution CPU scale with it: 8192 doubles both.
 // Must be a multiple of AUDIO_BLOCK_SAMPLES.
@@ -46,8 +47,8 @@
 // delay, after the digital racks of the era (see DELAY.md).
 // ---------------------------------------------------------------------------
 // Longest delay time. The two float delay lines need 2 x 4 bytes per sample
-// of delay (750 ms = 265 KB), one in RAM1 and one in RAM2: every 100 ms takes
-// about 17.6 KB from each.
+// of delay (750 ms = 288 KB at 48 kHz), one in RAM1 and one in RAM2: every
+// 100 ms takes about 19 KB from each.
 #define DELAY_MAX_MS 750
 // Fixed voicing.
 #define DELAY80_RIGHT_RATIO 0.75f        // right time = left time x this (0.1 .. 1)
@@ -56,6 +57,15 @@
 #define DELAY80_MOD_RATE_HZ 0.8f         // chorus rate of the tail
 #define DELAY80_DUCK_THRESHOLD_DB -36.0f // input level where ducking starts (full 12 dB above)
 #define DELAY80_DUCK_RELEASE_MS 200.0f   // how fast the repeats swell back after you stop
+
+// ---------------------------------------------------------------------------
+// Amp (before the IR): NAM A2-Lite models from /AMP (see NAM.md).
+// ---------------------------------------------------------------------------
+// The loudness every model is levelled to, in dB (the model's gain is this
+// minus its "loudness"; the amp's output setting comes on top). NAM players
+// use -18; the amp here stands in for a tube amp's line out, which is hotter,
+// so -12 makes output 0 dB about as loud.
+#define AMP_LEVEL_DB -12.0f
 
 // ---------------------------------------------------------------------------
 // Hardware

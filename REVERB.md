@@ -97,13 +97,15 @@ To listen on a computer first, `make -C test/host render` writes `test/host/out/
 
 ## Memory and CPU
 
-**Memory:** one block in RAM2 (OCRAM), 136 KB, shared by the two modes. Moving it to the faster DTCM was measured on 2026-10-29: it saved only 0.3 % CPU, so it stays in OCRAM.
+**Memory:** one block in RAM2 (OCRAM), 145 KB at 48 kHz, shared by the two modes. Moving it to the faster DTCM was measured on 2026-10-29: it saved only 0.3 % CPU, so it stays in OCRAM.
 
 | Part | Size |
 |---|---|
-| Pre-delay | 26 KB |
+| Pre-delay | 28 KB |
 | Diffusers | 4 KB |
-| Hall lines / gate line (shared by the two modes) | 106 KB |
+| Hall lines / gate line (shared by the two modes) | 113 KB |
+
+The line lengths are in samples, tuned for 48 kHz (all scaled by 48/44.1 from the original 44.1 kHz design, primes kept prime), so the times are as before.
 
 RAM1 holds only the reverb's state and the real-time code. Setup, clearing and the coefficient math run from flash.
 

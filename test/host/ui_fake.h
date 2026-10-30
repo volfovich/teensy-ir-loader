@@ -8,11 +8,11 @@
 #include "Screens.h"
 
 struct FakeHost : ui::MenuHost {
-  int v[64] = {};
-  static_assert(ui::kMeterReset < 64, "v[] holds every ItemId");
+  int v[96] = {};
+  static_assert(ui::kAmpLoad < 96, "v[] holds every ItemId");
   int timeMax = 750;
   int sets = 0;
-  int loaded = -1, rescans = 0, resets = 0;  // the panel's actions
+  int loaded = -1, ampLoaded = -1, rescans = 0, resets = 0;  // the panel's actions
   FakeHost() {
     v[ui::kDelayOn] = 1; v[ui::kDelayMix] = 30; v[ui::kDelayTime] = 380;
     v[ui::kDelayRepeats] = 35; v[ui::kDelayTone] = 60; v[ui::kDelayMod] = 15;
@@ -26,6 +26,10 @@ struct FakeHost : ui::MenuHost {
     v[ui::kDrumCountIn] = 2; v[ui::kTrainerOn] = 0; v[ui::kTrainerStep] = 5; v[ui::kTrainerEvery] = 4;
     v[ui::kTrainerTarget] = 140; v[ui::kDrumKit] = 1; v[ui::kDrumCrash] = 2;
     v[ui::kBassOn] = 1; v[ui::kBassVolume] = 70; v[ui::kBassKey] = 4; v[ui::kBassTone] = 50;
+    v[ui::kAmpOn] = 1; v[ui::kAmpIn] = 6; v[ui::kAmpOut] = -3; v[ui::kAmpCal] = 1;
+    v[ui::kAmpGate] = -64; v[ui::kAmpBass] = 0; v[ui::kAmpMid] = -4; v[ui::kAmpTreble] = 3;
+    v[ui::kAmpPresence] = 8; v[ui::kAmpGateRel] = 50;
+    v[ui::kDblOn] = 1; v[ui::kDblTime] = 10; v[ui::kDblWidth] = 100;
   }
   static const char* styleName(int i) {
     static const char* names[] = {"metronome", "rock",          "offbeat 8ths", "offbeat 16ths",
@@ -49,11 +53,13 @@ struct FakeHost : ui::MenuHost {
     if (id == ui::kIsReverbHall) return v[ui::kReverbMode] == 0;
     if (id == ui::kIsReverbGated) return v[ui::kReverbMode] == 1;
     if (id == ui::kIsDrumSong) return v[ui::kDrumSong] != 0;
+    if (id == ui::kIsAmpGateOn) return v[ui::kAmpGate] > ui::paramDef(ui::kAmpGate).min;
     return v[id];
   }
   void set(uint8_t id, int value) override {
     sets++;
     if (id == ui::kIrLoad) loaded = value;
+    else if (id == ui::kAmpLoad) ampLoaded = value;
     else if (id == ui::kIrRescan) rescans++;
     else if (id == ui::kMeterReset) resets++;
     else v[id] = value;
@@ -68,6 +74,8 @@ struct FakeHost : ui::MenuHost {
   }
   bool valueText(uint8_t id, char* buf, int n) override {
     if (id == ui::kScreenIR) std::snprintf(buf, n, "3/12");
+    else if (id == ui::kScreenAmp) std::snprintf(buf, n, "7/8");
+    else if (id == ui::kScreenTuner) return false;
     else if (id == ui::kDrumStyle) std::snprintf(buf, n, "%s", styleName(v[id]));
     else if (id == ui::kDrumKit) std::snprintf(buf, n, "%s", kitName(v[id]));
     else if (id == ui::kDrumSong) std::snprintf(buf, n, "%s", songName(v[id]));
@@ -88,6 +96,20 @@ inline const char* fakeIrPath(int i) {
   return names[i % 12];
 }
 
+inline const char* fakeAmpPath(int i) {
+  static const char* names[] = {
+      "/AMP/JCM_800_2203_Amp_Gain_3.nam",
+      "/AMP/JCM_800_2203_Amp_Gain_5.nam",
+      "/AMP/JCM_800_2203_Amp_Gain_7.nam",
+      "/AMP/JCM_800_2203_Amp_Gain_9.nam",
+      "/AMP/JCM_800_2203_OD8008_Boosted_Amp_Gain_3.nam",
+      "/AMP/JCM_800_2203_OD8008_Boosted_Amp_Gain_39.nam",
+      "/AMP/JCM_800_2203_OD8008_Boosted_Amp_Gain_5.nam",
+      "/AMP/JCM_800_2203_OD8008_Boosted_Amp_Gain_7.nam",
+  };
+  return names[i % 8];
+}
+
 // The model of the DISPLAY.md mockups.
 inline ui::UiModel fakeModel() {
   ui::UiModel m;
@@ -96,6 +118,10 @@ inline ui::UiModel fakeModel() {
   m.irCount = 12;
   m.irCurrent = 2;
   m.irPath = fakeIrPath;
+  m.ampCount = 8;
+  m.ampCurrent = 6;
+  m.ampPath = fakeAmpPath;
+  m.ampOn = true;
   m.delayOn = true;
   m.reverbOn = true;
   m.drumsPlaying = true;

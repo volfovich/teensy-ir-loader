@@ -9,7 +9,7 @@
 
 #include "PluckBass.h"
 
-static const int kFs = 44100, kB = 32;
+static const int kFs = 48000, kB = 32;
 
 static bool writeWav(const std::string& path, const std::vector<float>& x) {
   FILE* f = std::fopen(path.c_str(), "wb");

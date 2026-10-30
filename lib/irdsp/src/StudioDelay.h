@@ -41,7 +41,7 @@ class StudioDelay {
  public:
   static constexpr int kMinDelay = 128;  // samples
 
-  explicit StudioDelay(float sampleRate = 44100.0f)
+  explicit StudioDelay(float sampleRate)
       : fs_(sampleRate), fadeLen_((int)(sampleRate * 0.02f)) {
     setFeedback(0.5f);
     setRightRatio(0.75f);

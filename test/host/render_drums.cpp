@@ -34,7 +34,7 @@ static bool writeWav(const std::string& path, const std::vector<float>& x, int f
 
 int main(int argc, char** argv) {
   const std::string dir = argc > 1 ? argv[1] : "out";
-  const int fs = 44100, B = 32;
+  const int fs = 48000, B = 32;
   int ok = 0;
   std::vector<float> bassBuf(irdsp::DrumMachine::kBassBufLen);
   for (int k = 0; k < irdsp::drumKitCount(); k++) {

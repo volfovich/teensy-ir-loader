@@ -12,7 +12,9 @@
 #include "DrumSong.h"
 #include "DrumMachine.h"
 
-static const float kFs = 44100.0f;
+static const float kFs = 48000.0f;
+// Samples per second, and at 120 BPM per beat, 8th, 16th and bar.
+static const uint64_t kS = 48000, kBeat = kS / 2, k8th = kS / 4, k16th = kS / 8, kBar = 2 * kS;
 static const int kB = 32;
 static int failures = 0;
 
@@ -103,10 +105,10 @@ static void testCountIn() {
   Rig r("rock", 120, true);
   r.d->start();
   r.run(2.5);
-  const uint64_t bar = 88200;
+  const uint64_t bar = kBar;
   std::vector<uint64_t> clicks = r.times(irdsp::kClick), kicks = r.times(irdsp::kKick);
   bool ok = clicks.size() == 4;
-  for (size_t k = 0; k < clicks.size() && k < 4; k++) ok = ok && clicks[k] == k * 22050;
+  for (size_t k = 0; k < clicks.size() && k < 4; k++) ok = ok && clicks[k] == k * kBeat;
   check(ok, "4 clicks on the beats of the count-in bar", clicks.size());
   check(!kicks.empty() && kicks[0] == bar, "first kick exactly one bar later (sample)", kicks.empty() ? -1 : kicks[0]);
   check(r.hits.size() > 4 && r.hits[4].t == bar, "  ... and nothing in between", r.hits.size() > 4 ? r.hits[4].t : 0);
@@ -121,7 +123,7 @@ static void testCountInBars() {
     r.d->start();
     r.run(4.5);
     const auto clicks = r.times(irdsp::kClick), kicks = r.times(irdsp::kKick);
-    check(clicks.size() == 8 && clicks[7] == 7 * 22050 && !kicks.empty() && kicks[0] == 2 * 88200,
+    check(clicks.size() == 8 && clicks[7] == 7 * kBeat && !kicks.empty() && kicks[0] == 2 * kBar,
           "2 bars: 8 clicks, then the groove at bar 3 (first kick)", clicks.size());
   }
   // 100 BPM, +10 every 2 bars to 120, 2-bar count-ins, crash every 4.
@@ -131,7 +133,7 @@ static void testCountInBars() {
   r.d->setCrashEvery(4);
   r.d->start();
   r.run(30.0);
-  auto bar = [](double bpm) { return 4 * 60 * 44100.0 / bpm; };
+  auto bar = [](double bpm) { return 4 * 60 * kFs / bpm; };
   const double g1 = 2 * bar(100), g2 = 4 * bar(100) + 2 * bar(110), g3 = 4 * bar(100) + 4 * bar(110) + 2 * bar(120);
   // The groove's first kick after each count-in, and no count-in once at the target.
   bool resume = true;
@@ -175,22 +177,22 @@ static void testStyleChange() {
   std::printf("Style change and tempo change\n");
   Rig r("metronome", 120, false);
   r.d->start();
-  r.run(1.5 * 88200 / kFs);  // halfway through the second bar
+  r.run(1.5 * kBar / kFs);  // halfway through the second bar
   r.d->setStyle(irdsp::findDrumStyle("rock"));
   r.run(3.0);
   auto clicks = r.times(irdsp::kClick), kicks = r.times(irdsp::kKick);
-  check(!kicks.empty() && kicks[0] == 2 * 88200, "switches at the next bar (first kick, sample)", kicks.empty() ? -1 : kicks[0]);
-  check(!clicks.empty() && clicks.back() == 2 * 88200 - 22050, "  ... metronome played to the end of its bar", clicks.back());
+  check(!kicks.empty() && kicks[0] == 2 * kBar, "switches at the next bar (first kick, sample)", kicks.empty() ? -1 : kicks[0]);
+  check(!clicks.empty() && clicks.back() == 2 * kBar - kBeat, "  ... metronome played to the end of its bar", clicks.back());
 
   Rig q("metronome", 120, false);
   q.d->start();
-  q.run(0.6);  // 26432 samples: past beat 2 (22050), before beat 3 (44100)
+  q.run(0.6);  // 28800 samples: past beat 2 (24000), before beat 3 (48000)
   q.d->setTempo(60);
   q.run(4.0);
-  // The next 16th (27563) still comes at 120 BPM; from there steps are
-  // 11025 samples apart, so beat 3 (3 steps later) lands at 60638.
+  // The next 16th (30000) still comes at 120 BPM; from there steps are
+  // 12000 samples apart, so beat 3 (3 steps later) lands at 66000.
   auto t = q.times(irdsp::kClick);
-  check(t.size() > 4 && std::llabs((long long)t[2] - 60638) <= 1 && std::llabs((long long)(t[3] - t[2]) - 44100) <= 1,
+  check(t.size() > 4 && std::llabs((long long)t[2] - 66000) <= 1 && std::llabs((long long)(t[3] - t[2]) - (long long)kS) <= 1,
         "tempo 120 -> 60 from the next step (beat 3, sample)", t.size() > 3 ? (double)t[2] : -1);
 }
 
@@ -202,8 +204,8 @@ static void testShuffle() {
   auto h = r.times(irdsp::kHatClosed);
   bool ok = !h.empty();
   for (auto t : h) {
-    const uint64_t m = t % 22050;
-    ok = ok && (m == 0 || m == 14700);  // on the beat, or 2/3 of the way to the next
+    const uint64_t m = t % kBeat;
+    ok = ok && (m == 0 || m == 2 * kBeat / 3);  // on the beat, or 2/3 of the way to the next
   }
   check(ok, "hats on the triplet grid (beat and 2/3 beat)", h.size());
 }
@@ -211,29 +213,29 @@ static void testShuffle() {
 // The practice beats: kick on 1 and 3, snare on 2 and 4, and the hat on
 // exactly the given offsets within each beat (never on the beat itself).
 static void testPracticeBeats() {
-  std::printf("Practice beats (120 BPM, beat = 22050 samples)\n");
+  std::printf("Practice beats (120 BPM, beat = 24000 samples)\n");
   struct Case { const char* style; std::vector<uint64_t> hatOffsets; const char* what; };
   const Case cases[] = {
-      {"offbeat8", {11025}, "offbeat 8ths: hat only on the '&'"},
-      {"offbeat16", {5513, 11025, 16538}, "offbeat 16ths: hat on 'e & a', not the beat"},
-      {"triplets", {7350, 14700}, "triplets: kick/snare, hat, hat"},
+      {"offbeat8", {k8th}, "offbeat 8ths: hat only on the '&'"},
+      {"offbeat16", {k16th, k8th, 3 * k16th}, "offbeat 16ths: hat on 'e & a', not the beat"},
+      {"triplets", {kBeat / 3, 2 * kBeat / 3}, "triplets: kick/snare, hat, hat"},
   };
   for (const Case& c : cases) {
     Rig r(c.style, 120, false);
     r.d->start();
-    r.run(3.99);  // just under two bars (2 x 88200 samples)
+    r.run(3.99);  // just under two bars (2 x 96000 samples)
     bool ok = true;
     std::vector<uint64_t> seen;
     for (auto t : r.times(irdsp::kHatClosed)) {
-      const uint64_t m = t % 22050;
+      const uint64_t m = t % kBeat;
       bool expected = false;
       for (uint64_t o : c.hatOffsets) expected = expected || (m + 1 >= o && m <= o + 1);  // +-1 sample
       ok = ok && expected;
       seen.push_back(m);
     }
     const auto kicks = r.times(irdsp::kKick), snares = r.times(irdsp::kSnare);
-    for (auto t : kicks) ok = ok && (t % 44100 == 0);              // beats 1 and 3
-    for (auto t : snares) ok = ok && (t % 44100 == 22050);         // beats 2 and 4
+    for (auto t : kicks) ok = ok && (t % (2 * kBeat) == 0);        // beats 1 and 3
+    for (auto t : snares) ok = ok && (t % (2 * kBeat) == kBeat);   // beats 2 and 4
     ok = ok && seen.size() == 8 * c.hatOffsets.size() && kicks.size() == 4 && snares.size() == 4;
     check(ok, c.what, seen.size());
   }
@@ -249,7 +251,7 @@ static void testStop() {
   r.run(3.0);
   const size_t hitsAtStop = r.hits.size();
   double tail = 0;
-  for (size_t i = r.out.size() - 22050; i < r.out.size(); i++)
+  for (size_t i = r.out.size() - kS / 2; i < r.out.size(); i++)
     tail = std::max(tail, (double)std::max(std::fabs(r.out[i]), std::fabs(r.outR[i])));
   check(tail == 0.0 && !r.d->active() && !r.d->playing(), "3 s after stop: silent and idle", tail);
   check(r.hits.size() == hitsAtStop && r.hits.back().t < at, "no hits after stop", r.hits.size());
@@ -353,35 +355,36 @@ static void testSampledCuts() {
   {
     // Snare (2 s of DC) re-struck at beat 4: the old hit is gone 2 ms later.
     TestKit k(0);
-    k.set(irdsp::kSnare, TestKit::dc(8192, 88200));
+    k.set(irdsp::kSnare, TestKit::dc(8192, 2 * kS));
     Rig r("rock", 120, false, k.build());
     r.d->start();
-    r.runTo(66150 + 16);
+    r.runTo(3 * kBeat + 16);
     const int during = r.d->samplesPlaying();
-    r.runTo(66150 + 140);
+    r.runTo(3 * kBeat + 140);
     check(during == 2 && r.d->samplesPlaying() == 1, "re-struck snare: old hit fades out within 2 ms", during);
   }
   {
     // Pop: open hat on step 14, closed hat on the next bar's 1 chokes it.
     TestKit k(0);
-    k.set(irdsp::kHatOpen, TestKit::dc(8192, 88200));
+    k.set(irdsp::kHatOpen, TestKit::dc(8192, 2 * kS));
     Rig r("pop", 120, false, k.build());
     r.d->start();
     r.run(2.2);
     double step = 0;
-    for (size_t i = 88200; i < 88200 + 300; i++) step = std::max(step, (double)std::fabs(r.out[i] - r.out[i - 1]));
-    const float before = r.out[88199], after = r.out[88200 + 221];
+    const size_t fade = kS / 200;  // 5 ms
+    for (size_t i = kBar; i < kBar + 300; i++) step = std::max(step, (double)std::fabs(r.out[i] - r.out[i - 1]));
+    const float before = r.out[kBar - 1], after = r.out[kBar + fade + 1];
     check(before > 0.1f && after == 0.0f, "closed hat chokes the open hat within 5 ms", before);
-    check(step < 1.5 * before / 220.0, "  ... as a smooth fade (largest step per sample)", step);
+    check(step < 1.5 * before / fade, "  ... as a smooth fade (largest step per sample)", step);
   }
   {
     // Crash every 2 bars, 10 s long: at most 2 ring at once (+1 fading).
     TestKit k(0);
-    k.set(irdsp::kCrash, TestKit::dc(100, 441000));
+    k.set(irdsp::kCrash, TestKit::dc(100, 10 * kS));
     Rig r("rock", 240, false, k.build());
     r.d->setCrashEvery(2);
     r.d->start();
-    r.runTo(4 * 44100 + 16);
+    r.runTo(4 * kS + 16);
     const int fading = r.d->samplesPlaying();
     r.run(0.1);
     check(fading == 3 && r.d->samplesPlaying() == 2 && r.maxVoices == 3,
@@ -390,10 +393,10 @@ static void testSampledCuts() {
   {
     // Changing the kit mid-hit fades its samples out.
     TestKit k(0);
-    k.set(irdsp::kHatOpen, TestKit::dc(8192, 88200));
+    k.set(irdsp::kHatOpen, TestKit::dc(8192, 2 * kS));
     Rig r("pop", 120, false, k.build());
     r.d->start();
-    r.runTo(80000);
+    r.runTo(87075);  // 1.814 s
     r.d->setKit(&irdsp::drumKit(0));
     r.run(0.001);
     const int fading = r.d->samplesPlaying();
@@ -403,7 +406,7 @@ static void testSampledCuts() {
   {
     // Idle once the last sample has played out (a 3 s crash).
     TestKit k(0);
-    k.set(irdsp::kCrash, TestKit::dc(100, 3 * 44100));
+    k.set(irdsp::kCrash, TestKit::dc(100, 3 * kS));
     Rig r("rock", 120, false, k.build());
     r.d->setCrashEvery(4);
     r.d->start();
@@ -426,7 +429,7 @@ static std::vector<uint64_t> crashBars(const Rig& r, double barLen) {
 
 static void testCrashAccents() {
   std::printf("Crash accents\n");
-  const double bar = 88200;  // 4/4 at 120 BPM
+  const double bar = kBar;  // 4/4 at 120 BPM
   {
     Rig r("rock", 120, false);
     r.d->setCrashEvery(4);
@@ -449,10 +452,10 @@ static void testCrashAccents() {
     b.d->setCrashEvery(16);
     for (Rig* r : {&a, &b, &c}) r->d->start();
     a.run(6.5 * bar / kFs);
-    b.run(17.5 * 44100 / kFs);
+    b.run(17.5 * kS / kFs);  // a bar at 240 BPM is 1 s
     c.run(9.5 * bar / kFs);
     check(crashBars(a, bar) == std::vector<uint64_t>({0, 2, 4, 6}), "every 2: bars 1, 3, 5, 7", crashBars(a, bar).size());
-    check(crashBars(b, 44100) == std::vector<uint64_t>({0, 16}), "every 16: bars 1 and 17", crashBars(b, 44100).size());
+    check(crashBars(b, kS) == std::vector<uint64_t>({0, 16}), "every 16: bars 1 and 17", crashBars(b, kS).size());
     check(c.times(irdsp::kCrash).empty(), "off: no crash", c.times(irdsp::kCrash).size());
   }
   {
@@ -486,7 +489,7 @@ static void testCrashAccents() {
       r->run(3.0);
     }
     double e1 = 0, e0 = 0;
-    for (size_t i = 11025; i < 44100; i++) e1 += on.out[i] * on.out[i], e0 += off.out[i] * off.out[i];
+    for (size_t i = kS / 4; i < kS; i++) e1 += on.out[i] * on.out[i], e0 += off.out[i] * off.out[i];
     check(e1 > 4 * e0 && !on.d->active(), "synth crash: rings after the hits, then idle", e1 / (e0 + 1e-12));
   }
 }
@@ -618,7 +621,7 @@ static void testBusLoudness() {
   r.d->stop();
   r.run(4.0);
   double tail = 0;
-  for (size_t i = r.out.size() - 22050; i < r.out.size(); i++)
+  for (size_t i = r.out.size() - kS / 2; i < r.out.size(); i++)
     tail = std::max(tail, (double)std::max(std::fabs(r.out[i]), std::fabs(r.outR[i])));
   check(tail == 0.0 && !r.d->active(), "after stop: exact silence and idle", tail);
 }
@@ -630,7 +633,7 @@ static void testDynamics() {
   {
     Rig r("rock", 120, false);
     r.d->start();
-    r.run(0.99 * 88200 / kFs);
+    r.run(0.99 * kBar / kFs);
     check(r.vels(irdsp::kHatClosed) == std::vector<int>({9, 6, 5, 6, 8, 6, 5, 6}),
           "rock hats: 1 and 3 strong, '&' medium, soft under the snare", 0);
     check(r.vels(irdsp::kKick) == std::vector<int>({9, 8, 7}) && r.vels(irdsp::kSnare) == std::vector<int>({8, 9}),
@@ -709,14 +712,14 @@ struct TestSong {
 
 static void testSongs() {
   std::printf("Songs\n");
-  const double tick = 44100.0 * 60.0 / (120.0 * irdsp::kSongPpq);  // 918.75 samples
+  const double tick = kFs * 60.0 / (120.0 * irdsp::kSongPpq);  // 1000 samples
   {
     TestSong ts;
     Rig r("rock", 120, false);
     r.d->setSong(&ts.song);
     r.d->setCrashEvery(4);
     r.d->start();
-    r.run(2 * 15 * irdsp::kSongPpq * tick / 44100.0 + 0.1);  // twice around (2 x 15 beats)
+    r.run(2 * 15 * irdsp::kSongPpq * tick / kFs + 0.1);  // twice around (2 x 15 beats)
     const auto k = r.times(irdsp::kKick), sn = r.times(irdsp::kSnare);
     const double want[] = {0, 96, 192, 264, 360, 456, 552, 624};
     bool ok = k.size() >= 8;
@@ -733,7 +736,7 @@ static void testSongs() {
     r.d->setSong(&ts.song);
     r.d->setLoop(2, 3);
     r.d->start();
-    r.run(4 * 7 * irdsp::kSongPpq * tick / 44100.0 + 0.1);
+    r.run(4 * 7 * irdsp::kSongPpq * tick / kFs + 0.1);
     const auto k = r.times(irdsp::kKick);
     const double want[] = {0, 96, 168, 264, 336, 432};
     bool ok = k.size() >= 6;
@@ -824,7 +827,7 @@ struct BassSong : TestSong {
 // The styles' bass lines, in the bass key.
 static void testStyleBass() {
   std::printf("Style bass\n");
-  const double step = 44100.0 * 60.0 / (120.0 * 4);  // 16ths at 120 BPM
+  const double step = kFs * 60.0 / (120.0 * 4);  // 16ths at 120 BPM
   auto bassHits = [](const Rig& r) {
     std::vector<Hit> b;
     for (auto& h : r.hits)
@@ -894,7 +897,7 @@ static void testStyleBass() {
 
 static void testBass() {
   std::printf("Bass\n");
-  const double tick = 44100.0 * 60.0 / (120.0 * irdsp::kSongPpq);
+  const double tick = kFs * 60.0 / (120.0 * irdsp::kSongPpq);
   auto bassHits = [](const Rig& r) {
     std::vector<Hit> b;
     for (auto& h : r.hits)
@@ -907,7 +910,7 @@ static void testBass() {
     r.withBass();
     r.d->setSong(&bs.song);
     r.d->start();
-    r.run(15 * irdsp::kSongPpq * tick / 44100.0 + 0.2);  // once around and the first event again
+    r.run(15 * irdsp::kSongPpq * tick / kFs + 0.2);  // once around and the first event again
     const auto b = bassHits(r);
     const double t[] = {0, 24, 36, 96, 264, 360};
     const int note[] = {28, 0, 33 + 128, 40, 31, 28};
@@ -925,7 +928,7 @@ static void testBass() {
     r.d->setSong(&bs.song);
     r.d->setLoop(2, 3);
     r.d->start();
-    r.run(2 * 7 * irdsp::kSongPpq * tick / 44100.0 + 0.1);
+    r.run(2 * 7 * irdsp::kSongPpq * tick / kFs + 0.1);
     const auto b = bassHits(r);
     check(b.size() >= 2 && b[0].vel == 40 && b[0].t == 0 && b[1].vel == 40 && std::fabs((double)b[1].t - 168 * tick) <= 1.0,
           "loop bars 2-3: the bar-2 note each time around", b.size());
@@ -957,7 +960,7 @@ static void testBass() {
       r.run(0.4);
       out[on] = r.out;
     }
-    const size_t a = (size_t)(100 * tick) + 8820, e = std::min(out[1].size(), a + 4410);
+    const size_t a = (size_t)(100 * tick) + kS / 5, e = std::min(out[1].size(), (size_t)(a + kS / 10));
     double pk = 0, ring = 0;
     for (size_t i = a; i < e; i++) pk = std::max(pk, (double)std::fabs(out[1][i] - out[0][i]));
     for (size_t i = (size_t)(96 * tick) + 2000; i < (size_t)(100 * tick); i++)

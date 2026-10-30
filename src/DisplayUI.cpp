@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <Audio.h>
 
+#include "AmpLibrary.h"
 #include "AudioGraph.h"
 #include "Canvas.h"
 #include "Controls.h"
@@ -14,6 +15,7 @@
 #include "Oled.h"
 #include "Panel.h"
 #include "Params.h"
+#include "Tuner.h"
 #include "config.h"
 
 // 1: print the control events on Serial (to check the encoder's direction
@@ -42,6 +44,7 @@ class FirmwareHost final : public ui::MenuHost {
       case ui::kIsReverbHall: return getParam(ui::kReverbMode) == 0;
       case ui::kIsReverbGated: return getParam(ui::kReverbMode) == 1;
       case ui::kIsDrumSong: return getParam(ui::kDrumSong) != 0;
+      case ui::kIsAmpGateOn: return getParam(ui::kAmpGate) > ui::paramDef(ui::kAmpGate).min;
       default: return id < ui::kValueCount ? getParam(id) : 0;
     }
   }
@@ -55,9 +58,11 @@ class FirmwareHost final : public ui::MenuHost {
 void FirmwareHost::set(uint8_t id, int v) {
   switch (id) {
     case ui::kIrLoad: loadIRIndex(v); break;
+    case ui::kAmpLoad: loadAmpIndex(v); break;
     case ui::kIrRescan:
       scanCard();
       loadStartupIR();
+      loadStartupAmp();
       break;
     case ui::kMeterReset:
       g_model.in.reset();
@@ -69,13 +74,18 @@ void FirmwareHost::set(uint8_t id, int v) {
   }
 }
 
-// Names the table can't know (styles, kits, songs), and the IR screen's row.
+// Names the table can't know (styles, kits, songs), and the IR and amp rows.
 bool FirmwareHost::valueText(uint8_t id, char* buf, int n) {
   switch (id) {
     case ui::kScreenIR:
       if (!irSdOk()) snprintf(buf, n, "no SD");
       else if (irCurrent() < 0) snprintf(buf, n, "-/%d", irCount());
       else snprintf(buf, n, "%d/%d", irCurrent() + 1, irCount());
+      return true;
+    case ui::kScreenAmp:
+      if (!irSdOk()) snprintf(buf, n, "no SD");
+      else if (ampCurrent() < 0) snprintf(buf, n, "-/%d", ampCount());
+      else snprintf(buf, n, "%d/%d", ampCurrent() + 1, ampCount());
       return true;
     case ui::kDrumStyle:
     case ui::kDrumKit:
@@ -103,7 +113,11 @@ static void fillModel(uint32_t now) {
   m.irCount = irCount();
   m.irCurrent = irCurrent();
   m.irPath = irPath;
+  m.ampCount = ampCount();
+  m.ampCurrent = ampCurrent();
+  m.ampPath = ampPath;
 
+  m.ampOn = getParam(ui::kAmpOn);
   m.bypass = getParam(ui::kBypass);
   m.delayOn = getParam(ui::kDelayOn);
   m.reverbOn = getParam(ui::kReverbOn);
@@ -124,6 +138,13 @@ static void fillModel(uint32_t now) {
   g_clips = clips;
   m.clips = clips - g_clipBase;
   m.lineIn = getParam(ui::kLineIn);
+
+  const TunerReading& t = tunerReading();
+  m.tunerValid = t.valid;
+  m.tunerNote = t.note.index;
+  m.tunerOctave = t.note.octave;
+  m.tunerCents = t.note.cents;
+  m.tunerHz = t.hz;
 
   // The Status screen, once a second; it resets the maxima like `s` does.
   if (g_panel.screen() != ui::Panel::kStatus) {
@@ -179,6 +200,13 @@ void displayBootDone() {
   showSplash();
 }
 
+void displayBusy(const char* what, const char* name) {
+  if (!oledPresent()) return;
+  ui::drawBusy(g_canvas, what, name);
+  while (sendOnePage()) {}
+  g_frameAt = millis();  // the box stays up for a frame after the job
+}
+
 #if CONTROLS_DEBUG
 static void printEvents(const ControlEvents& e) {
   static const char* const kNames[] = {"", "press", "release", "hold"};
@@ -198,14 +226,19 @@ void serviceDisplay() {
 #endif
   if ((int32_t)(g_splashUntil - now) > 0) return;  // input is ignored meanwhile
   // Short pushes act on release, so a hold can be told apart; CONFIRM and
-  // BACK have no hold and act on press.
+  // BACK act on press (BACK's hold opens the tuner, after the press).
   bool redraw = false;
   if (e.detents) redraw |= g_panel.turn(e.detents, now);
   if (e.push == ui::Key::kRelease) redraw |= g_panel.push(now);
   if (e.push == ui::Key::kHold) redraw |= g_panel.hold(now);
   if (e.confirm == ui::Key::kPress) redraw |= g_panel.confirm(now);
   if (e.back == ui::Key::kPress) redraw |= g_panel.back(now);
+  if (e.back == ui::Key::kHold) redraw |= g_panel.backHold(now);
   redraw |= g_panel.tick(now);
+  // The tuner listens (and mutes) while its screen shows.
+  const bool tuner = g_panel.screen() == ui::Panel::kTuner;
+  if (tuner != convolver.tunerOn()) tunerOpen(tuner);
+  redraw |= serviceTuner(now);
   if (redraw || now - g_frameAt >= kFrameMs) {
     g_frameAt = now;
     fillModel(now);
