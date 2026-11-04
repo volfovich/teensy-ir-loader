@@ -102,12 +102,17 @@ See [DISPLAY.md](DISPLAY.md#home) and the renders `screenshots/02d_home_drums.pn
 - `s` shows the tempo it has reached.
 - Changing `bpm` restarts the climb from the new tempo.
 - **Count-in at each step:** with the count-in on, every tempo step plays the count-in again (2 bars by default) at the **new** tempo before the groove goes on, so you hear the new speed before you play it. The count-in bars don't count toward `every`.
-- Once the trainer reaches its target, it plays on with no more count-ins.
+- **At the target:** the tempo holds there, and the count-in still comes every `every` bars, between the patterns: `every` bars of groove, the count-in, `every` bars of groove…
+- **Target at or below `bpm`:** the tempo doesn't change; the trainer just puts the count-in between the patterns every `every` bars, the same as at the target.
+- With the count-in off, the trainer only changes the tempo, and at the target the groove just loops.
 
 ```
 bpm 100
 drum train 5 4 140     100 BPM for 4 bars, then 2 bars of clicks at 105,
-drum                   4 bars at 105, 2 bars of clicks at 110, ... up to 140
+drum                   4 bars at 105, 2 bars of clicks at 110, ... up to 140,
+                       then 4 bars at 140, 2 bars of clicks, 4 bars at 140, ...
+
+drum train 5 8 100     at 100 BPM: 8 bars, 2 bars of clicks, 8 bars, ...
 ```
 
 ## Crash accents
@@ -533,8 +538,8 @@ The defaults a blank EEPROM starts with are the `def` column of the parameter ta
 - **Count-in:**
   - With 1 bar: four clicks, then the first kick exactly one bar later.
   - With 2 bars: eight clicks, then the groove at bar 3.
-  - With the trainer: 2 count-in bars at each new tempo, the groove resuming right after, none once at the target, and crash accents restarting after each count-in.
-- **Speed trainer:** bar lengths step 100, 100, 105, 105, 110 BPM and then hold.
+  - With the trainer: 2 count-in bars at each new tempo, the groove resuming right after, still every `every` bars once at the target, and crash accents restarting after each count-in.
+- **Speed trainer:** bar lengths step 100, 100, 105, 105, 110 BPM and then hold; with the target at the start tempo, the tempo holds and the count-in comes every `every` bars.
 - **Changes:** a style change lands on the next bar and a tempo change on the next step.
 - **Shuffle:** the hits land on the triplet grid.
 - **Practice beats:** in the offbeat 8ths, offbeat 16ths and triplets styles the hat lands only on its offbeat positions, never on the beat, with the kick on 1 and 3 and the snare on 2 and 4.

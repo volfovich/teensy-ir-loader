@@ -399,11 +399,15 @@ IRDSP_COLD void DrumMachine::endBar() {
   } else {
     bar_ = bar_ + 1;
     phrase_++;
-    if (trOn_ && bpmNow_ < (float)trTarget_ && ++trBars_ >= trEvery_) {
+    if (trOn_ && ++trBars_ >= trEvery_) {
       trBars_ = 0;
-      const float b = bpmNow_ + (float)trStep_;
-      bpmNow_ = b > (float)trTarget_ ? (float)trTarget_ : b;
-      // A count-in at the new tempo before the groove goes on.
+      if (bpmNow_ < (float)trTarget_) {
+        const float b = bpmNow_ + (float)trStep_;
+        bpmNow_ = b > (float)trTarget_ ? (float)trTarget_ : b;
+      }
+      // A count-in (at the new tempo, if it rose) before the groove goes on;
+      // at the target, or with a target at or below the tempo, it still
+      // comes every `every` bars.
       countLeft_ = countInBars_;
       countIn_ = countLeft_ > 0;
     }

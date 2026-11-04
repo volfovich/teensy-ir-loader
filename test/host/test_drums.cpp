@@ -114,6 +114,35 @@ static void testCountIn() {
   check(r.hits.size() > 4 && r.hits[4].t == bar, "  ... and nothing in between", r.hits.size() > 4 ? r.hits[4].t : 0);
 }
 
+// The trainer's bars, worked out by hand: the starts of the count-in bars,
+// the groove's first sample after each count-in, and the groove bars done
+// by `len` samples.
+struct Plan { std::vector<double> countIn, resume; int grooveBars = 0; };
+static Plan trainerPlan(double bpm, double step, int every, double target, int ciBars, double len) {
+  Plan p;
+  auto bar = [](double b) { return 4 * 60 * kFs / b; };
+  double t = 0;
+  for (int i = 0; i < ciBars; i++, t += bar(bpm)) p.countIn.push_back(t);
+  while (t < len) {
+    p.resume.push_back(t);
+    for (int i = 0; i < every && t < len; i++) {
+      t += bar(bpm);
+      if (t <= len) p.grooveBars++;
+    }
+    if (bpm < target) bpm = std::min(bpm + step, target);
+    for (int i = 0; i < ciBars && t < len; i++, t += bar(bpm)) p.countIn.push_back(t);
+  }
+  return p;
+}
+
+// Each of `got` within 2 samples of `want`, in order, and as many.
+static bool nearAll(const std::vector<uint64_t>& got, const std::vector<double>& want) {
+  if (got.size() != want.size()) return false;
+  for (size_t i = 0; i < got.size(); i++)
+    if (std::fabs((double)got[i] - want[i]) > 2.0) return false;
+  return true;
+}
+
 // Two count-in bars; with the trainer, two more at each new tempo.
 static void testCountInBars() {
   std::printf("Count-in bars and trainer count-ins\n");
@@ -126,34 +155,46 @@ static void testCountInBars() {
     check(clicks.size() == 8 && clicks[7] == 7 * kBeat && !kicks.empty() && kicks[0] == 2 * kBar,
           "2 bars: 8 clicks, then the groove at bar 3 (first kick)", clicks.size());
   }
-  // 100 BPM, +10 every 2 bars to 120, 2-bar count-ins, crash every 4.
+  // 100 BPM, +10 every 2 bars to 120, 2-bar count-ins, crash every 4: the
+  // count-ins go on every 2 bars at 120 too.
   Rig r("rock", 100, false);
   r.d->setCountIn(2);
   r.d->setTrainer(true, 10, 2, 120);
   r.d->setCrashEvery(4);
   r.d->start();
-  r.run(30.0);
-  auto bar = [](double bpm) { return 4 * 60 * kFs / bpm; };
-  const double g1 = 2 * bar(100), g2 = 4 * bar(100) + 2 * bar(110), g3 = 4 * bar(100) + 4 * bar(110) + 2 * bar(120);
-  // The groove's first kick after each count-in, and no count-in once at the target.
+  r.run(41.0);  // into the groove after the 2nd count-in that holds at 120
+  const Plan p = trainerPlan(100, 10, 2, 120, 2, (double)r.out.size());
+  check(nearAll(r.times(irdsp::kClick, 9), p.countIn), "trainer: 2 count-in bars at 110, 120, and on at 120",
+        r.times(irdsp::kClick, 9).size());
+  check(p.countIn.size() == 10, "  ... (2 count-ins holding at 120, in the run)", p.countIn.size());
   bool resume = true;
-  for (double g : {g1, g2, g3}) {
+  for (double g : p.resume) {
     bool found = false;
     for (auto t : r.times(irdsp::kKick)) found = found || std::fabs((double)t - g) <= 2.0;
     resume = resume && found;
   }
-  const auto accents = r.times(irdsp::kClick, 9);  // count-in bar starts
-  bool spacing = accents.size() == 6;
-  const double want[] = {0, bar(100), 4 * bar(100), 4 * bar(100) + bar(110), g2 + 2 * bar(110), g2 + 2 * bar(110) + bar(120)};
-  for (size_t i = 0; spacing && i < 6; i++) spacing = std::fabs((double)accents[i] - want[i]) <= 2.0;
-  check(spacing, "trainer: 2 count-in bars at each new tempo (110, 120), none after", accents.size());
-  check(resume, "  ... the groove resumes right after each count-in", resume);
-  const auto crashes = r.times(irdsp::kCrash);
-  bool crashOk = crashes.size() >= 3;
-  for (size_t i = 0; crashOk && i < 3; i++) crashOk = std::fabs((double)crashes[i] - (i == 0 ? g1 : i == 1 ? g2 : g3)) <= 2.0;
-  check(crashOk, "  ... crash accents restart after each count-in", crashes.size());
-  const int grooveBars = 4 + (int)(((double)r.out.size() - g3) / bar(120));
-  check(r.d->bar() == grooveBars, "  ... bar() counts groove bars only", r.d->bar());
+  check(resume, "  ... the groove resumes right after each count-in", p.resume.size());
+  // Every 2 bars never reaches a 4-bar phrase: a crash only at each resume.
+  check(nearAll(r.times(irdsp::kCrash), p.resume), "  ... crash accents restart after each count-in",
+        r.times(irdsp::kCrash).size());
+  check(r.d->bar() == p.grooveBars, "  ... bar() counts groove bars only", r.d->bar());
+  check(std::fabs(r.d->tempoNow() - 120.0f) < 1e-3, "  ... holds at the target", r.d->tempoNow());
+}
+
+// Target = start tempo: the tempo holds and the count-in comes every 2 bars.
+static void testTrainerHold() {
+  std::printf("Trainer at its own tempo (100 BPM, every 2 bars, to 100)\n");
+  Rig r("rock", 100, false);
+  r.d->setCountIn(1);
+  r.d->setTrainer(true, 5, 2, 100);
+  r.d->start();
+  r.run(25.0);
+  const Plan p = trainerPlan(100, 5, 2, 100, 1, (double)r.out.size());
+  check(nearAll(r.times(irdsp::kClick, 9), p.countIn), "a 1-bar count-in every 2 groove bars",
+        r.times(irdsp::kClick, 9).size());
+  check(p.countIn.size() >= 4, "  ... (4 or more in the run)", p.countIn.size());
+  check(r.d->bar() == p.grooveBars, "  ... bar() counts groove bars only", r.d->bar());
+  check(std::fabs(r.d->tempoNow() - 100.0f) < 1e-3, "  ... the tempo stays at 100", r.d->tempoNow());
 }
 
 static void testTrainer() {
@@ -1040,6 +1081,7 @@ int main() {
   testCountIn();
   testTrainer();
   testCountInBars();
+  testTrainerHold();
   testStyleChange();
   testShuffle();
   testPracticeBeats();

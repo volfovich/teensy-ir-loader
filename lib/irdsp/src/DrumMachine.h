@@ -25,7 +25,8 @@
 // silent the machine is idle and process() costs almost nothing.
 //
 // Count-in: clicks on the beats for 0-4 bars before the groove, and again
-// after every speed-trainer tempo step, at the new tempo.
+// every speed-trainer `every` bars: at the new tempo after each step, and at
+// the same tempo once at the target (or with a target at or below it).
 //
 // Crash accents: a crash on the first beat of every N bars (counted from the
 // first bar after a count-in), in place of that step's hat or ride hit.
@@ -120,7 +121,9 @@ class DrumMachine {
   // 1 = fully compressed (loudest).
   void setBusComp(float k) { compMixTarget_ = k < 0.0f ? 0.0f : (k > 1.0f ? 1.0f : k); }
   // Speed trainer: every `everyBars` bars the tempo rises by `stepBpm`, up
-  // to `targetBpm`, starting from the set tempo.
+  // to `targetBpm`, starting from the set tempo, and the count-in plays.
+  // At the target (or with a target at or below the tempo) the tempo holds
+  // and the count-in still comes every `everyBars` bars.
   void setTrainer(bool on, int stepBpm, int everyBars, int targetBpm);
   // Song mode with this song (kept, not copied), or nullptr for the style.
   // Takes effect at the next start(); the song must stay valid while the
