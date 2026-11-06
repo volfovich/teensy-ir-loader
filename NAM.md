@@ -327,10 +327,11 @@ The value is the gain where the knob acts most: Treble at +3 dB lifts everything
 - The model adds no noise of its own: silence in gives silence out.
 - A real amp's first tube stage is about 25 dB quieter than the shield's converter, so the real amp hisses less with the same settings.
 
-**The gate** works like the NAM plugin's (in `AmpStage.h`):
+**The gate** works like the NAM plugin's (in `NoiseGate.h`):
 
 - It **listens to the input**, before `amp in`, so its threshold reads like the level meter.
-- It **mutes the amp's output**, so the tails are cut cleanly.
+- It **sits after the amp and its tone controls, before the cab IR**, so the delay and reverb tails ring out after it closes.
+- It **mutes the amp's output**, or the **dry guitar while the amp is off**: it works with the amp on or off (2026-11-06; before, it was part of the amp block and did nothing with the amp off).
 - **Opening:** within about 1 ms once the input rises above the threshold.
 - **Closing:** when the input stays 6 dB below the threshold for an unbroken 20 ms, then fading out exponentially. **Release** (`amp release`, 10–500 ms, default 50) is the time that fade takes to reach −60 dB. At the default, after a palm mute the output is down 60 dB in about **140 ms** (simulated with the Marshall Law capture; the first version took 600 ms). Short releases cut the hiss at once; long ones let a chord ring out naturally under the gate. The 20 ms hold stays fixed: it is what keeps the gate from chattering.
 - **Tests** (`test_nam`): releases of 10 and 200 ms reach −60 dB at the set time, within a block.
@@ -423,7 +424,7 @@ On the PC (`make -C test/host test`):
   - The same output for every block size from 16 to 128, and for odd chunk lengths.
   - The history copy-back: no step in the output when it happens.
   - 60 s of loud noise stays finite; `reset()` gives exact silence from silence plus the biases' steady output.
-- **The noise gate** (in `test_nam`): noise at −75 dBFS alone gives silence; a note at −20 dBFS opens it within two blocks and keeps it open; a note dying into the noise fades out no faster than the release, then silence; once closed, noise spikes and ticks to −62 dBFS don't reopen it; gate off lets everything through.
+- **The noise gate** (in `test_nam`, on the dry signal as with the amp off): noise at −75 dBFS alone gives silence; a note at −20 dBFS opens it within two blocks, keeps it open and passes untouched; a note dying into the noise fades out no faster than the release, then silence; once closed, noise spikes and ticks to −62 dBFS don't reopen it; gate off lets everything through.
 - **The golden test** (in `test_nam`): NeuralAmpModelerCore's A2 example model, run once through Core by `nam/make_reference.sh` on a test signal (plucked notes, a sweep, noise bursts). Its Lite output is committed; ours must match within 1e-5 and 100 dB (it does: 4.8e-7, 130 dB).
 - **`test_namfile`, the loader:**
   - The keys in any order; the Lite submodel picked from either position.

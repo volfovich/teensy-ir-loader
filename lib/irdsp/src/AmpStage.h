@@ -12,16 +12,9 @@
 //             off the weights are just swapped in
 //   tone      Bass, Middle, Treble and Presence after the network
 //             (ToneStack.h), flat at 0 dB
-//   gate      a noise gate, as in the NAM plugin: it listens to the input
-//             (before the input gain, so its threshold reads like the level
-//             meter) and mutes the amp's output, so the input's noise
-//             floor, amplified 50 dB or more by a high-gain model, isn't
-//             heard between notes. Opens within 1 ms above the threshold;
-//             closes when the input stays 6 dB below it for an unbroken
-//             20 ms, then fades out exponentially, reaching -60 dB after the
-//             release time (setGateRelease, 50 ms by default: a palm mute is
-//             gone in about 140 ms). Its level is the blocks' power, so noise
-//             spikes don't make it flicker.
+//
+// The noise gate follows the stage, outside it (NoiseGate.h), so it also
+// works with the amp off.
 //
 // Threading model: setOn(), setGains() and loadWeights() are called from the
 // background; process() runs once per block in the audio interrupt. A
@@ -47,13 +40,7 @@ class AmpStage {
 
   explicit AmpStage(float sampleRate)
       : tone_(sampleRate),
-        fs_(sampleRate),
-        step_((float)B / (sampleRate * 0.02f)),
-        gateOpenStep_((float)B / (sampleRate * 0.001f)),
-        envFall_(expf(-(float)B / (sampleRate * 0.005f))),
-        gateHold_((int)(sampleRate * 0.02f / (float)B)) {
-    setGateRelease(50.0f);
-  }
+        step_((float)B / (sampleRate * 0.02f)) {}
 
   // Hands over the network's history memory (kHistoryFloats).
   void begin(float* history) { net_.begin(history); }
@@ -68,11 +55,6 @@ class AmpStage {
   void setTone(float bass, float middle, float treble, float presence) {
     tone_.set(bass, middle, treble, presence);
   }
-  // The noise gate's threshold, linear on the input's scale (full scale 1);
-  // 0 = no gate.
-  void setGate(float threshold) { gateThr_ = threshold; }
-  // The gate's fade from open to -60 dB, in ms.
-  void setGateRelease(float ms) { gateFall_ = expf(-6.9078f * (float)B / (fs_ * ms * 0.001f)); }
   // New weights (nama2::kWeightCount floats in .nam order), swapped in once
   // the amp is silent.
   void loadWeights(const float* w) { pending_ = w; }
@@ -80,8 +62,6 @@ class AmpStage {
   bool hasModel() const { return hasModel_; }
   // True while the network runs (on, warming up, or fading out).
   bool active() const { return running_; }
-  // The gate's gain on the amp's output (1 = open), for tests.
-  float gateGain() const { return gateCur_; }
 
   // Runs the network outside the audio (the device self-test): only while the
   // amp is off and idle with its model taken, and the audio leaves it alone
@@ -114,10 +94,6 @@ class AmpStage {
       net_.reset();
       running_ = true;
       warm_ = kWarmBlocks;
-      env_ = 0.0f;
-      gateOpen_ = false;
-      gateHeld_ = 0;
-      gateCur_ = 0.0f;
       tone_.reset();
     }
     // 3. Where the dry and amp levels go.
@@ -144,10 +120,9 @@ class AmpStage {
     }
     const float o0 = outCur_, o1 = outTarget_;
     outCur_ = o1;
-    const float q0 = gateCur_, q1 = gate(in);
     for (int i = 0; i < B; i++) {
       const float a = (float)(i + 1) / (float)B;
-      const float d = d0 + (d1 - d0) * a, e = (e0 + (e1 - e0) * a) * (o0 + (o1 - o0) * a) * (q0 + (q1 - q0) * a);
+      const float d = d0 + (d1 - d0) * a, e = (e0 + (e1 - e0) * a) * (o0 + (o1 - o0) * a);
       out[i] = d * in[i] + e * y[i];
     }
     // 5. Off (or a new model coming) and faded out: the network stops.
@@ -170,34 +145,12 @@ class AmpStage {
     return target > cur ? fminf(cur + step_, target) : fmaxf(cur - step_, target);
   }
 
-  // The gate's gain at the end of this block, from the input's level.
-  float gate(const float* in) {
-    const float thr = gateThr_;
-    if (thr <= 0.0f) return gateCur_ = 1.0f;
-    // The level: each block's mean power, taken at once when it rises and
-    // falling with 5 ms. The hold (20 ms, longer than a low string's cycle)
-    // keeps the dips between cycles from closing it, and the power from
-    // reacting to the noise's spikes.
-    float p = 0.0f;
-    for (int i = 0; i < B; i++) p += in[i] * in[i];
-    p *= 1.0f / (float)B;
-    env_ = p > env_ ? p : env_ * envFall_;
-    const float open = thr * thr, close = 0.25f * open;  // 6 dB below
-    if (env_ >= open) gateOpen_ = true;
-    if (env_ >= close) gateHeld_ = 0;  // the hold counts only an unbroken stretch below
-    else if (gateOpen_ && ++gateHeld_ > gateHold_) gateOpen_ = false;
-    if (gateOpen_) gateCur_ = fminf(gateCur_ + gateOpenStep_, 1.0f);
-    else gateCur_ = gateCur_ < 1e-4f ? 0.0f : gateCur_ * gateFall_;  // to 0 below -80 dB
-    return gateCur_;
-  }
-
   Net net_;
   ToneStack tone_;
-  const float fs_, step_, gateOpenStep_, envFall_;
-  const int gateHold_;  // blocks
+  const float step_;
   // Settings (written from the background, read once per block).
   volatile bool on_ = false;
-  volatile float inTarget_ = 1.0f, outTarget_ = 1.0f, gateThr_ = 0.0f, gateFall_ = 0.0f;
+  volatile float inTarget_ = 1.0f, outTarget_ = 1.0f;
   volatile bool offline_ = false;
   const float* volatile pending_ = nullptr;
   // State (audio interrupt only, except reads of the flags).
@@ -205,9 +158,6 @@ class AmpStage {
   bool swapping_ = false;
   int warm_ = 0;
   float dryCur_ = 1.0f, wetCur_ = 0.0f, inCur_ = 1.0f, outCur_ = 1.0f;
-  float env_ = 0.0f, gateCur_ = 1.0f;  // the gate's detector and gain
-  bool gateOpen_ = false;
-  int gateHeld_ = 0;  // blocks below the closing level
   float cyclesAvg_ = 0.0f;
 };
 

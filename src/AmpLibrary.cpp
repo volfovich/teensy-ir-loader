@@ -89,8 +89,8 @@ void ampApplyGains() {
   const float out = ampLevelDb() + 0.5f * (float)getParam(kAmpOut);
   convolver.amp().setGains(powf(10.0f, in / 20.0f), powf(10.0f, out / 20.0f));
   const int gate = getParam(kAmpGate);
-  convolver.amp().setGate(gate <= paramDef(kAmpGate).min ? 0.0f : powf(10.0f, (float)gate / 20.0f));
-  convolver.amp().setGateRelease((float)getParam(kAmpGateRel));
+  convolver.gate().setThreshold(gate <= paramDef(kAmpGate).min ? 0.0f : powf(10.0f, (float)gate / 20.0f));
+  convolver.gate().setRelease((float)getParam(kAmpGateRel));
   convolver.amp().setTone(0.5f * getParam(kAmpBass), 0.5f * getParam(kAmpMid), 0.5f * getParam(kAmpTreble),
                           0.5f * getParam(kAmpPresence));
 }

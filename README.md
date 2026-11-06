@@ -105,7 +105,7 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `amp in -24..24` / `amp out -24..24` | Drive into the model / level after it, in dB |
 | `amp cal` | Toggle the model's input calibration (on by default; only calibrated captures have one) |
 | `amp bass` / `amp treble` `-12..12`, `amp mid` / `amp presence` `-10..10` | Tone controls after the model, in dB (0 = flat): low shelf 120 Hz, peak 650 Hz, high shelf 2.5 kHz, peak 5 kHz |
-| `amp gate -90..-30` / `amp gate off` | Noise gate threshold on the input, in dBFS (default −64): set it a few dB above the meter's idle reading |
+| `amp gate -90..-30` / `amp gate off` | Noise gate threshold on the input, in dBFS (default −64): set it a few dB above the meter's idle reading. It gates the amp's output, or the dry guitar with the amp off |
 | `amp release 10..500` | How fast the gate closes: the fade from open to −60 dB, in ms (default 50). Short cuts the hiss at once; long lets notes die naturally. |
 | `dbl [on\|off]` | Toggle the doubler (after the IR, before the delay) |
 | `dbl time 1..35` / `dbl width 0..100` | How late the copy comes (ms, default 10), and the stereo spread (%, 100 = hard left and right) |
@@ -221,7 +221,8 @@ lib/irdsp/src/              portable DSP core (no Arduino dependencies)
   DrumKit.h                 the drum kit format (DrumKitData.cpp is generated from kits/)
   Reverb80.{h,cpp}          the 80s reverb (Lexicon-style hall, AMS-style gated)
   FxStage.h, FxSlot.h       per effect: on/off with trails, dry/wet mix, idle detection and clearing
-  AmpStage.h                the amp block: on/off, model changes and gains around the network, the noise gate
+  AmpStage.h                the amp block: on/off, model changes and gains around the network
+  NoiseGate.h               the noise gate after the amp (works with the amp off too)
   ToneStack.h               the tone controls after the network
   Doubler.h                 the doubler (a delayed copy, panned opposite)
   PitchDetect.h             the tuner's pitch detection (YIN)

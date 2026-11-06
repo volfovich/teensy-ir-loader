@@ -4,7 +4,9 @@
 // One mono input (guitar), two outputs (0 = left, 1 = right). The whole chain
 // runs in 32-bit float inside update():
 //
-//   in -> amp (NAM A2-Lite, optional, see AmpStage.h) = amped
+//   in -> amp (NAM A2-Lite, optional, see AmpStage.h)
+//      -> noise gate (listens to the input; gates the amp's output, or the
+//         dry input with the amp off, see NoiseGate.h)           = amped
 //   amped -> IR convolution -> IR bypass blend x output gain = core (mono)
 //   core   -> doubler (mono in, stereo out, see Doubler.h)    -> cL, cR
 //   cL, cR -> studio 80s delay (fed from cL, dry/wet)         -> dL, dR
@@ -22,7 +24,7 @@
 //
 // The effects' and the drums' own setters are safe to call from the
 // background (see their headers): reach them through delay(), reverb() and
-// drums(), and the amp's through amp().
+// drums(), the amp's through amp() and the gate's through gate().
 #pragma once
 
 #include <Arduino.h>
@@ -33,6 +35,7 @@
 #include "Doubler.h"
 #include "DrumMachine.h"
 #include "FxStage.h"
+#include "NoiseGate.h"
 #include "PartitionedConvolver.h"
 #include "Reverb80.h"
 #include "StudioDelay.h"
@@ -54,6 +57,7 @@ class AudioConvolverIR : public AudioStream {
   AudioConvolverIR()
       : AudioStream(1, inputQueue_),
         amp_(AUDIO_SAMPLE_RATE_EXACT),
+        gate_(AUDIO_SAMPLE_RATE_EXACT),
         delay_(AUDIO_SAMPLE_RATE_EXACT),
         reverb_(AUDIO_SAMPLE_RATE_EXACT),
         doubler_(AUDIO_SAMPLE_RATE_EXACT),
@@ -71,6 +75,7 @@ class AudioConvolverIR : public AudioStream {
 
   Engine& engine() { return engine_; }
   Amp& amp() { return amp_; }
+  irdsp::NoiseGate<AUDIO_BLOCK_SAMPLES>& gate() { return gate_; }
   irdsp::StudioDelay& delay() { return delay_.fx(); }
   irdsp::Reverb80& reverb() { return reverb_.fx(); }
   irdsp::Doubler& doubler() { return doubler_; }
@@ -166,7 +171,8 @@ class AudioConvolverIR : public AudioStream {
     const uint32_t ta = ARM_DWT_CYCCNT;
     const bool amped = amp_.process(x, a);
     amp_.addCycles(ARM_DWT_CYCCNT - ta);
-    const float* src = amped ? a : x;
+    float* src = amped ? a : x;
+    gate_.process(x, src);  // listens to the input (src may be x)
 
     engine_.process(src, y);
 
@@ -275,6 +281,7 @@ class AudioConvolverIR : public AudioStream {
 
   audio_block_t* inputQueue_[1];
   Amp amp_;
+  irdsp::NoiseGate<AUDIO_BLOCK_SAMPLES> gate_;
   Engine engine_;
   DelayStage delay_;
   ReverbStage reverb_;

@@ -17,6 +17,7 @@
 #include "AmpStage.h"
 #include "NamA2.h"
 #include "NamFile.h"
+#include "NoiseGate.h"
 
 using namespace irdsp;
 
@@ -294,19 +295,16 @@ static void testAmpStage(const std::vector<float>& w1) {
   delete ref;
 }
 
-// The noise gate: the input's noise floor alone gives silence; a note opens
-// it within a block or two; a note dying into the noise is faded out, never
-// cut; gate off leaves the amp as it was.
-static void testAmpGate(const std::vector<float>& w) {
-  printf("  amp stage: the noise gate\n");
+// The noise gate (after the amp in the firmware; here on the dry signal, as
+// with the amp off): the input's noise floor alone gives silence; a note
+// opens it within a block or two and passes untouched; a note dying into the
+// noise is faded out, never cut; gate off leaves the signal as it was.
+static void testGate() {
+  printf("  noise gate\n");
   constexpr int B = 32;
-  using Stage = AmpStage<B>;
-  std::vector<float> hist(Stage::kHistoryFloats);
-  Stage* st = new Stage(48000.0f);
-  st->begin(hist.data());
-  st->loadWeights(w.data());
-  st->setGate(powf(10.0f, -64.0f / 20.0f));
-  st->setOn(true);
+  NoiseGate<B>* st = new NoiseGate<B>(48000.0f);
+  st->setThreshold(powf(10.0f, -64.0f / 20.0f));
+  bool untouched = true;  // while open, out == in
   const float noise = powf(10.0f, -75.0f / 20.0f);
   float in[B], out[B];
   long t = 0;
@@ -315,25 +313,29 @@ static void testAmpGate(const std::vector<float>& w) {
     for (int b = 0; b < blocks; b++) {
       for (int i = 0; i < B; i++, t++)
         in[i] = noise * urand() + note * powf(decay, (float)b) * sinf(2.0f * 3.14159265f * 220.0f * (float)t / 48000.0f);
-      const float before = st->gateGain();
+      const float before = st->gain();
+      for (int i = 0; i < B; i++) out[i] = in[i];
       st->process(in, out);
-      if (openedAt && *openedAt < 0 && st->gateGain() == 1.0f) *openedAt = b;
+      if (before == 1.0f && st->gain() == 1.0f)
+        for (int i = 0; i < B; i++) untouched = untouched && out[i] == in[i];
+      if (openedAt && *openedAt < 0 && st->gain() == 1.0f) *openedAt = b;
       // Closing: never faster than the release (50 ms to -60 dB).
-      if (st->gateGain() < before && st->gateGain() > 0.0f)
-        silent = silent && st->gateGain() >= before * expf(-6.9078f * (float)B / (48000.0f * 0.05f)) * 0.999f;
+      if (st->gain() < before && st->gain() > 0.0f)
+        silent = silent && st->gain() >= before * expf(-6.9078f * (float)B / (48000.0f * 0.05f)) * 0.999f;
       else if (b >= blocks - 150)  // the last 100 ms
         for (int i = 0; i < B; i++) silent = silent && out[i] == 0.0f;
     }
     return silent;
   };
-  CHECK(run(Stage::kWarmBlocks + 1500, 0.0f, 1.0f, nullptr), "noise at -75 dBFS alone: silence");
+  CHECK(run(1500, 0.0f, 1.0f, nullptr), "noise at -75 dBFS alone: silence");
   int opened = -1;
   run(30, 0.1f, 1.0f, &opened);
   CHECK(opened >= 0 && opened <= 1, "a note at -20 dBFS opens it within 2 blocks (%d)", opened);
   bool open = true;
-  for (int b = 0; b < 20; b++) open = open && (run(1, 0.1f, 1.0f, nullptr), st->gateGain() == 1.0f);
+  for (int b = 0; b < 20; b++) open = open && (run(1, 0.1f, 1.0f, nullptr), st->gain() == 1.0f);
   CHECK(open, "  ... and it stays open");
-  CHECK(run(3000, 0.1f, 0.99f, nullptr) && st->gateGain() == 0.0f,
+  CHECK(untouched, "  ... and passes the note untouched");
+  CHECK(run(3000, 0.1f, 0.99f, nullptr) && st->gain() == 0.0f,
         "a note dying into the noise: faded out at the release rate, then silence");
   // Closed, with noise peaking near -73 dBFS and short ticks (pick and
   // string noise) to -62 dBFS: it stays shut (the old peak detector
@@ -345,28 +347,31 @@ static void testAmpGate(const std::vector<float>& w) {
       for (int k = 0; k < 4; k++) g += urand();
       in[i] = noise * 1.25f * 0.33f * g + (t % 33600 < 24 ? 8e-4f * sinf((float)t * 0.9f) : 0.0f);
     }
+    for (int i = 0; i < B; i++) out[i] = in[i];
     st->process(in, out);
-    if (st->gateGain() > 0.0f) reopened++;
+    if (st->gain() > 0.0f) reopened++;
   }
   CHECK(reopened == 0, "closed: noise spikes and small ticks don't reopen it (%d blocks open)", reopened);
   // The release: the time from the first fall to -60 dB.
   for (float rel : {10.0f, 200.0f}) {
-    st->setGateRelease(rel);
+    st->setRelease(rel);
     run(30, 0.1f, 1.0f, nullptr);
     int from = -1, to = -1;
     for (int b = 0; b < 2000 && to < 0; b++) {
-      const float before = st->gateGain();
+      const float before = st->gain();
       run(1, 0.0f, 1.0f, nullptr);
-      if (from < 0 && st->gateGain() < before) from = b;
-      if (from >= 0 && st->gateGain() <= 1e-3f) to = b;
+      if (from < 0 && st->gain() < before) from = b;
+      if (from >= 0 && st->gain() <= 1e-3f) to = b;
     }
     const float ms = (float)(to - from + 1) * (float)B / 48.0f;
     CHECK(from >= 0 && to >= 0 && fabsf(ms - rel) <= 0.67f * 1.5f, "release %.0f ms: -60 dB after %.1f ms", rel, ms);
   }
-  st->setGateRelease(50.0f);
-  st->setGate(0.0f);
-  run(1, 0.0f, 1.0f, nullptr);
-  CHECK(st->gateGain() == 1.0f, "gate off: open, the noise passes");
+  st->setRelease(50.0f);
+  st->setThreshold(0.0f);
+  run(2, 0.0f, 1.0f, nullptr);  // the first block ramps up from closed
+  bool passes = st->gain() == 1.0f;
+  for (int i = 0; i < B; i++) passes = passes && out[i] == in[i];
+  CHECK(passes, "gate off: open, the noise passes untouched");
   delete st;
 }
 
@@ -538,7 +543,7 @@ int main(int argc, char** argv) {
 
   testGolden();
   testAmpStage(w);
-  testAmpGate(w);
+  testGate();
   testToneStack();
 
   printf(g_fail ? "test_nam: %d FAILED\n" : "test_nam: all passed\n", g_fail);
