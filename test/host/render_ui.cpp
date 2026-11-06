@@ -90,15 +90,22 @@ int main(int argc, char** argv) {
   snap("01_splash");
 
   // Home, with the cursor on each block.
-  const char* const homeShots[ui::kHomeBlocks] = {"02g_home_amp",    "02_home",        "02b_home_delay",
-                                                   "02c_home_reverb", "02d_home_drums", "02e_home_tempo"};
+  const char* const homeShots[ui::kHomeBlocks] = {"02g_home_amp",   "02i_home_gate",  "02_home",
+                                                   "02b_home_delay", "02c_home_reverb", "02e_home_tempo",
+                                                   "02j_home_style", "02k_home_trainer"};
   for (int blk = 0; blk < ui::kHomeBlocks; blk++) {
     c.clear(); ui::drawHome(c, m, blk);
     snap(homeShots[blk]);
   }
-  c.clear(); ui::drawHome(c, m, ui::kBlockTempo, true);
+  c.clear(); ui::drawHome(c, m, ui::kBlockTempo, ui::kBlockTempo);
   snap("02f_home_tempo_edit");
-  c.clear(); ui::drawHome(c, m, ui::kBlockAmp, false, 12);  // the model's name scrolled to its end
+  c.clear(); ui::drawHome(c, m, ui::kBlockStyle, ui::kBlockStyle);
+  snap("02l_home_style_edit");
+  ui::UiModel tr = m;  // the speed trainer on
+  tr.trainerOn = true;
+  c.clear(); ui::drawHome(c, tr, ui::kBlockTrainer);
+  snap("02m_home_trainer_on");
+  c.clear(); ui::drawHome(c, m, ui::kBlockAmp, -1, 12);  // the model's name scrolled to its end
   snap("02h_home_amp_scrolled");
 
   ui::UiModel st = m;  // drums stopped, delay and amp off
@@ -111,7 +118,7 @@ int main(int argc, char** argv) {
   c.clear(); ui::drawHome(c, x, ui::kBlockIR);
   snap("04_home_bypass");
 
-  menu.open(); menu.turn(2, 0);  // Doubler
+  menu.open(); menu.turn(3, 0);  // Doubler
   menu.draw(c);
   snap("05b_menu_doubler");
   menu.push(); menu.turn(1, 0);  // the Doubler page, on Time
@@ -123,11 +130,11 @@ int main(int argc, char** argv) {
   menu.back(); menu.turn(100, 0);  // Width
   menu.draw(c);
   snap("26c_menu_doubler_width");
-  menu.open(); menu.turn(8, 0);  // Tuner
+  menu.open(); menu.turn(9, 0);  // Tuner
   menu.draw(c);
   snap("05c_menu_tuner");
 
-  menu.open(); menu.turn(3, 0);
+  menu.open(); menu.turn(4, 0);
   menu.draw(c);
   snap("05_menu");
 
@@ -144,7 +151,7 @@ int main(int argc, char** argv) {
   snap("07_edit_delay_time");
   menu.back(); menu.back(); menu.back();
 
-  menu.open(); menu.turn(6, 0); menu.push(); menu.push();  // Levels > Out gain
+  menu.open(); menu.turn(7, 0); menu.push(); menu.push();  // Levels > Out gain
   menu.draw(c);
   snap("08_edit_output_gain");
   menu.back();
@@ -169,19 +176,20 @@ int main(int argc, char** argv) {
   menu.draw(c);
   snap("25c_edit_amp_treble");
   menu.back();
-  menu.turn(3, 0);  // Gate
+
+  // The gate's page (top menu > Gate).
+  menu.open(); menu.turn(1, 0);
   menu.draw(c);
-  snap("25d_menu_amp_gate");
+  snap("29_menu_top_gate");
+  menu.push(); menu.turn(1, 0);  // Threshold
+  menu.draw(c);
+  snap("29b_menu_gate");
   menu.push();
   menu.draw(c);
-  snap("25e_edit_amp_gate");
-  menu.back();
-  menu.turn(1, 0);  // Release
+  snap("29c_edit_gate_threshold");
+  menu.back(); menu.turn(1, 0); menu.push();  // Release
   menu.draw(c);
-  snap("25f_menu_amp_release");
-  menu.push();
-  menu.draw(c);
-  snap("25g_edit_amp_release");
+  snap("29d_edit_gate_release");
   menu.back();
 
   // The tuner: in tune, sharp, flat, no note; the loading box.
@@ -208,7 +216,7 @@ int main(int argc, char** argv) {
   snap("11_status");
 
   host.v[ui::kTrainerOn] = 1;
-  menu.open(); menu.turn(5, 0); menu.push(); menu.turn(10, 0);  // Drums > Trainer
+  menu.open(); menu.turn(6, 0); menu.push(); menu.turn(10, 0);  // Drums > Trainer
   menu.draw(c);
   snap("12_menu_drums");
 
@@ -233,7 +241,7 @@ int main(int argc, char** argv) {
   host.v[ui::kDrumSong] = 4;
   host.v[ui::kDrumLoopFrom] = 9;
   host.v[ui::kDrumLoopTo] = 16;
-  menu.open(); menu.turn(5, 0); menu.push(); menu.turn(3, 0);  // Drums > Song
+  menu.open(); menu.turn(6, 0); menu.push(); menu.turn(3, 0);  // Drums > Song
   menu.draw(c);
   snap("19_menu_drums_song");
   menu.push();  // the song's name: two rows in the 8x16 font
@@ -245,7 +253,7 @@ int main(int argc, char** argv) {
   host.v[ui::kDrumLoopFrom] = 0;
   host.v[ui::kDrumLoopTo] = 32;
 
-  menu.open(); menu.turn(5, 0); menu.push(); menu.turn(1, 0);  // Drums, the cursor on Bass
+  menu.open(); menu.turn(6, 0); menu.push(); menu.turn(1, 0);  // Drums, the cursor on Bass
   menu.draw(c);
   snap("20_menu_drums_bass");
   menu.push();  // the Bass page
@@ -256,7 +264,7 @@ int main(int argc, char** argv) {
   snap("22_edit_bass_key");
   menu.back();
 
-  menu.open(); menu.turn(4, 0); menu.push(); menu.turn(1, 0);  // Reverb > Mode (hall)
+  menu.open(); menu.turn(5, 0); menu.push(); menu.turn(1, 0);  // Reverb > Mode (hall)
   menu.draw(c);
   snap("17_menu_reverb_hall");
 

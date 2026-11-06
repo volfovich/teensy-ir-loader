@@ -28,7 +28,6 @@ enum ItemId : uint8_t {
   kIsReverbHall = kValueCount,  // 1 when the reverb is the hall
   kIsReverbGated,               // 1 when it is the gated reverb
   kIsDrumSong,                  // 1 when a drum song is selected
-  kIsAmpGateOn,                 // 1 when the amp's noise gate is on
   // Screens opened from the menu (their row shows MenuHost::valueText).
   kScreenIR, kScreenMeter, kScreenStatus, kScreenAmp, kScreenTuner,
   // Actions of the panel's screens, sent with MenuHost::set.
@@ -42,7 +41,7 @@ enum ItemId : uint8_t {
 // The pages of menuPages().
 enum MenuPageId : uint8_t {
   kPageTop, kPageDelay, kPageReverb, kPageLevels, kPageDrums, kPageTrainer, kPageBass, kPageAmp, kPageDoubler,
-  kPageCount
+  kPageGate, kPageCount
 };
 
 enum class Kind : uint8_t {

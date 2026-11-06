@@ -114,12 +114,15 @@ static void applyParam(int id, int v) {
     case kAmpIn:
     case kAmpOut:
     case kAmpCal:
-    case kAmpGate:
     case kAmpBass:
     case kAmpMid:
     case kAmpTreble:
-    case kAmpPresence:
-    case kAmpGateRel: ampApplyGains(); break;
+    case kAmpPresence: ampApplyGains(); break;
+    case kGateOn:
+    case kGateThr:
+      convolver.gate().setThreshold(s[kGateOn] ? powf(10.0f, (float)s[kGateThr] / 20.0f) : 0.0f);
+      break;
+    case kGateRel: convolver.gate().setRelease((float)v); break;
     case kDblOn: convolver.doubler().setOn(v); break;
     case kDblTime:
     case kDblWidth: convolver.doubler().set(s[kDblTime], s[kDblWidth] / 100.0f); break;

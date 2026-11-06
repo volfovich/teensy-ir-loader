@@ -51,13 +51,23 @@ bool Panel::turn(int detents, uint32_t now) {
   touch(now);
   switch (screen_) {
     case kHome: {
-      if (tempoEdit_) {
-        const int factor = (tempoTurnMs_ != 0 && now - tempoTurnMs_ < Menu::kFastMs) ? Menu::kFastFactor : 1;
-        tempoTurnMs_ = now ? now : 1;
+      if (editing_ == kBlockTempo) {
+        const int factor = (editTurnMs_ != 0 && now - editTurnMs_ < Menu::kFastMs) ? Menu::kFastFactor : 1;
+        editTurnMs_ = now ? now : 1;
         const ParamDef& d = paramDef(kDrumTempo);
         int v = host_.get(kDrumTempo) + detents * factor;
         v = v < d.min ? d.min : (v > d.max ? d.max : v);
         host_.set(kDrumTempo, v);
+        return true;
+      }
+      if (editing_ == kBlockStyle) {
+        // The row shows a song's name while one is selected: the style takes over.
+        if (host_.get(kDrumSong)) host_.set(kDrumSong, 0);
+        int lo = paramDef(kDrumStyle).min, hi = paramDef(kDrumStyle).max;
+        host_.limits(kDrumStyle, &lo, &hi);
+        int v = host_.get(kDrumStyle) + detents;
+        v = v < lo ? lo : (v > hi ? hi : v);
+        host_.set(kDrumStyle, v);
         return true;
       }
       int b = block_ + detents;
@@ -100,18 +110,24 @@ bool Panel::push(uint32_t now) {
   touch(now);
   switch (screen_) {
     case kHome:
-      if (block_ == kBlockTempo) {
-        // Push starts editing the tempo in place, and push again keeps it.
-        tempoEdit_ = !tempoEdit_;
-        tempoOrig_ = host_.get(kDrumTempo);
-        tempoTurnMs_ = 0;
+      if (block_ == kBlockTempo || block_ == kBlockStyle) {
+        // Push starts editing in place, and push again keeps it.
+        if (editing_ == block_) {
+          editing_ = -1;
+        } else {
+          editing_ = block_;
+          editOrig_ = host_.get(block_ == kBlockTempo ? kDrumTempo : kDrumStyle);
+          editSong_ = host_.get(kDrumSong);
+          editTurnMs_ = 0;
+        }
         return true;
       }
       if (block_ == kBlockIR || block_ == kBlockAmp) {
         openList(block_ == kBlockAmp ? kAmpList : kIrList, kHome);
         return true;
       }
-      menu_.open(block_ == kBlockDelay ? kPageDelay : (block_ == kBlockReverb ? kPageReverb : kPageDrums));
+      if (block_ == kBlockTrainer) return toggle(kTrainerOn);
+      menu_.open(block_ == kBlockGate ? kPageGate : (block_ == kBlockDelay ? kPageDelay : kPageReverb));
       screen_ = kMenu;
       return true;
     case kMenu:
@@ -133,7 +149,8 @@ bool Panel::hold(uint32_t now) {
   touch(now);
   if (screen_ != kHome) return false;
   // The IR block is on when not bypassed: flipping bypass flips it.
-  static const uint8_t kOnOff[kHomeBlocks] = {kAmpOn, kBypass, kDelayOn, kReverbOn, kDrumsPlay, kDrumsPlay};
+  static const uint8_t kOnOff[kHomeBlocks] = {kAmpOn,     kGateOn,    kBypass,   kDelayOn,
+                                              kReverbOn, kDrumsPlay, kDrumsPlay, kTrainerOn};
   return toggle(kOnOff[block_]);
 }
 
@@ -159,9 +176,15 @@ bool Panel::back(uint32_t now) {
   touch(now);
   switch (screen_) {
     case kHome:
-      if (tempoEdit_) {
-        host_.set(kDrumTempo, tempoOrig_);
-        tempoEdit_ = false;
+      if (editing_ == kBlockTempo) {
+        host_.set(kDrumTempo, editOrig_);
+        editing_ = -1;
+        return true;
+      }
+      if (editing_ == kBlockStyle) {
+        host_.set(kDrumStyle, editOrig_);
+        if (host_.get(kDrumSong) != editSong_) host_.set(kDrumSong, editSong_);
+        editing_ = -1;
         return true;
       }
       menu_.open();
@@ -181,7 +204,7 @@ bool Panel::back(uint32_t now) {
 bool Panel::backHold(uint32_t now) {
   touch(now);
   if (screen_ == kTuner) return false;
-  tempoEdit_ = false;
+  editing_ = -1;
   from_ = screen_ == kMenu ? kMenu : kHome;
   screen_ = kTuner;
   return true;
@@ -194,8 +217,8 @@ int Panel::marqueeOffset() const {
 }
 
 bool Panel::tick(uint32_t now) {
-  if (tempoEdit_ && now - lastInputMs_ >= kTimeoutMs) {
-    tempoEdit_ = false;  // keeps the tempo
+  if (editing_ >= 0 && now - lastInputMs_ >= kTimeoutMs) {
+    editing_ = -1;  // keeps the value
     return true;
   }
   if (screen_ != kHome && screen_ != kMeter && screen_ != kTuner && now - lastInputMs_ >= kTimeoutMs) {
@@ -209,7 +232,7 @@ bool Panel::tick(uint32_t now) {
     if (listCursor_ >= fileCount(m_, fileList())) return false;
     listName(m_, fileList(), listCursor_, name, sizeof(name));
     room = kIrBrowserNameChars;
-  } else if (screen_ == kHome && block_ == kBlockAmp && !tempoEdit_) {
+  } else if (screen_ == kHome && block_ == kBlockAmp) {
     homeName(m_, block_, name, sizeof(name));
     room = kHomeNameChars;
   } else {
@@ -226,7 +249,7 @@ bool Panel::tick(uint32_t now) {
 void Panel::draw(Canvas& c, const UiModel& m) {
   switch (screen_) {
     case kHome:
-      drawHome(c, m, block_, tempoEdit_, block_ == kBlockAmp ? marqueeOffset() : 0);
+      drawHome(c, m, block_, editing_, block_ == kBlockAmp ? marqueeOffset() : 0);
       break;
     case kMenu:
       menu_.draw(c);

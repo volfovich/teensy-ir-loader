@@ -94,18 +94,37 @@ void drawSplash(Canvas& c, const UiModel& m) {
   c.textCenter(5, buf);
 }
 
-// Home row 1: the blocks in signal order, AMP > IR > DLY > REV, then the
-// drums mixed in after them. A block is its label in a box, filled when on;
-// when off, only the box's top and bottom lines (its sides would touch the
-// letters: five blocks leave one pixel each side).
+// Home row 1: the blocks in signal order, AMP > NG > IR > DLY > REV. A block
+// is its label in a box, filled when on; when off, only the box's top and
+// bottom lines (its sides would touch the letters). The trainer's TRN on row
+// 3 is drawn the same way.
 struct HomeBlockPos { const char* label; int x, w; };
-static constexpr int kBlockY = 16, kBlockH = 13, kCursorY = 30;
-static constexpr int kHomeColumnX = 54;  // the style and the beat boxes (9 characters)
+static constexpr int kBlockH = 13;
+static constexpr int kHomeColumnX = 52;  // the style and the beat boxes (9 characters)
 static constexpr HomeBlockPos kBlocks[kBlockTempo] = {
-    {"AMP", 0, 25}, {"IR", 28, 17}, {"DLY", 48, 25}, {"REV", 76, 25}, {"DRM", 103, 25},
+    {"AMP", 0, 25}, {"NG", 30, 17}, {"IR", 52, 17}, {"DLY", 74, 25}, {"REV", 103, 25},
 };
+static constexpr HomeBlockPos kTrainerBlock = {"TRN", 103, 25};
 
-void drawHome(Canvas& c, const UiModel& m, int block, bool editingTempo, int marquee) {
+// A block on text row `page` (2 or 6): the label, its box from the row's top,
+// and the cursor bar 2 px under the box when `cursor`.
+static void drawBlock(Canvas& c, const HomeBlockPos& b, int page, bool on, bool cursor) {
+  const int y = page * 8;
+  // Centered by the ink: a glyph's last column is blank.
+  c.text(b.x + (b.w - Canvas::width(b.label) + 1) / 2, page, b.label);
+  // The font's blank rows above and below the capitals are inside the box;
+  // clear what the glyph cells put outside it.
+  c.fill(b.x, y + kBlockH, b.w, 16 - kBlockH, false);
+  if (on) {
+    c.invert(b.x, y, b.w, kBlockH);
+  } else {
+    c.hline(b.x, b.x + b.w - 1, y);
+    c.hline(b.x, b.x + b.w - 1, y + kBlockH - 1);
+  }
+  if (cursor) c.fill(b.x, y + kBlockH + 1, b.w, 2, true);
+}
+
+void drawHome(Canvas& c, const UiModel& m, int block, int editing, int marquee) {
   char buf[40], name[64];
   c.clear();
 
@@ -118,39 +137,35 @@ void drawHome(Canvas& c, const UiModel& m, int block, bool editingTempo, int mar
   c.text(Canvas::kLeft, 0, buf);
 
   // Row 1: the blocks, the cursor under one.
-  const HomeBlockPos* blocks = kBlocks;
-  const bool on[kBlockTempo] = {m.ampOn, !m.bypass, m.delayOn, m.reverbOn, m.drumsPlaying};
-  for (int i = 0; i < kBlockTempo; i++) {
-    const HomeBlockPos& b = blocks[i];
-    // Centered by the ink: a glyph's last column is blank.
-    c.text(b.x + (b.w - Canvas::width(b.label) + 1) / 2, 2, b.label);
-    // The font's blank rows above and below the capitals are inside the
-    // box; clear what the glyph cells put outside it.
-    c.fill(b.x, kBlockY + kBlockH, b.w, 32 - kBlockY - kBlockH, false);
-    if (on[i]) {
-      c.invert(b.x, kBlockY, b.w, kBlockH);
-    } else {
-      c.hline(b.x, b.x + b.w - 1, kBlockY);
-      c.hline(b.x, b.x + b.w - 1, kBlockY + kBlockH - 1);
-    }
-  }
-  if (block >= 0 && block < kBlockTempo) c.fill(blocks[block].x, kCursorY, blocks[block].w, 2, true);
+  const bool on[kBlockTempo] = {m.ampOn, m.gateOn, !m.bypass, m.delayOn, m.reverbOn};
+  for (int i = 0; i < kBlockTempo; i++) drawBlock(c, kBlocks[i], 2, on[i], block == i);
 
   // Rows 2-3: the tempo big (its digits' ink is y 38-57), and in a column
   // beside it the style and a box per beat, the one sounding filled (all
-  // hollow when stopped, so nothing moves when the drums start).
+  // hollow when stopped, so nothing moves when the drums start). Up to 4
+  // beats in 8 px boxes, more in 6 px ones, all left of TRN.
   snprintf(buf, sizeof(buf), "%d", m.drumTempo);
   const int tw = c.text(0, 4, buf, Font::kBig);
-  if (editingTempo) c.invert(0, 34, tw, 26);
+  if (editing == kBlockTempo) c.invert(0, 34, tw, 26);
   else if (block == kBlockTempo) c.fill(0, 60, tw, 2, true);
   snprintf(buf, sizeof(buf), "%.9s", m.drumStyle ? m.drumStyle : "");
-  c.text(kHomeColumnX, 4, buf);
-  const int beats = m.drumBeats > 7 ? 7 : m.drumBeats, size = 8, step = 10, y = 50;
+  // c.text returns the x after the text. The style's cursor bar stops short
+  // of TRN; editing inverts the style's row, a pixel clear of TRN's box.
+  const int sw = c.text(kHomeColumnX, 4, buf) - kHomeColumnX;
+  if (editing == kBlockStyle) {
+    c.invert(kHomeColumnX - 1, 32, sw + 1, 15);
+  } else if (block == kBlockStyle) {
+    const int end = kHomeColumnX + sw - 1 < kTrainerBlock.x - 3 ? kHomeColumnX + sw - 1 : kTrainerBlock.x - 3;
+    c.fill(kHomeColumnX, 47, end - kHomeColumnX, 2, true);
+  }
+  const int beats = m.drumBeats > 7 ? 7 : m.drumBeats;
+  const int size = beats > 4 ? 6 : 8, step = beats > 4 ? 7 : 10, y = beats > 4 ? 51 : 50;
   for (int i = 0; i < beats; i++) {
     const int bx = kHomeColumnX + i * step;
     if (m.drumsPlaying && i == m.drumBeat) c.fill(bx, y, size, size, true);
     else c.frame(bx, y, size, size);
   }
+  drawBlock(c, kTrainerBlock, 6, m.trainerOn, block == kBlockTrainer);
 }
 
 void drawFileList(Canvas& c, const UiModel& m, FileList list, int cursor, int top, int marquee) {

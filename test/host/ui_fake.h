@@ -27,8 +27,8 @@ struct FakeHost : ui::MenuHost {
     v[ui::kTrainerTarget] = 140; v[ui::kDrumKit] = 1; v[ui::kDrumCrash] = 2;
     v[ui::kBassOn] = 1; v[ui::kBassVolume] = 70; v[ui::kBassKey] = 4; v[ui::kBassTone] = 50;
     v[ui::kAmpOn] = 1; v[ui::kAmpIn] = 6; v[ui::kAmpOut] = -3; v[ui::kAmpCal] = 1;
-    v[ui::kAmpGate] = -64; v[ui::kAmpBass] = 0; v[ui::kAmpMid] = -4; v[ui::kAmpTreble] = 3;
-    v[ui::kAmpPresence] = 8; v[ui::kAmpGateRel] = 50;
+    v[ui::kAmpBass] = 0; v[ui::kAmpMid] = -4; v[ui::kAmpTreble] = 3; v[ui::kAmpPresence] = 8;
+    v[ui::kGateOn] = 1; v[ui::kGateThr] = -64; v[ui::kGateRel] = 50;
     v[ui::kDblOn] = 1; v[ui::kDblTime] = 10; v[ui::kDblWidth] = 100;
   }
   static const char* styleName(int i) {
@@ -53,7 +53,6 @@ struct FakeHost : ui::MenuHost {
     if (id == ui::kIsReverbHall) return v[ui::kReverbMode] == 0;
     if (id == ui::kIsReverbGated) return v[ui::kReverbMode] == 1;
     if (id == ui::kIsDrumSong) return v[ui::kDrumSong] != 0;
-    if (id == ui::kIsAmpGateOn) return v[ui::kAmpGate] > ui::paramDef(ui::kAmpGate).min;
     return v[id];
   }
   void set(uint8_t id, int value) override {
@@ -122,6 +121,7 @@ inline ui::UiModel fakeModel() {
   m.ampCurrent = 6;
   m.ampPath = fakeAmpPath;
   m.ampOn = true;
+  m.gateOn = true;
   m.delayOn = true;
   m.reverbOn = true;
   m.drumsPlaying = true;

@@ -23,7 +23,8 @@ struct UiModel {
   const char* (*ampPath)(int idx) = nullptr;
 
   // The blocks' on/off.
-  bool ampOn = false, bypass = false, delayOn = false, reverbOn = false, drumsPlaying = false;
+  bool ampOn = false, gateOn = false, bypass = false, delayOn = false, reverbOn = false;
+  bool drumsPlaying = false, trainerOn = false;
 
   // Drums.
   const char* drumStyle = "";        // the style's or song's short name
@@ -51,9 +52,11 @@ void irDisplayName(const char* path, char* out, int n);
 // The same for an amp model, with '_' shown as a space.
 void ampDisplayName(const char* path, char* out, int n);
 
-// The home screen's items: the blocks in signal order (the drums are mixed
-// in after the effects), then the tempo.
-enum HomeBlock : uint8_t { kBlockAmp, kBlockIR, kBlockDelay, kBlockReverb, kBlockDrums, kBlockTempo, kHomeBlocks };
+// The home screen's items in the encoder's order: the blocks in signal order
+// (row 1), then the drums' tempo, style and speed trainer (rows 2-3).
+enum HomeBlock : uint8_t {
+  kBlockAmp, kBlockGate, kBlockIR, kBlockDelay, kBlockReverb, kBlockTempo, kBlockStyle, kBlockTrainer, kHomeBlocks
+};
 
 // The file lists (IR, amp models): which one, for drawFileList.
 enum class FileList : uint8_t { kIR, kAmp };
@@ -62,9 +65,10 @@ enum class FileList : uint8_t { kIR, kAmp };
 void drawSplash(Canvas& c, const UiModel& m);
 // Row 0 the IR name (the amp model's with the cursor on AMP, scrolled by
 // `marquee` characters when it is long); row 1 the blocks, filled when on;
-// rows 2-3 the tempo big, the style and a box per beat. The cursor is a bar
-// under `block`; editingTempo draws the tempo inverted instead.
-void drawHome(Canvas& c, const UiModel& m, int block, bool editingTempo = false, int marquee = 0);
+// rows 2-3 the tempo big, the style, a box per beat and the trainer's block.
+// The cursor is a bar under `block`; `editing` (kBlockTempo or kBlockStyle,
+// -1 = none) draws that item inverted instead.
+void drawHome(Canvas& c, const UiModel& m, int block, int editing = -1, int marquee = 0);
 // The name row 0 shows for `block` ("" when there is none), and its length
 // limit on the row.
 void homeName(const UiModel& m, int block, char* out, int n);

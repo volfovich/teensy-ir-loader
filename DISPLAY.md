@@ -71,18 +71,20 @@ To go back to the shared bus, set `OLED_WIRE` to `Wire` and `OLED_I2C_HZ` to 400
 
 ### Home screen
 
-The home screen shows the chain as blocks, AMP › IR › DLY › REV › DRM, then the tempo, with a cursor under one of them.
+The home screen shows the chain as blocks, AMP › NG › IR › DLY › REV, then the drums' tempo, style and speed trainer (TRN), with a cursor under one of them.
 
 | Input | Action |
 |---|---|
-| Turn encoder | Move the cursor: AMP, IR, DLY, REV, DRM, then the tempo |
-| Push encoder | Open the block: the [model list](#ir-list-and-amp-list) for AMP, the [IR list](#ir-list-and-amp-list) for IR, the Delay, Reverb or Drums page of the menu for the others. BACK from there comes back home, with the cursor where it was. On the tempo: edit it in place (below). |
-| Hold encoder (≥ 0.6 s) | The block under the cursor on/off: AMP = the amp block ([NAM.md](NAM.md)), IR = bypass, DRM and the tempo = drums start/stop |
+| Turn encoder | Move the cursor: AMP, NG, IR, DLY, REV, then the tempo, the style and TRN |
+| Push encoder | Open the block: the [model list](#ir-list-and-amp-list) for AMP, the [IR list](#ir-list-and-amp-list) for IR, the Gate, Delay or Reverb page of the menu for NG, DLY and REV. BACK from there comes back home, with the cursor where it was. On the tempo or the style: edit it in place (below). On TRN: the speed trainer on/off. |
+| Hold encoder (≥ 0.6 s) | The item under the cursor on/off: AMP = the amp block ([NAM.md](NAM.md)), NG = the noise gate, IR = bypass, the tempo and the style = drums start/stop, TRN = the speed trainer |
 | CONFIRM | Drums start/stop, wherever the cursor is |
 | BACK | Open the menu (Levels, Meter, Status, Bypass …) |
 | Hold BACK (≥ 0.6 s), on any screen | The [tuner](#the-tuner) |
 
 **Editing the tempo:** the tempo is drawn inverted. Turning changes it live, 1 BPM per click and ×5 when the clicks come less than 40 ms apart, from 40 to 240 BPM. Push keeps it, BACK restores the tempo from before, and 30 s without input keeps it. It is saved like any other setting.
+
+**Editing the style:** the same way: the style's name is drawn inverted, and each click selects the next or previous style, live. If a drum song is selected, the first click switches it off (the row shows the song's name otherwise; switching songs stops the drums, as in the menu). BACK restores the style and the song from before.
 
 ### Menus
 
@@ -119,18 +121,19 @@ All text is in the Spleen 8x16 font: 16 characters x 4 rows of 16 px. Big number
 ```
 ┌────────────────┐
 │V30 SM57 Mesa 4x│  row 0: the IR (BYPASS + name when bypassed);
-│AMP IR DLY REV D│    the amp model's name with the cursor on AMP
-│   ▀▀           │  row 1: the blocks, filled = on, top and bottom
-│100   offbeat8  │    lines = off, a bar under the selected one
-│▀▀▀   ■□□□      │  rows 2-3: the tempo in the big font; the style's
-└────────────────┘    short name and a box per beat (cursor on the tempo)
+│AMP NG IR DLY RE│    the amp model's name with the cursor on AMP
+│      ▀▀        │  row 1: the blocks, filled = on, top and bottom
+│100  offbeat8   │    lines = off, a bar under the selected one
+│▀▀▀  ■□□□    TRN│  rows 2-3: the tempo in the big font; the style's
+└────────────────┘    short name, a box per beat, the trainer's block
 ```
 
-- **The blocks** follow the signal: the amp, the IR, then the delay, then the reverb, then the drums (mixed in after the effects, never through them). IR is "on" when not bypassed.
-- **Five blocks fit with one pixel to spare each side of the letters,** so an off block has only its box's top and bottom lines: its sides would touch the letters.
+- **The blocks** follow the signal: the amp, the noise gate (NG, after the amp, before the cab), the IR, then the delay, then the reverb. IR is "on" when not bypassed. The drums have no block: CONFIRM, or a hold on the tempo or the style, starts and stops them, and the beat boxes show them playing.
+- **An off block has only its box's top and bottom lines:** with five blocks there is no room for its sides beside the letters.
+- **TRN** (row 3, right) is drawn like a block: filled while the speed trainer is on. Renders: `02k_home_trainer.png`, `02m_home_trainer_on.png`.
 - **Row 0:** the IR's file name without the folder or the `.wav` extension (16 characters). With no SD card or no IRs: `No SD card` or `No IRs on SD`.
 - **Row 0 on AMP:** the amp model's name, with `_` shown as a space (`JCM 800 2203 OD8008 Boosted Amp Gain 5`). A longer name scrolls, as in the lists. `No amps on SD` or `No amp loaded` when there's none. Renders: `02g_home_amp.png`, `02h_home_amp_scrolled.png`.
-- **Rows 2–3:** the tempo now (with the speed trainer, the tempo it has reached), selectable and editable from here. Beside it, the style's short name (at most 9 characters: `metronome`, `offbeat16`, `shuffle` …) or the selected song's, and one box per beat of the bar (up to 7). The beat sounding is filled; all are hollow while stopped, so nothing appears or moves when the drums start. They also count the count-in.
+- **Rows 2–3:** the tempo now (with the speed trainer, the tempo it has reached) and, beside it, the style's short name (at most 9 characters: `metronome`, `offbeat16`, `shuffle` …) or the selected song's: both selectable and editable from here (renders `02e`, `02f`, `02j`, `02l`). Under the style, one box per beat of the bar: 8 px boxes for up to 4 beats, 6 px ones for 5 to 7, so they always end left of TRN. The beat sounding is filled; all are hollow while stopped, so nothing appears or moves when the drums start. They also count the count-in.
 - Everything else (delay time, mixes, the song's bar, the kit, the meters) is in the menus and on the Meter screen, to keep the home screen readable.
 
 ### Menu list
@@ -250,9 +253,10 @@ Every setting is one row of the parameter table (`lib/oledui/src/ParamDefs.cpp`)
 | | Treble | −12 to +12 dB, 0.5 | `amp treble` |
 | | Presence | −10 to +10 dB, 0.5 | `amp presence` |
 | | Output | −24 to +24 dB, 0.5 | `amp out` |
-| | Gate | OFF, −90 to −30 dB, 1 | `amp gate` |
-| | Release (gate on) | 10–500 ms, 5 | `amp release` |
 | | Calibrate | toggle | `amp cal` |
+| **Gate** | On | toggle | `gate` |
+| | Threshold | −90 to −30 dB, 1 | `gate thr` |
+| | Release | 10–500 ms, 5 | `gate rel` |
 | **IR** | file list (push = load) | — | `l`, `<n>` |
 | | Rescan SD card | action | `r` |
 | **Doubler** | On | toggle | `dbl` |

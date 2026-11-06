@@ -40,10 +40,8 @@ static void argHint(int id, char* buf, int n) {
       len += snprintf(buf + len, n - len, "%s%.*s", i > d.min ? "|" : "", (int)strcspn(c, " "), c);
     }
     if (len < n) snprintf(buf + len, n - len, ">");
-  } else if (d.unit == Unit::kHalfDb) {
+  } else if (d.unit == Unit::kHalfDb || d.unit == Unit::kDb) {
     snprintf(buf, n, "<dB>");
-  } else if (d.unit == Unit::kDbOff) {
-    snprintf(buf, n, "<dB|off>");
   } else {
     int lo, hi;
     paramLimits(id, &lo, &hi);
@@ -215,9 +213,10 @@ static void printStatus() {
   Serial.printf("Amp:       %s", effectState(kAmpOn, convolver.amp().active()));
   if (ampCurrent() >= 0) Serial.printf(", %s", ampPath(ampCurrent()));
   else Serial.print(", no model (/AMP)");
-  printValues({kAmpIn, kAmpBass, kAmpMid, kAmpTreble, kAmpPresence, kAmpOut, kAmpGate});
-  if (getParam(kAmpGate) > paramDef(kAmpGate).min) printValues({kAmpGateRel});
-  printValues({kAmpCal});
+  printValues({kAmpIn, kAmpBass, kAmpMid, kAmpTreble, kAmpPresence, kAmpOut, kAmpCal});
+  Serial.println();
+  Serial.printf("Gate:      %s", getParam(kGateOn) ? "on" : "off");
+  printValues({kGateThr, kGateRel});
   Serial.println();
   Serial.printf("Doubler:   %s", getParam(kDblOn) ? "on" : "off");
   printValues({kDblTime, kDblWidth});
@@ -285,7 +284,7 @@ static char* splitWord(char* s) {
 // True if the line was one of them.
 static bool specialCommand(const char* cmd, char* arg) {
   if (!strcmp(cmd, "amp") && arg) {
-    // amp list | info | <n> | <name>; amp on|off|in|out|cal|gate|release and
+    // amp list | info | <n> | <name>; amp on|off|in|out|cal and
     // the tone controls are settings.
     char word[16];
     snprintf(word, sizeof(word), "%.*s", (int)strcspn(arg, " "), arg);
@@ -306,8 +305,7 @@ static bool specialCommand(const char* cmd, char* arg) {
       return true;
     }
     if (strcmp(word, "on") && strcmp(word, "off") && strcmp(word, "in") && strcmp(word, "out") && strcmp(word, "cal") &&
-        strcmp(word, "gate") && strcmp(word, "bass") && strcmp(word, "mid") && strcmp(word, "treble") &&
-        strcmp(word, "presence") && strcmp(word, "release")) {
+        strcmp(word, "bass") && strcmp(word, "mid") && strcmp(word, "treble") && strcmp(word, "presence")) {
       const int i = findAmp(arg);
       if (i < 0) Serial.println("No such amp model (type 'amp list').");
       else loadAmpIndex(i);

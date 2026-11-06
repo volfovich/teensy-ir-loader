@@ -44,7 +44,6 @@ class FirmwareHost final : public ui::MenuHost {
       case ui::kIsReverbHall: return getParam(ui::kReverbMode) == 0;
       case ui::kIsReverbGated: return getParam(ui::kReverbMode) == 1;
       case ui::kIsDrumSong: return getParam(ui::kDrumSong) != 0;
-      case ui::kIsAmpGateOn: return getParam(ui::kAmpGate) > ui::paramDef(ui::kAmpGate).min;
       default: return id < ui::kValueCount ? getParam(id) : 0;
     }
   }
@@ -118,6 +117,8 @@ static void fillModel(uint32_t now) {
   m.ampPath = ampPath;
 
   m.ampOn = getParam(ui::kAmpOn);
+  m.gateOn = getParam(ui::kGateOn);
+  m.trainerOn = getParam(ui::kTrainerOn);
   m.bypass = getParam(ui::kBypass);
   m.delayOn = getParam(ui::kDelayOn);
   m.reverbOn = getParam(ui::kReverbOn);

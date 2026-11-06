@@ -4,12 +4,14 @@
 // panel runs and is tested on a PC.
 //
 // Controls (DISPLAY.md, "Controls"):
-//   home:    turn = move between the blocks (AMP, IR, DLY, REV, DRM) and
-//            the tempo; push = open the block (the amp or IR list, or its
-//            menu page); hold = the block on/off (IR: bypass; DRM, tempo:
-//            drums start/stop); CONFIRM = drums start/stop; BACK = the menu
-//   tempo:   push edits it in place: turn = BPM, applied live (x5 when
-//            fast); push = keep; BACK = restore
+//   home:    turn = move between the blocks (AMP, NG, IR, DLY, REV), the
+//            tempo, the style and TRN; push = open the block (the amp or IR
+//            list, or its menu page); hold = the block on/off (IR: bypass;
+//            tempo, style: drums start/stop); TRN: push or hold = the speed
+//            trainer on/off; CONFIRM = drums start/stop; BACK = the menu
+//   tempo, style: push edits it in place: turn = BPM (x5 when fast) or the
+//            style, applied live (a drum song is switched off); push = keep;
+//            BACK = restore (the style's song too)
 //   menu:    as in Menu.h; CONFIRM works like push; BACK from the page it
 //            opened at returns home
 //   lists:   (IR, amp) turn = move; push or CONFIRM = load (stays on the
@@ -54,7 +56,8 @@ class Panel {
   void draw(Canvas& c, const UiModel& m);
 
   Screen screen() const { return screen_; }
-  bool tempoEditing() const { return tempoEdit_; }
+  // The home item being edited in place (kBlockTempo, kBlockStyle), or -1.
+  int editing() const { return editing_; }
   int block() const { return block_; }
   int irCursor() const { return listCursor_; }  // in the open list (IR or amp)
   Menu& menu() { return menu_; }
@@ -74,9 +77,9 @@ class Panel {
   uint8_t block_ = kBlockAmp;
   int listCursor_ = 0, listTop_ = 0, marquee_ = 0;
   uint32_t lastInputMs_ = 0, marqueeMs_ = 0;
-  bool tempoEdit_ = false;
-  int tempoOrig_ = 0;
-  uint32_t tempoTurnMs_ = 0;
+  int editing_ = -1;
+  int editOrig_ = 0, editSong_ = 0;  // the value (and the song) before editing
+  uint32_t editTurnMs_ = 0;
 };
 
 }  // namespace ui

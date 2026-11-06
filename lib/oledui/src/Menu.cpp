@@ -18,6 +18,7 @@ static constexpr uint8_t kAlways = kNoItem;
 
 static const MenuItem kTop[] = {
     {"Amp", K::kSubmenu, kAmpOn, kPageAmp, kAlways},
+    {"Gate", K::kSubmenu, kGateOn, kPageGate, kAlways},
     {"IR", K::kScreen, kScreenIR, 0, kAlways},
     {"Doubler", K::kSubmenu, kDblOn, kPageDoubler, kAlways},
     {"Delay", K::kSubmenu, kDelayOn, kPageDelay, kAlways},
@@ -72,11 +73,16 @@ static const MenuItem kTrainerItems[] = {
 };
 
 // The amp block (NAM.md): on/off first; Model opens the list of /AMP.
-// Release only with the gate on.
 static const MenuItem kAmpItems[] = {
     SETTING(kAmpOn), {"Model", K::kScreen, kScreenAmp, 0, kAlways}, SETTING(kAmpIn),
     SETTING(kAmpBass), SETTING(kAmpMid), SETTING(kAmpTreble), SETTING(kAmpPresence),
-    SETTING(kAmpOut), SETTING(kAmpGate), SETTING_IF(kAmpGateRel, kIsAmpGateOn), SETTING(kAmpCal),
+    SETTING(kAmpOut), SETTING(kAmpCal),
+};
+
+// The noise gate after the amp (NAM.md, "Noise gate"): it works with the amp
+// on or off.
+static const MenuItem kGateItems[] = {
+    SETTING(kGateOn), SETTING(kGateThr), SETTING(kGateRel),
 };
 
 static const MenuItem kDoublerItems[] = {
@@ -104,6 +110,7 @@ static const MenuPage kPages[] = {
     PAGE("BASS", kBassItems),
     PAGE("AMP", kAmpItems),
     PAGE("DOUBLER", kDoublerItems),
+    PAGE("GATE", kGateItems),
 };
 static_assert(sizeof(kPages) / sizeof(kPages[0]) == kPageCount, "a page per MenuPageId");
 #undef PAGE

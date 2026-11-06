@@ -71,7 +71,7 @@ static void testMenu() {
   m.open();
   check(m.current()->id == ui::kAmpOn && m.current()->kind == ui::Kind::kSubmenu, "the top level starts with Amp",
         m.current()->id);
-  check(m.turn(3, 0) == ui::Menu::kRedraw && m.current()->id == ui::kDelayOn, "turn moves past IR, Doubler to Delay",
+  check(m.turn(4, 0) == ui::Menu::kRedraw && m.current()->id == ui::kDelayOn, "turn moves past Gate, IR, Doubler to Delay",
         m.current()->id);
   m.push();
   check(m.pageIndex() == 1, "push enters the delay page", m.pageIndex());
@@ -112,7 +112,7 @@ static void testReverbPage() {
   FakeHost h;
   ui::Menu m(ui::menuPages(), h);
   m.open();
-  m.turn(4, 0);
+  m.turn(5, 0);
   m.push();
   m.turn(100, 0);
   check(m.current()->id == ui::kReverbEra, "hall: last row Era (Mod shown, Gate hidden)", m.current()->id);
@@ -136,7 +136,7 @@ static void testDoublerPage() {
   FakeHost h;
   ui::Menu m(ui::menuPages(), h);
   m.open();
-  m.turn(2, 0);
+  m.turn(3, 0);
   check(m.current()->id == ui::kDblOn && m.current()->kind == ui::Kind::kSubmenu, "Doubler after IR (a page)",
         m.current()->id);
   m.push();
@@ -162,7 +162,7 @@ static void testSongRows() {
   FakeHost h;
   ui::Menu m(ui::menuPages(), h);
   m.open();
-  m.turn(5, 0);
+  m.turn(6, 0);
   m.push();
   m.turn(3, 0);
   check(m.current()->id == ui::kDrumSong, "Song after Bass and Style", m.current()->id);
@@ -193,7 +193,7 @@ static void testDrumsPage() {
   FakeHost h;
   ui::Menu m(ui::menuPages(), h);
   m.open();
-  m.turn(5, 0);
+  m.turn(6, 0);
   check(m.current()->id == ui::kDrumsPlay, "Drums on the top level after Reverb", m.current()->id);
   m.push();
   m.turn(100, 0);
@@ -283,11 +283,11 @@ static void testFormat() {
   ui::formatValue(gain, 0, false, b, sizeof(b)); ok = ok && !std::strcmp(b, "0.0dB");
   ui::formatValue(time, 380, true, b, sizeof(b)); ok = ok && !std::strcmp(b, "380 ms");
   check(ok, "half dB and ms (-6.0dB, +3.5 dB, -0.5dB, 0.0dB, 380 ms)", ok);
-  const ui::ParamDef& gate = ui::paramDef(ui::kAmpGate);
+  const ui::ParamDef& gate = ui::paramDef(ui::kGateThr);
   ok = true;
   ui::formatValue(gate, -64, true, b, sizeof(b)); ok = ok && !std::strcmp(b, "-64 dB");
-  ui::formatValue(gate, gate.min, true, b, sizeof(b)); ok = ok && !std::strcmp(b, "OFF");
-  check(ok, "dB with an off end (the gate: -64 dB, OFF)", ok);
+  ui::formatValue(gate, gate.min, false, b, sizeof(b)); ok = ok && !std::strcmp(b, "-90dB");
+  check(ok, "whole dB (the gate's threshold: -64 dB, -90dB)", ok);
   ui::formatValue(ui::paramDef(ui::kBassKey), 6, true, b, sizeof(b));
   check(!std::strcmp(b, "F#"), "a name from the table's choices (key 6: F#)", 0);
   char n[32];
@@ -316,9 +316,9 @@ static void testParams() {
   ok = ok && !ui::parseValue(ui::paramDef(ui::kDelayTime), "45x", &v);
   ok = ok && ui::parseValue(ui::paramDef(ui::kOutGain), "-6", &v) && v == -12;
   ok = ok && ui::parseValue(ui::paramDef(ui::kOutGain), "3.5", &v) && v == 7;
-  ok = ok && ui::parseValue(ui::paramDef(ui::kAmpGate), "-70", &v) && v == -70;
-  ok = ok && ui::parseValue(ui::paramDef(ui::kAmpGate), "off", &v) && v == ui::paramDef(ui::kAmpGate).min;
-  check(ok, "on/off, integers, dB in half steps, the gate's off", ok);
+  ok = ok && ui::parseValue(ui::paramDef(ui::kGateThr), "-70", &v) && v == -70;
+  ok = ok && !ui::parseValue(ui::paramDef(ui::kGateThr), "off", &v);
+  check(ok, "on/off, integers, dB in half steps, whole dB (no off)", ok);
   ok = true;
   ok = ok && ui::parseValue(ui::paramDef(ui::kReverbMode), "gated", &v) && v == 1;
   ok = ok && ui::parseValue(ui::paramDef(ui::kReverbMode), "0", &v) && v == 0;
@@ -383,13 +383,13 @@ static void testHome() {
   ui::Canvas c(buf);
   ui::UiModel m = fakeModel();  // IR on, delay and reverb on, drums playing
   c.clear();
-  // The blocks: AMP x 0-24, IR 28-44, DLY 48-72, REV 76-100, DRM 103-127.
+  // The blocks: AMP x 0-24, NG 30-46, IR 52-68, DLY 74-98, REV 103-127.
   ui::drawHome(c, m, ui::kBlockDelay);
-  check(c.get(60, 30) && c.get(60, 31) && !c.get(36, 30), "cursor bar under DLY, not under IR", 0);
-  check(c.get(1, 17) && c.get(49, 17) && c.get(104, 17), "on blocks are filled (AMP, DLY, DRM)", 0);
+  check(c.get(86, 30) && c.get(86, 31) && !c.get(60, 30), "cursor bar under DLY, not under IR", 0);
+  check(c.get(1, 17) && c.get(75, 17) && c.get(104, 17), "on blocks are filled (AMP, DLY, REV)", 0);
   c.clear();
   ui::drawHome(c, m, ui::kBlockIR);
-  check(c.get(36, 30) && !c.get(60, 30) && !c.get(12, 30), "  ... and under IR", 0);
+  check(c.get(60, 30) && !c.get(86, 30) && !c.get(12, 30), "  ... and under IR", 0);
   char name[64];
   ui::homeName(m, ui::kBlockIR, name, sizeof(name));
   check(!std::strcmp(name, "V30 SM57 Mesa 4x12 close"), "row 0: the IR's name", 0);
@@ -410,34 +410,58 @@ static void testHome() {
   check(same, "  ... a long name off the cursor: both ends, '~' between", 0);
   c.clear();
   ui::drawHome(c, m, ui::kBlockIR);
-  // The beat boxes: 8 px every 10 px from 6 px after the big "100", rows
-  // 52-59; beat 2 of 4 filled, the others hollow.
+  // The beat boxes: 8 px every 10 px from 4 px after the big "100", rows
+  // 50-57; beat 2 of 4 filled, the others hollow.
   bool beats = true;
   for (int i = 0; i < 4; i++) {
-    const int bx = 48 + 6 + i * 10;
+    const int bx = 52 + i * 10;
     beats = beats && c.get(bx, 55) && c.get(bx + 4, 55) == (i == 1);
   }
-  check(beats && !c.get(54 + 40, 55), "playing: 4 beat boxes, beat 2 filled", 0);
+  check(beats && !c.get(52 + 40, 55), "playing: 4 beat boxes, beat 2 filled", 0);
   m.drumsPlaying = false;
   m.delayOn = false;
   c.clear();
   ui::drawHome(c, m, ui::kBlockIR);
   bool hollow = true, tempo = false;
-  for (int i = 0; i < 4; i++) hollow = hollow && c.get(54 + i * 10, 55) && !c.get(58 + i * 10, 55);
+  for (int i = 0; i < 4; i++) hollow = hollow && c.get(52 + i * 10, 55) && !c.get(56 + i * 10, 55);
   for (int y = 32; y < 64; y++)
     for (int x = 0; x < 48; x++) tempo = tempo || c.get(x, y);
   check(hollow && tempo, "stopped: the tempo, the beat boxes all hollow", 0);
   bool style = false;
   for (int y = 34; y < 46; y++)
-    for (int x = 54; x < 128; x++) style = style || c.get(x, y);
+    for (int x = 52; x < 128; x++) style = style || c.get(x, y);
   check(style, "the style's name beside the tempo", 0);
   c.clear();
   ui::drawHome(c, m, ui::kBlockTempo);
   check(c.get(10, 60) && !c.get(10, 30), "cursor on the tempo: a bar under the digits", 0);
   c.clear();
-  ui::drawHome(c, m, ui::kBlockTempo, true);
+  ui::drawHome(c, m, ui::kBlockTempo, ui::kBlockTempo);
   check(c.get(1, 35) && !c.get(10, 60), "editing the tempo: drawn inverted", 0);
-  check(!c.get(60, 17) && c.get(60, 16) && c.get(60, 28) && !c.get(48, 20), "off block: top and bottom lines (DLY)", 0);
+  check(!c.get(86, 17) && c.get(86, 16) && c.get(86, 28) && !c.get(72, 20), "off block: top and bottom lines (DLY)", 0);
+  check(c.get(38, 17) && c.get(38, 27), "the gate on: NG filled", 0);
+  // No DRM block any more: REV ends the row at the right edge.
+  check(c.get(127, 16) && c.get(127, 28), "  ... REV last, at the right edge", 0);
+  c.clear();
+  ui::drawHome(c, m, ui::kBlockStyle);
+  check(c.get(53, 47) && !c.get(53, 30), "cursor on the style: a bar under its name", 0);
+  c.clear();
+  ui::drawHome(c, m, ui::kBlockStyle, ui::kBlockStyle);
+  check(c.get(52, 33) && !c.get(53, 48), "editing the style: drawn inverted (no bar)", 0);
+  // TRN: a block on row 3, right of the beat boxes; filled while on.
+  c.clear();
+  ui::drawHome(c, m, ui::kBlockTrainer);
+  check(c.get(110, 48) && c.get(110, 60) && !c.get(110, 52) && c.get(110, 62), "TRN off: top and bottom lines, the cursor under it", 0);
+  m.trainerOn = true;
+  c.clear();
+  ui::drawHome(c, m, ui::kBlockIR);
+  check(c.get(104, 52) && !c.get(110, 62), "  ... on: filled", 0);
+  // 7 beats: smaller boxes, all left of TRN.
+  m.drumBeats = 7;
+  c.clear();
+  ui::drawHome(c, m, ui::kBlockIR);
+  bool seven = true;
+  for (int i = 0; i < 7; i++) seven = seven && c.get(52 + i * 7, 54);
+  check(seven && !c.get(101, 54), "7 beats: 7 smaller boxes, clear of TRN", 0);
 }
 
 // The editor's font is fixed per item: every number fits the 16x32 font at
@@ -485,47 +509,78 @@ static void testPanel() {
 
   // Home: turn moves between the blocks, stopping at the ends.
   check(!p.turn(-1, t) && p.block() == ui::kBlockAmp, "home: the cursor starts on AMP, stops at the left", p.block());
+  p.turn(3, t);
+  check(p.block() == ui::kBlockDelay, "  ... turn: past NG, IR to DLY", p.block());
   p.turn(2, t);
-  check(p.block() == ui::kBlockDelay, "  ... turn: past IR to DLY", p.block());
+  check(p.block() == ui::kBlockTempo, "  ... past REV to the tempo (no DRM)", p.block());
   p.turn(10, t);
-  check(p.block() == ui::kBlockTempo, "  ... past DRM to the tempo, and stops there", p.block());
+  check(p.block() == ui::kBlockTrainer, "  ... then the style and TRN, and stops there", p.block());
+  p.turn(-2, t);
 
   // The tempo: push edits it in place, live; BACK restores, push keeps.
   const int bpm = h.v[ui::kDrumTempo];
   p.push(t);
-  check(p.tempoEditing() && p.screen() == P::kHome, "push on the tempo: editing, still home", p.tempoEditing());
+  check(p.editing() == ui::kBlockTempo && p.screen() == P::kHome, "push on the tempo: editing, still home", p.editing());
   p.turn(1, t);
   p.turn(1, t + 500);
   check(h.v[ui::kDrumTempo] == bpm + 2, "  ... two slow detents: +2 BPM, applied live", h.v[ui::kDrumTempo]);
   p.turn(1, t + 510);
   check(h.v[ui::kDrumTempo] == bpm + 7, "  ... a fast detent counts x5", h.v[ui::kDrumTempo]);
   p.back(t);
-  check(!p.tempoEditing() && p.screen() == P::kHome && h.v[ui::kDrumTempo] == bpm, "  ... BACK restores, stays home",
+  check(p.editing() < 0 && p.screen() == P::kHome && h.v[ui::kDrumTempo] == bpm, "  ... BACK restores, stays home",
         h.v[ui::kDrumTempo]);
   p.push(t);
   p.turn(-500, t + 2000);
   check(h.v[ui::kDrumTempo] == 40, "  ... clamped at 40 BPM", h.v[ui::kDrumTempo]);
   p.push(t);
-  check(!p.tempoEditing() && h.v[ui::kDrumTempo] == 40, "  ... push keeps it", h.v[ui::kDrumTempo]);
+  check(p.editing() < 0 && h.v[ui::kDrumTempo] == 40, "  ... push keeps it", h.v[ui::kDrumTempo]);
   p.push(t);
-  check(p.tick(t + P::kTimeoutMs) && !p.tempoEditing(), "  ... 30 s idle ends editing", p.tempoEditing());
+  check(p.tick(t + P::kTimeoutMs) && p.editing() < 0, "  ... 30 s idle ends editing", p.editing());
   h.v[ui::kDrumTempo] = bpm;
   const int playing = h.v[ui::kDrumsPlay];
   p.hold(t);
   check(h.v[ui::kDrumsPlay] == !playing, "hold on the tempo: drums start/stop", h.v[ui::kDrumsPlay]);
   p.hold(t);
+
+  // The style: push edits it in place, live; a song gives way; BACK restores
+  // the style and the song, push keeps.
+  p.turn(1, t);
+  check(p.block() == ui::kBlockStyle, "the style after the tempo", p.block());
+  h.v[ui::kDrumSong] = 2;
+  p.push(t);
+  check(p.editing() == ui::kBlockStyle && p.screen() == P::kHome, "push on the style: editing, still home", p.editing());
+  p.turn(2, t);
+  check(h.v[ui::kDrumStyle] == 3 && h.v[ui::kDrumSong] == 0, "  ... turn: style 1 -> 3, live; the song off",
+        h.v[ui::kDrumStyle]);
+  p.turn(100, t);
+  check(h.v[ui::kDrumStyle] == 7, "  ... clamped at the last style", h.v[ui::kDrumStyle]);
+  p.back(t);
+  check(p.editing() < 0 && h.v[ui::kDrumStyle] == 1 && h.v[ui::kDrumSong] == 2,
+        "  ... BACK restores the style and the song", h.v[ui::kDrumStyle]);
+  h.v[ui::kDrumSong] = 0;
+  p.push(t);
   p.turn(-1, t);
-  check(p.block() == ui::kBlockDrums, "  ... turn back: DRM", p.block());
+  p.push(t);
+  check(p.editing() < 0 && h.v[ui::kDrumStyle] == 0, "  ... push keeps it", h.v[ui::kDrumStyle]);
+  h.v[ui::kDrumStyle] = 1;
+  const int playing2 = h.v[ui::kDrumsPlay];
+  p.hold(t);
+  check(h.v[ui::kDrumsPlay] == !playing2, "hold on the style: drums start/stop", h.v[ui::kDrumsPlay]);
+  p.hold(t);
+
+  // TRN: push or hold switches the speed trainer.
+  p.turn(1, t);
+  p.push(t);
+  check(h.v[ui::kTrainerOn] == 1 && p.screen() == P::kHome, "push on TRN: the trainer on, still home", h.v[ui::kTrainerOn]);
+  p.hold(t);
+  check(h.v[ui::kTrainerOn] == 0, "  ... hold: off", h.v[ui::kTrainerOn]);
 
   // Push opens the block's page; BACK from it returns home, cursor kept.
+  p.turn(-3, t);
   p.push(t);
-  check(p.screen() == P::kMenu && p.menu().pageIndex() == ui::kPageDrums, "push on DRM: the Drums page", p.menu().pageIndex());
+  check(p.screen() == P::kMenu && p.menu().pageIndex() == ui::kPageReverb, "push on REV: the Reverb page", p.menu().pageIndex());
   p.back(t);
-  check(p.screen() == P::kHome && p.block() == ui::kBlockDrums, "  ... back: home, cursor still on DRM", p.screen());
-  p.turn(-1, t);
-  p.push(t);
-  check(p.menu().pageIndex() == ui::kPageReverb, "push on REV: the Reverb page", p.menu().pageIndex());
-  p.back(t);
+  check(p.screen() == P::kHome && p.block() == ui::kBlockReverb, "  ... back: home, cursor still on REV", p.screen());
   p.turn(-1, t);
   p.push(t);
   check(p.menu().pageIndex() == ui::kPageDelay, "push on DLY: the Delay page", p.menu().pageIndex());
@@ -556,14 +611,24 @@ static void testPanel() {
   p.hold(t);
   check(h.v[ui::kBypass] == 0, "  ... hold again: back on", h.v[ui::kBypass]);
   bool ok = true;
-  const uint8_t ids[] = {ui::kDelayOn, ui::kReverbOn, ui::kDrumsPlay};
-  for (int i = 0; i < 3; i++) {
+  const uint8_t ids[] = {ui::kDelayOn, ui::kReverbOn};
+  for (int i = 0; i < 2; i++) {
     p.turn(1, t);
     const int before = h.v[ids[i]];
     p.hold(t);
     ok = ok && h.v[ids[i]] == !before && p.screen() == P::kHome;
   }
-  check(ok, "hold on DLY, REV, DRM: each one's on/off", ok);
+  check(ok, "hold on DLY, REV: each one's on/off", ok);
+  // NG: hold switches the gate, push opens the Gate page.
+  p.turn(-3, t);
+  check(p.block() == ui::kBlockGate, "NG between AMP and IR", p.block());
+  p.hold(t);
+  check(h.v[ui::kGateOn] == 0, "  ... hold: the gate off", h.v[ui::kGateOn]);
+  p.hold(t);
+  p.push(t);
+  check(p.screen() == P::kMenu && p.menu().pageIndex() == ui::kPageGate && p.menu().current()->id == ui::kGateOn,
+        "  ... push: the Gate page, On first", p.menu().pageIndex());
+  p.back(t);
   const int drums = h.v[ui::kDrumsPlay];
   p.turn(-10, t);
   p.confirm(t);
@@ -572,7 +637,7 @@ static void testPanel() {
   // BACK: the menu; its screens return to it.
   p.back(t);
   check(p.screen() == P::kMenu && p.menu().pageIndex() == ui::kPageTop, "BACK on home: the top menu", p.menu().pageIndex());
-  p.turn(1, t);
+  p.turn(2, t);
   p.confirm(t);
   check(p.screen() == P::kIrList, "  ... CONFIRM works like push (IR)", p.screen());
   p.back(t);
@@ -616,7 +681,7 @@ static void testPanel() {
   check(p.screen() == P::kHome, "  ... from home: BACK returns home", p.screen());
 
   // The IR list's marquee scrolls long names only.
-  p.turn(1, t);
+  p.turn(2, t);
   p.push(t);  // IR list, on "V30 SM57 Mesa 4x12 close"
   check(p.tick(t + P::kMarqueeMs), "marquee: a long name scrolls", 0);
   p.turn(-2, t);  // "Greenback"
@@ -672,23 +737,30 @@ static void testAmpPanel() {
   p.push(t);
   check(h.v[ui::kAmpBass] == 5, "  ... Bass: 0.0 -> +2.5 dB (half-dB steps)", h.v[ui::kAmpBass]);
   p.turn(5, t);
+  check(p.menu().current()->id == ui::kAmpCal, "  ... Calibrate last (after Middle, Treble, Presence, Output; no gate)",
+        p.menu().current()->id);
+  p.push(t);
+  check(h.v[ui::kAmpCal] == 0, "  ... Calibrate toggles", h.v[ui::kAmpCal]);
+
+  // The gate's own page, after Amp in the top menu.
+  p.back(t);
+  p.turn(1, t);
+  check(p.menu().current()->id == ui::kGateOn && p.menu().current()->kind == ui::Kind::kSubmenu, "menu > Gate after Amp",
+        p.menu().current()->id);
+  p.push(t);
+  p.push(t);
+  check(p.menu().pageIndex() == ui::kPageGate && h.v[ui::kGateOn] == 0, "  ... On toggles", h.v[ui::kGateOn]);
+  p.turn(1, t);
   p.push(t);
   p.turn(-4, t + 4000);
   p.push(t);
-  check(h.v[ui::kAmpGate] == -68, "  ... Gate (after Middle, Treble, Presence, Output): -64 -> -68 dB",
-        h.v[ui::kAmpGate]);
+  check(h.v[ui::kGateThr] == -68, "  ... Threshold: -64 -> -68 dB", h.v[ui::kGateThr]);
   p.turn(1, t);
-  check(p.menu().current()->id == ui::kAmpGateRel, "  ... Release after Gate (the gate on)", p.menu().current()->id);
+  check(p.menu().current()->id == ui::kGateRel, "  ... Release shown with the gate off too", p.menu().current()->id);
   p.push(t);
   p.turn(4, t + 6000);
   p.push(t);
-  check(h.v[ui::kAmpGateRel] == 70, "  ... Release: 50 -> 70 ms (5 ms steps)", h.v[ui::kAmpGateRel]);
-  p.turn(1, t);
-  p.push(t);
-  check(h.v[ui::kAmpCal] == 0, "  ... Calibrate toggles", h.v[ui::kAmpCal]);
-  h.v[ui::kAmpGate] = ui::paramDef(ui::kAmpGate).min;
-  p.turn(-1, t);
-  check(p.menu().current()->id == ui::kAmpGate, "  ... the gate OFF: Release hidden", p.menu().current()->id);
+  check(h.v[ui::kGateRel] == 70, "  ... Release: 50 -> 70 ms (5 ms steps)", h.v[ui::kGateRel]);
   char b[16];
   check(h.valueText(ui::kScreenAmp, b, sizeof(b)) && !std::strcmp(b, "7/8"), "  ... Model shows 7/8", 0);
 }

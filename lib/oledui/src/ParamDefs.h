@@ -33,10 +33,11 @@ enum Param : uint8_t {
   kAmpOn,
   kAmpIn, kAmpOut,  // half-dB steps
   kAmpCal,          // use the model's input calibration
-  kAmpGate,         // the noise gate's threshold, dBFS; the minimum = off
+  kGateThr,         // the noise gate's threshold, dBFS (on the input)
   kAmpBass, kAmpMid, kAmpTreble, kAmpPresence,  // half-dB steps, 0 = flat
-  kAmpGateRel,      // the gate's fade from open to -60 dB, ms
+  kGateRel,         // the gate's fade from open to -60 dB, ms
   kDblOn, kDblTime, kDblWidth,  // the doubler (ms, %)
+  kGateOn,          // the noise gate (after the amp, before the cab)
   kParamCount,
   // Not saved.
   kDrumsPlay = kParamCount,
@@ -48,7 +49,7 @@ enum class Unit : uint8_t {
   kNone,
   kOnOff,  // a toggle: 0 / 1, shown OFF / ON
   kPercent, kMs, kHalfDb, kBpm, kBars,
-  kDbOff,  // whole dB, the minimum shown OFF
+  kDb,     // whole dB
   kName,   // shown by name: `choices`, or MenuHost::valueText when it has none
 };
 

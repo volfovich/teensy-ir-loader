@@ -88,9 +88,9 @@ Drums:     playing blues shuffle, 105 BPM, bar 9, kit rock, crash 4 bars, volume
 - Style, Song and Kit are chosen by turning the encoder and are shown by name.
 - Each push on Crash steps it: off, 2, 4, 8, 16 bars.
 - Each push on Count-in steps it: off, 1, 2, 3, 4 bars.
-- The home screen shows the tempo big, the style's (or song's) short name and a box per beat. The tempo can be edited right there: turn past DRM, push, turn. **CONFIRM** starts and stops the drums from the home screen, and pushing the **DRM** block opens the Drums page.
+- The home screen shows the tempo big, the style's (or song's) short name, a box per beat and the speed trainer's **TRN** block. The tempo and the style can be edited right there: turn past the blocks to either, push, turn. Push or hold on TRN switches the trainer. **CONFIRM** (or a hold on the tempo or style) starts and stops the drums; the rest is on the Drums page of the menu.
 
-See [DISPLAY.md](DISPLAY.md#home) and the renders `screenshots/02d_home_drums.png`, `02e_home_tempo.png`, `02f_home_tempo_edit.png`, `12_menu_drums.png`, `13_edit_drum_style.png`, `14_menu_trainer.png`, `15_edit_trainer_target.png`, `16_edit_drum_kit.png`, `19_menu_drums_song.png`, `20_menu_drums_bass.png`, `21_menu_bass.png` and `22_edit_bass_key.png`.
+See [DISPLAY.md](DISPLAY.md#home) and the renders `screenshots/02e_home_tempo.png`, `02f_home_tempo_edit.png`, `02j_home_style.png`, `02l_home_style_edit.png`, `02m_home_trainer_on.png`, `12_menu_drums.png`, `13_edit_drum_style.png`, `14_menu_trainer.png`, `15_edit_trainer_target.png`, `16_edit_drum_kit.png`, `19_menu_drums_song.png`, `20_menu_drums_bass.png`, `21_menu_bass.png` and `22_edit_bass_key.png`.
 
 ## Count-in and speed trainer
 

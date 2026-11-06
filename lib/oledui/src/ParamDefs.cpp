@@ -67,15 +67,16 @@ static const ParamDef kParams[kValueCount] = {
     {"amp in",       "Amp input",          "Input",        -48,   48,   0, 1, U::kHalfDb,  nullptr},
     {"amp out",      "Amp output",         "Output",       -48,   48,   0, 1, U::kHalfDb,  nullptr},
     {"amp cal",      "Amp calibration",    "Calibrate",      0,    1,   1, 1, U::kOnOff,   nullptr},
-    {"amp gate",     "Amp noise gate",     "Gate",         -91,  -30, -64, 1, U::kDbOff,   nullptr},
+    {"gate thr",     "Gate threshold",     "Threshold",    -90,  -30, -64, 1, U::kDb,      nullptr},
     {"amp bass",     "Amp bass",           "Bass",         -24,   24,   0, 1, U::kHalfDb,  nullptr},
     {"amp mid",      "Amp middle",         "Middle",       -20,   20,   0, 1, U::kHalfDb,  nullptr},
     {"amp treble",   "Amp treble",         "Treble",       -24,   24,   0, 1, U::kHalfDb,  nullptr},
     {"amp presence", "Amp presence",       "Presence",     -20,   20,   0, 1, U::kHalfDb,  nullptr},
-    {"amp release",  "Amp gate release",   "Release",       10,  500,  50, 5, U::kMs,      nullptr},
+    {"gate rel",     "Gate release",       "Release",       10,  500,  50, 5, U::kMs,      nullptr},
     {"dbl",          "Doubler",            "On",             0,    1,   0, 1, U::kOnOff,   nullptr},
     {"dbl time",     "Doubler time",       "Time",           1,   35,  10, 1, U::kMs,      nullptr},
     {"dbl width",    "Doubler width",      "Width",          0,  100, 100, 1, U::kPercent, nullptr},
+    {"gate",         "Noise gate",         "On",             0,    1,   1, 1, U::kOnOff,   nullptr},
     // Not saved.
     {"drum",         "Drums",              "Play",           0,    1,   0, 1, U::kOnOff,   nullptr},
     {nullptr,        "Loop from",          "Loop from",      0,  512,   0, 1, U::kNone,    nullptr},
@@ -105,10 +106,7 @@ void formatValue(const ParamDef& d, int v, bool spaced, char* buf, int n) {
     case Unit::kBpm: snprintf(buf, n, "%d BPM", v); break;
     case Unit::kBars: snprintf(buf, n, "%d bar%s", v, v == 1 ? "" : "s"); break;
     case Unit::kName: snprintf(buf, n, "%d", v + 1); break;
-    case Unit::kDbOff:
-      if (v <= d.min) snprintf(buf, n, "OFF");
-      else snprintf(buf, n, "%d%sdB", v, sp);
-      break;
+    case Unit::kDb: snprintf(buf, n, "%d%sdB", v, sp); break;
     case Unit::kHalfDb: {
       char num[16];
       halfDb(v, num, sizeof(num));
@@ -132,7 +130,6 @@ static bool parseInt(const char* text, int* v) {
 
 bool parseValue(const ParamDef& d, const char* text, int* v) {
   if (!text || !*text) return false;
-  if (d.unit == Unit::kDbOff && !strcasecmp(text, "off")) return *v = d.min, true;
   if (d.unit == Unit::kOnOff) {
     if (!strcasecmp(text, "on")) return *v = 1, true;
     if (!strcasecmp(text, "off")) return *v = 0, true;

@@ -251,8 +251,9 @@ The settings are new rows at the end of the saved block in `ParamDefs.cpp`, afte
 | `amp cal` | toggle | on | Use the file's `input_level_dbu` ([below](#input-level-and-calibration)). |
 | `amp bass` / `amp treble` | −12 … +12 dB, 0.5 | 0 | Tone controls after the model; 0 is flat ([below](#tone-controls)). |
 | `amp mid` / `amp presence` | −10 … +10 dB, 0.5 | 0 | The same, for the middle and the presence. |
-| `amp gate` | off, −90 … −30 dB, 1 | −64 dB | The noise gate's threshold on the input, in dBFS ([below](#noise-gate)). `amp gate off` turns it off. |
-| `amp release` | 10 … 500 ms, 5 | 50 ms | How fast the gate closes: its fade from open to −60 dB. |
+| `gate` | on / off | on | The noise gate ([below](#noise-gate)); its own menu page and home block (NG). |
+| `gate thr` | −90 … −30 dB, 1 | −64 dB | The gate's threshold on the input, in dBFS. |
+| `gate rel` | 10 … 500 ms, 5 | 50 ms | How fast the gate closes: its fade from open to −60 dB. |
 
 | Command | What it does |
 |---|---|
@@ -279,11 +280,11 @@ Measured on 2026-10-29 with the user's eight captures of a JCM800 2203, plain an
 
 **Built** (2026-10-29; details in [DISPLAY.md](DISPLAY.md#home)):
 
-- The home blocks are **AMP › IR › DLY › REV › DRM**. Push on AMP opens the model list, hold switches the amp on/off. Five blocks fit with a pixel to spare each side of the letters, so an off block shows only its box's top and bottom lines.
+- The home blocks are **AMP › NG › IR › DLY › REV** (NG, the noise gate, since 2026-11-06; the drums lost their block then). Push on AMP opens the model list, hold switches the amp on/off. An off block shows only its box's top and bottom lines.
 - **Row 0** shows the model's name while the cursor is on AMP (`_` as spaces), scrolling when it's long; elsewhere the IR's, as before.
 - **The model list** works like the IR list (push loads, the list stays, the last row rescans). It leaves out the words every name shares, and rows off the cursor keep both ends of a long name: `06 OD800~ain 39`.
-- **The Amp page**, first in the menu: On, Model (`7/8`, opens the list), Input, Bass, Middle, Treble, Presence, Output, Gate, Release (while the gate is on), Calibrate: in the order of an amp's knobs, then the rest.
-- Tested in `test_ui` (the AMP block, the list, the page, the names), with renders `02g`, `02h`, `23`–`25e` in `screenshots/`.
+- **The Amp page**, first in the menu: On, Model (`7/8`, opens the list), Input, Bass, Middle, Treble, Presence, Output, Calibrate: in the order of an amp's knobs, then the rest. The gate has its own page after it: On, Threshold, Release.
+- Tested in `test_ui` (the AMP block, the list, the page, the names), with renders `02g`, `02h`, `23`–`25c` in `screenshots/`. The gate has its own page and home block (NG): renders `02i`, `29`–`29d`.
 
 ## Input level and calibration
 
@@ -333,7 +334,7 @@ The value is the gain where the knob acts most: Treble at +3 dB lifts everything
 - It **sits after the amp and its tone controls, before the cab IR**, so the delay and reverb tails ring out after it closes.
 - It **mutes the amp's output**, or the **dry guitar while the amp is off**: it works with the amp on or off (2026-11-06; before, it was part of the amp block and did nothing with the amp off).
 - **Opening:** within about 1 ms once the input rises above the threshold.
-- **Closing:** when the input stays 6 dB below the threshold for an unbroken 20 ms, then fading out exponentially. **Release** (`amp release`, 10–500 ms, default 50) is the time that fade takes to reach −60 dB. At the default, after a palm mute the output is down 60 dB in about **140 ms** (simulated with the Marshall Law capture; the first version took 600 ms). Short releases cut the hiss at once; long ones let a chord ring out naturally under the gate. The 20 ms hold stays fixed: it is what keeps the gate from chattering.
+- **Closing:** when the input stays 6 dB below the threshold for an unbroken 20 ms, then fading out exponentially. **Release** (`gate rel`, 10–500 ms, default 50) is the time that fade takes to reach −60 dB. At the default, after a palm mute the output is down 60 dB in about **140 ms** (simulated with the Marshall Law capture; the first version took 600 ms). Short releases cut the hiss at once; long ones let a chord ring out naturally under the gate. The 20 ms hold stays fixed: it is what keeps the gate from chattering.
 - **Tests** (`test_nam`): releases of 10 and 200 ms reach −60 dB at the set time, within a block.
 - **The level it reads:** each block's mean power, taken at once when it rises and falling with 5 ms. The 20 ms hold is longer than a low string's cycle (12 ms for low E), so the dips between cycles don't close it. The first version used block peaks with a 10 ms fall. Noise spikes and pick ticks crossed the threshold with it, so the gate flickered open and shut as a note died: a sputter. A simulation with the Marshall Law capture, a dying chord and realistic noise reopened it 4–5 times; this one opens once and closes once, on three captures (Marshall Law, Chug Norris, a boosted JCM800) and notes dying fast or slow. For noise this level reads about 5 dB below the meter's peaks, so the default leaves more margin than the meter suggests.
 - **The default, −64 dB,** is 9 dB above the measured idle level.

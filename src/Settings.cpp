@@ -111,6 +111,15 @@ void loadSettings() {
     memset(&g_settings, 0, sizeof(g_settings));
     g_settings.magic = kSettingsMagic;
   }
+  // Before the gate had its own on/off (2026-11-06), its threshold's
+  // minimum, -91 dB, meant off.
+  if (g_settings.count > ui::kGateThr && g_settings.count <= ui::kGateOn) {
+    const bool off = g_settings.v[ui::kGateThr] <= -91;
+    g_settings.v[ui::kGateOn] = off ? 0 : 1;
+    if (off) g_settings.v[ui::kGateThr] = ui::paramDef(ui::kGateThr).def;
+    g_settings.count = ui::kGateOn + 1;
+    scheduleSave();
+  }
   // Values the record doesn't have, or that are out of range, get their
   // defaults. (The song list isn't read yet: a song that has gone from the
   // card is dropped when it is selected at startup.)

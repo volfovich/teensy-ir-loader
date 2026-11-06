@@ -105,8 +105,9 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `amp in -24..24` / `amp out -24..24` | Drive into the model / level after it, in dB |
 | `amp cal` | Toggle the model's input calibration (on by default; only calibrated captures have one) |
 | `amp bass` / `amp treble` `-12..12`, `amp mid` / `amp presence` `-10..10` | Tone controls after the model, in dB (0 = flat): low shelf 120 Hz, peak 650 Hz, high shelf 2.5 kHz, peak 5 kHz |
-| `amp gate -90..-30` / `amp gate off` | Noise gate threshold on the input, in dBFS (default −64): set it a few dB above the meter's idle reading. It gates the amp's output, or the dry guitar with the amp off |
-| `amp release 10..500` | How fast the gate closes: the fade from open to −60 dB, in ms (default 50). Short cuts the hiss at once; long lets notes die naturally. |
+| `gate [on\|off]` | The noise gate on/off (after the amp, before the cab: it gates the amp's output, or the dry guitar with the amp off) |
+| `gate thr -90..-30` | The gate's threshold on the input, in dBFS (default −64): set it a few dB above the meter's idle reading |
+| `gate rel 10..500` | How fast the gate closes: the fade from open to −60 dB, in ms (default 50). Short cuts the hiss at once; long lets notes die naturally. |
 | `dbl [on\|off]` | Toggle the doubler (after the IR, before the delay) |
 | `dbl time 1..35` / `dbl width 0..100` | How late the copy comes (ms, default 10), and the stereo spread (%, 100 = hard left and right) |
 | `tuner` | The tuner for 5 s: prints the note, cents and frequency as they change (the guitar is muted meanwhile) |
