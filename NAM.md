@@ -252,7 +252,7 @@ The settings are new rows at the end of the saved block in `ParamDefs.cpp`, afte
 | `amp bass` / `amp treble` | −12 … +12 dB, 0.5 | 0 | Tone controls after the model; 0 is flat ([below](#tone-controls)). |
 | `amp mid` / `amp presence` | −10 … +10 dB, 0.5 | 0 | The same, for the middle and the presence. |
 | `gate` | on / off | on | The noise gate ([below](#noise-gate)); its own menu page and home block (NG). |
-| `gate thr` | −90 … −30 dB, 1 | −64 dB | The gate's threshold on the input, in dBFS. |
+| `gate thr` | −90 … −20 dB, 1 | −64 dB | The gate's threshold on the input, in dBFS. |
 | `gate rel` | 10 … 500 ms, 5 | 50 ms | How fast the gate closes: its fade from open to −60 dB. |
 
 | Command | What it does |

@@ -67,7 +67,7 @@ static const ParamDef kParams[kValueCount] = {
     {"amp in",       "Amp input",          "Input",        -48,   48,   0, 1, U::kHalfDb,  nullptr},
     {"amp out",      "Amp output",         "Output",       -48,   48,   0, 1, U::kHalfDb,  nullptr},
     {"amp cal",      "Amp calibration",    "Calibrate",      0,    1,   1, 1, U::kOnOff,   nullptr},
-    {"gate thr",     "Gate threshold",     "Threshold",    -90,  -30, -64, 1, U::kDb,      nullptr},
+    {"gate thr",     "Gate threshold",     "Threshold",    -90,  -20, -64, 1, U::kDb,      nullptr},
     {"amp bass",     "Amp bass",           "Bass",         -24,   24,   0, 1, U::kHalfDb,  nullptr},
     {"amp mid",      "Amp middle",         "Middle",       -20,   20,   0, 1, U::kHalfDb,  nullptr},
     {"amp treble",   "Amp treble",         "Treble",       -24,   24,   0, 1, U::kHalfDb,  nullptr},

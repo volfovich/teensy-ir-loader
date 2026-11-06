@@ -256,7 +256,7 @@ Every setting is one row of the parameter table (`lib/oledui/src/ParamDefs.cpp`)
 | | Output | −24 to +24 dB, 0.5 | `amp out` |
 | | Calibrate | toggle | `amp cal` |
 | **Gate** | On | toggle | `gate` |
-| | Threshold | −90 to −30 dB, 1 | `gate thr` |
+| | Threshold | −90 to −20 dB, 1 | `gate thr` |
 | | Release | 10–500 ms, 5 | `gate rel` |
 | **IR** | file list (push = load) | — | `l`, `<n>` |
 | | Rescan SD card | action | `r` |
