@@ -15,7 +15,10 @@
 //   menu:    as in Menu.h; CONFIRM works like push; BACK from the page it
 //            opened at returns home
 //   lists:   (IR, amp) turn = move; push or CONFIRM = load (stays on the
-//            list); the last row rescans the card; BACK
+//            list); the last row rescans the card; BACK. The IR list plays
+//            the IR under the cursor once it rests kPreviewMs, without saving
+//            it: push or CONFIRM keeps it (saved, marked *), leaving without
+//            (BACK, the timeout) loads the saved IR again
 //   meter:   turn = line-in sensitivity; CONFIRM = reset clips and peaks; BACK
 //   status:  BACK
 //   tuner:   (the guitar muted) BACK or push closes it
@@ -38,6 +41,7 @@ class Panel {
   enum Screen : uint8_t { kHome, kMenu, kIrList, kMeter, kStatus, kAmpList, kTuner };
   static constexpr uint32_t kTimeoutMs = 30000;
   static constexpr uint32_t kMarqueeMs = 400;  // the lists' and home's scrolling name
+  static constexpr uint32_t kPreviewMs = 150;  // the IR list: rest before the cursor's IR plays
 
   // model: read for the IR and amp lists and the loaded ones; the caller
   // keeps it up to date.
@@ -66,6 +70,7 @@ class Panel {
   void touch(uint32_t nowMs) { lastInputMs_ = nowMs; }
   bool menuResult(Menu::Result r);
   void openList(Screen list, Screen from);
+  void leaveIrList();  // the IR list closes without a click: back to the saved IR
   FileList fileList() const { return screen_ == kAmpList ? FileList::kAmp : FileList::kIR; }
   bool toggle(uint8_t id);
   int marqueeOffset() const;
@@ -77,6 +82,9 @@ class Panel {
   uint8_t block_ = kBlockAmp;
   int listCursor_ = 0, listTop_ = 0, marquee_ = 0;
   uint32_t lastInputMs_ = 0, marqueeMs_ = 0;
+  // The IR list: the IR playing, the one saved, and when the cursor's plays (0 = none due).
+  int irPlaying_ = -1, irSaved_ = -1;
+  uint32_t previewAt_ = 0;
   int editing_ = -1;
   int editOrig_ = 0, editSong_ = 0;  // the value (and the song) before editing
   uint32_t editTurnMs_ = 0;

@@ -26,6 +26,10 @@ void ampDisplayName(const char* path, char* out, int n) {
 int fileCount(const UiModel& m, FileList list) { return list == FileList::kAmp ? m.ampCount : m.irCount; }
 int fileCurrent(const UiModel& m, FileList list) { return list == FileList::kAmp ? m.ampCurrent : m.irCurrent; }
 
+// The list's mark (`*`, the title's "3/12"): the saved IR, which the IR being
+// tried under the cursor doesn't replace until it is clicked.
+static int fileMarked(const UiModel& m, FileList list) { return list == FileList::kAmp ? m.ampCurrent : m.irSaved; }
+
 void fileName(const UiModel& m, FileList list, int i, char* out, int n) {
   const char* (*path)(int) = list == FileList::kAmp ? m.ampPath : m.irPath;
   if (!path) out[0] = 0;
@@ -171,7 +175,7 @@ void drawHome(Canvas& c, const UiModel& m, int block, int editing, int marquee) 
 void drawFileList(Canvas& c, const UiModel& m, FileList list, int cursor, int top, int marquee) {
   char buf[40], name[64];
   c.clear();
-  const int count = fileCount(m, list), current = fileCurrent(m, list);
+  const int count = fileCount(m, list), current = fileMarked(m, list);
   if (current >= 0) snprintf(buf, sizeof(buf), "%d/%d", current + 1, count);
   else snprintf(buf, sizeof(buf), "-/%d", count);
   titleBar(c, list == FileList::kAmp ? "AMP" : "IR", buf);

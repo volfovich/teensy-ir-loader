@@ -35,6 +35,7 @@ enum ItemId : uint8_t {
   kIrRescan,    // rescan the SD card
   kMeterReset,  // reset the clip counter and the peak holds
   kAmpLoad,     // load amp model number `value` (0-based)
+  kIrPreview,   // load IR number `value` to hear it, without saving it (kIrLoad saves)
   kNoItem = 0xFF,
 };
 

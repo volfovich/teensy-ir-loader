@@ -24,6 +24,15 @@ void Panel::openList(Screen list, Screen from) {
   if (top > entries - kIrBrowserRows) top = entries - kIrBrowserRows;
   listTop_ = top < 0 ? 0 : top;
   marquee_ = 0;
+  previewAt_ = 0;
+  irPlaying_ = m_.irCurrent;
+  irSaved_ = m_.irSaved;
+}
+
+void Panel::leaveIrList() {
+  previewAt_ = 0;
+  if (irSaved_ >= 0 && irPlaying_ != irSaved_) host_.set(kIrPreview, irSaved_);
+  irPlaying_ = irSaved_;
 }
 
 bool Panel::menuResult(Menu::Result r) {
@@ -91,6 +100,8 @@ bool Panel::turn(int detents, uint32_t now) {
       if (c >= listTop_ + kIrBrowserRows) listTop_ = c - kIrBrowserRows + 1;
       marquee_ = 0;
       marqueeMs_ = now;
+      // The IR list plays the cursor's IR once it rests (not the Rescan row).
+      if (screen_ == kIrList) previewAt_ = c < count ? ((now + kPreviewMs) ? now + kPreviewMs : 1) : 0;
       return true;
     }
     case kMeter: {
@@ -134,8 +145,15 @@ bool Panel::push(uint32_t now) {
       return menuResult(menu_.push());
     case kIrList:
     case kAmpList:
-      if (listCursor_ >= fileCount(m_, fileList())) host_.set(kIrRescan, 1);
-      else host_.set(screen_ == kAmpList ? kAmpLoad : kIrLoad, listCursor_);
+      if (listCursor_ >= fileCount(m_, fileList())) {
+        host_.set(kIrRescan, 1);
+      } else {
+        host_.set(screen_ == kAmpList ? kAmpLoad : kIrLoad, listCursor_);
+        if (screen_ == kIrList) {
+          previewAt_ = 0;
+          irPlaying_ = irSaved_ = listCursor_;
+        }
+      }
       return true;
     case kTuner:
       screen_ = from_;
@@ -193,6 +211,7 @@ bool Panel::back(uint32_t now) {
     case kMenu:
       return menuResult(menu_.back());
     default:
+      if (screen_ == kIrList) leaveIrList();
       screen_ = from_;
       marquee_ = 0;
       return true;
@@ -222,8 +241,17 @@ bool Panel::tick(uint32_t now) {
     return true;
   }
   if (screen_ != kHome && screen_ != kMeter && screen_ != kTuner && now - lastInputMs_ >= kTimeoutMs) {
+    if (screen_ == kIrList) leaveIrList();
     screen_ = kHome;
     return true;
+  }
+  if (screen_ == kIrList && previewAt_ && (int32_t)(now - previewAt_) >= 0) {
+    previewAt_ = 0;
+    if (listCursor_ != irPlaying_ && listCursor_ < fileCount(m_, FileList::kIR)) {
+      host_.set(kIrPreview, listCursor_);
+      irPlaying_ = listCursor_;
+      return true;
+    }
   }
   // The scrolling name: the open list's cursor row, or home row 0 on AMP.
   char name[64];

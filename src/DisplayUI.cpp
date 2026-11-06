@@ -56,7 +56,11 @@ class FirmwareHost final : public ui::MenuHost {
 
 void FirmwareHost::set(uint8_t id, int v) {
   switch (id) {
-    case ui::kIrLoad: loadIRIndex(v); break;
+    case ui::kIrLoad:
+      if (v == irCurrent()) saveCurrentIR();  // heard already: keep it, no reload
+      else loadIRIndex(v);
+      break;
+    case ui::kIrPreview: loadIRIndex(v, false); break;
     case ui::kAmpLoad: loadAmpIndex(v); break;
     case ui::kIrRescan:
       scanCard();
@@ -111,6 +115,7 @@ static void fillModel(uint32_t now) {
   m.sdOk = irSdOk();
   m.irCount = irCount();
   m.irCurrent = irCurrent();
+  m.irSaved = irSaved();
   m.irPath = irPath;
   m.ampCount = ampCount();
   m.ampCurrent = ampCurrent();

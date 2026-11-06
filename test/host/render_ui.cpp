@@ -158,6 +158,10 @@ int main(int argc, char** argv) {
 
   ui::drawIrBrowser(c, m, 2, 0, 0);
   snap("09_ir_browser");
+  ui::UiModel tryIr = m;  // scrolled to IR 4, which plays; IR 3 stays the saved one (*)
+  tryIr.irCurrent = 3;
+  ui::drawIrBrowser(c, tryIr, 3, 1, 0);
+  snap("09b_ir_browser_trying");
 
   ui::drawFileList(c, m, ui::FileList::kAmp, 6, 5, 0);
   snap("23_amp_list");

@@ -685,6 +685,7 @@ static void testPanel() {
   p.push(t);  // IR list, on "V30 SM57 Mesa 4x12 close"
   check(p.tick(t + P::kMarqueeMs), "marquee: a long name scrolls", 0);
   p.turn(-2, t);  // "Greenback"
+  p.tick(t + P::kPreviewMs);  // it plays (a redraw)
   check(!p.tick(t + 2 * P::kMarqueeMs), "  ... a short one doesn't", 0);
 }
 
@@ -765,6 +766,81 @@ static void testAmpPanel() {
   check(h.valueText(ui::kScreenAmp, b, sizeof(b)) && !std::strcmp(b, "7/8"), "  ... Model shows 7/8", 0);
 }
 
+// The IR list plays the IR under the cursor once it rests, without saving
+// it; a click keeps it; leaving without one loads the saved IR again.
+static void testIrPreview() {
+  std::printf("IR list: hear while scrolling\n");
+  FakeHost h;
+  ui::UiModel m = fakeModel();  // IR 3 (index 2) loaded and saved
+  ui::Panel p(ui::menuPages(), h, m);
+  using P = ui::Panel;
+  uint32_t t = 1000;
+  p.turn(2, t);  // AMP > NG > IR
+  p.push(t);
+  check(p.screen() == P::kIrList && p.irCursor() == 2, "the IR list, on the saved IR", p.irCursor());
+  p.tick(t + 1000);
+  check(h.previews == 0, "  ... nothing plays until the cursor moves", h.previews);
+
+  t = 5000;
+  p.turn(1, t);
+  check(h.previews == 0, "turn: nothing loads at once", h.previews);
+  p.tick(t + P::kPreviewMs - 1);
+  check(h.previews == 0, "  ... still nothing just before the rest time", h.previews);
+  check(p.tick(t + P::kPreviewMs) && h.previews == 1 && h.previewed == 3 && h.loaded < 0,
+        "  ... after it: IR 4 plays, not saved", h.previewed);
+  p.tick(t + 1000);
+  check(h.previews == 1, "  ... once", h.previews);
+
+  // A fast scroll plays only where it stops.
+  t = 10000;
+  for (int i = 0; i < 4; i++) p.turn(1, t + i * 40);
+  p.tick(t + 3 * 40 + P::kPreviewMs);
+  check(h.previews == 2 && h.previewed == 7, "a fast scroll: only IR 8, where it stopped", h.previewed);
+
+  // BACK without a click: the saved IR plays again.
+  p.back(t + 1000);
+  check(p.screen() == P::kHome && h.previews == 3 && h.previewed == 2 && h.loaded < 0,
+        "BACK: home, the saved IR (3) loads again, nothing saved", h.previewed);
+
+  // Push keeps it: saved; leaving then reloads nothing.
+  t = 20000;
+  p.push(t);
+  p.turn(-1, t);
+  p.tick(t + P::kPreviewMs);
+  check(h.previewed == 1, "back in the list: IR 2 plays", h.previewed);
+  p.push(t + 500);
+  check(h.loaded == 1 && p.screen() == P::kIrList, "  ... push keeps it (saved), the list stays", h.loaded);
+  m.irCurrent = m.irSaved = 1;  // as the firmware's model follows
+  const int before = h.previews;
+  p.tick(t + 1000);
+  p.back(t + 1000);
+  check(h.previews == before && p.screen() == P::kHome, "  ... BACK then: nothing reloads", h.previews);
+
+  // The timeout goes back to the saved IR (now 2) too.
+  t = 30000;
+  p.push(t);
+  p.turn(3, t);
+  p.tick(t + P::kPreviewMs);
+  check(h.previewed == 4, "IR 5 plays", h.previewed);
+  check(p.tick(t + P::kTimeoutMs) && p.screen() == P::kHome && h.previewed == 1,
+        "  ... 30 s idle: home, the saved IR (2) again", h.previewed);
+
+  // The Rescan row plays nothing; neither does the amp list.
+  t = 40000;
+  p.push(t);
+  const int n = h.previews;
+  p.turn(100, t);
+  p.tick(t + 1000);
+  check(h.previews == n && p.irCursor() == m.irCount, "the Rescan row: nothing plays", h.previews);
+  p.back(t + 1000);
+  p.turn(-10, t);
+  p.push(t);  // AMP: the model list
+  p.turn(1, t);
+  p.tick(t + 1000);
+  check(p.screen() == P::kAmpList && h.previews == n && h.ampLoaded < 0, "the amp list: nothing loads by scrolling",
+        h.previews);
+}
+
 int main() {
   testQuadrature();
   testKey();
@@ -781,6 +857,7 @@ int main() {
   testEditorFonts();
   testPanel();
   testAmpPanel();
+  testIrPreview();
   std::printf(failures ? "\n%d FAILURE(S)\n" : "\nALL TESTS PASSED\n", failures);
   return failures ? 1 : 0;
 }

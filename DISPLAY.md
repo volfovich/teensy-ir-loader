@@ -98,8 +98,8 @@ The home screen shows the chain as blocks, AMP › NG › IR › DLY › REV, th
 
 | Input | IR or amp list | Meter | Status | Tuner |
 |---|---|---|---|---|
-| Turn | Move the cursor | Line-in sensitivity | — | — |
-| Push / CONFIRM | Load the IR or model under the cursor (or rescan); the list stays open | CONFIRM: reset the clip counter and peak holds | — | Push: close |
+| Turn | Move the cursor. IR list: the IR under it plays once the cursor rests 150 ms (not saved) | Line-in sensitivity | — | — |
+| Push / CONFIRM | Load the IR or model under the cursor and keep it (saved), or rescan; the list stays open | CONFIRM: reset the clip counter and peak holds | — | Push: close |
 | BACK | Back to where it was opened from (home or the menu) | Back to the menu | Back to the menu | Close |
 
 After 30 s without input, the display returns to the home screen. The meter and tuner screens stay, because they are used while playing.
@@ -170,12 +170,13 @@ The IR list opens from the IR block or Menu → IR; the amp list (the models in 
 ┌────────────────┐     ┌────────────────┐
 │IR          3/12│     │AMP          7/8│
 │01 Greenback    │     │06 OD800~ain 39 │
-│02 V30 Room     │     │07 OD8008 Boost*│  cursor row inverted, * = loaded
+│02 V30 Room     │     │07 OD8008 Boost*│  cursor row inverted, * = loaded (IR: saved)
 │03 V30 SM57 Mes*│     │08 OD800~Gain 7 │
 └────────────────┘     └────────────────┘
 ```
 
 - The last entry is `Rescan SD card`. A list opens on the loaded file. Push loads the one under the cursor and the list stays open, so IRs or models can be compared one after the other.
+- **The IR list plays as you scroll:** once the cursor rests for 150 ms, the IR under it loads and plays, without being saved; a fast scroll loads only where it stops. Push or CONFIRM keeps it: it becomes the saved IR (loaded at startup) and the `*` moves to it. Leaving the list without a click (BACK, the 30 s timeout) loads the saved IR again. While trying, the `*` and the title's count stay on the saved IR (render `09b_ir_browser_trying.png`). The amp list doesn't do this: a model takes too long to load.
 - **Long names:** the cursor row scrolls sideways; the other rows keep both ends with a `~` between, since names often differ only at the end (`… Gain 5`).
 - **Words every name shares are left out** of the rows (`JCM 800 2203` for a set of captures of one amp), so the rows show what differs. Home row 0 shows the whole name.
 - Loading a model takes about 0.9 s (the screen waits); an IR about 15 ms. Render: `23_amp_list.png`.

@@ -9,10 +9,11 @@
 
 struct FakeHost : ui::MenuHost {
   int v[96] = {};
-  static_assert(ui::kAmpLoad < 96, "v[] holds every ItemId");
+  static_assert(ui::kIrPreview < 96, "v[] holds every ItemId");
   int timeMax = 750;
   int sets = 0;
   int loaded = -1, ampLoaded = -1, rescans = 0, resets = 0;  // the panel's actions
+  int previewed = -1, previews = 0;                           // IRs played without saving
   FakeHost() {
     v[ui::kDelayOn] = 1; v[ui::kDelayMix] = 30; v[ui::kDelayTime] = 380;
     v[ui::kDelayRepeats] = 35; v[ui::kDelayTone] = 60; v[ui::kDelayMod] = 15;
@@ -59,6 +60,7 @@ struct FakeHost : ui::MenuHost {
     sets++;
     if (id == ui::kIrLoad) loaded = value;
     else if (id == ui::kAmpLoad) ampLoaded = value;
+    else if (id == ui::kIrPreview) previewed = value, previews++;
     else if (id == ui::kIrRescan) rescans++;
     else if (id == ui::kMeterReset) resets++;
     else v[id] = value;
@@ -116,6 +118,7 @@ inline ui::UiModel fakeModel() {
   m.sdOk = true;
   m.irCount = 12;
   m.irCurrent = 2;
+  m.irSaved = 2;
   m.irPath = fakeIrPath;
   m.ampCount = 8;
   m.ampCurrent = 6;

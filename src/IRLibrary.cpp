@@ -83,7 +83,7 @@ void scanCard() {
 // ---------------------------------------------------------------------------
 // IR loading
 // ---------------------------------------------------------------------------
-bool loadIRIndex(int idx) {
+bool loadIRIndex(int idx, bool save) {
   if (idx < 0 || idx >= g_numFiles) return false;
   auto& eng = convolver.engine();
   // A previous crossfade may still be running (25 ms max).
@@ -120,8 +120,7 @@ bool loadIRIndex(int idx) {
   uint32_t ms = millis() - t0;
 
   g_current = idx;
-  strlcpy(g_settings.irPath, path, IR_PATH_MAX);
-  scheduleSave();
+  if (save) saveCurrentIR();
 
   Serial.printf("[%d/%d] %s\n", idx + 1, g_numFiles, path);
   Serial.printf("      %u Hz, %u ch, %u-bit %s, %d frames -> %d samples (%.1f ms, %d partitions)%s%s, %lu ms\n",
@@ -134,6 +133,18 @@ bool loadIRIndex(int idx) {
   if (res.leadTrimmed > 0)
     Serial.printf("      removed %d samples of leading silence\n", res.leadTrimmed);
   return true;
+}
+
+void saveCurrentIR() {
+  if (g_current < 0 || !strcmp(g_settings.irPath, g_files[g_current])) return;
+  strlcpy(g_settings.irPath, g_files[g_current], IR_PATH_MAX);
+  scheduleSave();
+}
+
+int irSaved() {
+  for (int i = 0; i < g_numFiles; i++)
+    if (strcasecmp(g_files[i], g_settings.irPath) == 0) return i;
+  return -1;
 }
 
 void loadRelative(int step) {

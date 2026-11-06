@@ -16,6 +16,7 @@ struct UiModel {
   // IR files.
   bool sdOk = false;
   int irCount = 0, irCurrent = -1;
+  int irSaved = -1;  // the IR in the settings (loaded at startup); irCurrent may be one being tried
   const char* (*irPath)(int idx) = nullptr;
 
   // Amp models (.nam files in /AMP).
