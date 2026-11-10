@@ -85,7 +85,8 @@ static void applyParam(int id, int v) {
     case kReverbMod: r.setMod(v / 100.0f); break;
     case kReverbEra: r.setEra(v / 100.0f); break;
     case kReverbGate: r.setGateMs(v); break;
-    case kOutGain: convolver.setOutputGainDb(v * 0.5f); break;
+    case kOutGain:
+    case kPresetLevel: convolver.setOutputGainDb((s[kOutGain] + s[kPresetLevel]) * 0.5f); break;
     case kLineIn:
       codec.lineInLevel(v);
       ampApplyGains();  // the calibration follows the input's full scale
@@ -154,6 +155,16 @@ static void printDrums(bool on) {
                 getParam(kDrumTempo));
   if (getParam(kDrumCountIn)) Serial.printf(", %d-bar count-in", getParam(kDrumCountIn));
   Serial.println();
+}
+
+void setParamQuiet(int id, int v) {
+  int lo, hi;
+  paramLimits(id, &lo, &hi);
+  v = constrain(v, lo, hi);
+  if (id >= kParamCount || id == kDrumSong) return;
+  g_settings.v[id] = v;
+  scheduleSave();
+  applyParam(id, v);
 }
 
 void setParam(int id, int v) {

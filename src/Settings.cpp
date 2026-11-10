@@ -7,7 +7,19 @@
 
 Settings g_settings;
 
-static const uint32_t kSettingsMagic = 0x49524C51;  // "IRLQ": the amp model, values by ui::Param
+static const uint32_t kSettingsMagic = 0x49524C52;  // "IRLR": the preset's path, values by ui::Param
+
+// The record before presets ("IRLQ", up to 2026-11-10): the same without
+// presetPath, read once to carry its settings over.
+static const uint32_t kNoPresetMagic = 0x49524C51;
+struct NoPresetSettings {
+  uint32_t magic;
+  uint16_t count;
+  uint16_t reserved;
+  char irPath[IR_PATH_MAX];
+  char ampPath[IR_PATH_MAX];
+  int16_t v[ui::kParamCount];  // count of them were written
+};
 static uint32_t g_saveAt = 0;  // millis() when a pending save is due (0 = none)
 
 // The record before the amp model ("IRLP", up to 2026-10-29): the same
@@ -47,6 +59,7 @@ static void fromLegacy(const LegacySettings& o) {
   int16_t* v = g_settings.v;
   memcpy(g_settings.irPath, o.irPath, IR_PATH_MAX);
   memset(g_settings.ampPath, 0, IR_PATH_MAX);
+  memset(g_settings.presetPath, 0, IR_PATH_MAX);
   v[kDelayOn] = o.delayOn;
   v[kDelayMix] = o.delayMix;
   v[kDelayTime] = o.delayTimeMs;
@@ -91,7 +104,17 @@ static void fromLegacy(const LegacySettings& o) {
 
 void loadSettings() {
   EEPROM.get(0, g_settings);
-  if (g_settings.magic == kNoAmpMagic) {
+  if (g_settings.magic == kNoPresetMagic) {
+    NoPresetSettings old;
+    EEPROM.get(0, old);
+    memset(&g_settings, 0, sizeof(g_settings));
+    memcpy(g_settings.irPath, old.irPath, IR_PATH_MAX);
+    memcpy(g_settings.ampPath, old.ampPath, IR_PATH_MAX);
+    g_settings.count = old.count < ui::kParamCount ? old.count : ui::kParamCount;
+    memcpy(g_settings.v, old.v, sizeof(int16_t) * g_settings.count);
+    g_settings.magic = kSettingsMagic;
+    scheduleSave();
+  } else if (g_settings.magic == kNoAmpMagic) {
     NoAmpSettings old;
     EEPROM.get(0, old);
     memset(&g_settings, 0, sizeof(g_settings));
@@ -135,6 +158,7 @@ void loadSettings() {
   }
   g_settings.irPath[IR_PATH_MAX - 1] = 0;
   g_settings.ampPath[IR_PATH_MAX - 1] = 0;
+  g_settings.presetPath[IR_PATH_MAX - 1] = 0;
 }
 
 void scheduleSave() { g_saveAt = millis() + 3000; if (!g_saveAt) g_saveAt = 1; }

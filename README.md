@@ -76,6 +76,8 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► amp ──────�
 
 Hidden files (such as macOS `._name.wav` files) are ignored. Files are listed alphabetically, so a numeric prefix like `01 V30 SM57.wav` sets the order.
 
+The firmware writes presets to `/PRESETS` (`01 Clean.txt` …), as plain text you can read and edit on a computer ([PRESETS.md](PRESETS.md#the-file)).
+
 ## Build and upload
 
 1. Install VS Code and the PlatformIO extension, or the `pio` command-line tool.
@@ -101,6 +103,11 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `l` | List IR files (`>` marks the current one) |
 | `3` | Load IR number 3 |
 | `n` / `p` | Next / previous IR |
+| `pre` | List the presets in `/PRESETS` (`>` the recalled one, `*` if it has been changed since). All preset commands are explained in [PRESETS.md](PRESETS.md#serial-commands). |
+| `pre <n\|name>` | Recall preset n (its number), or the first whose name contains the text: the amp model, the IR and every sound setting |
+| `pre save` / `pre new <name>` | Save the sound over the recalled preset / as a new one at the lowest free number |
+| `pre name <text>` / `pre del <n>` / `pre show` | Rename the recalled preset / delete preset n / list what differs from the recalled preset |
+| `pvol -24..12` | The preset's own level in dB, added to the output gain (saved in the preset) |
 | `amp` | Toggle the amp block (NAM A2) on/off, click-free. All amp commands are explained in [NAM.md](NAM.md#serial-commands). |
 | `amp list` / `amp <n\|name>` / `amp info` | List the models in `/AMP` / load one by number or part of its name / what the loaded one says about itself |
 | `amp in -24..24` / `amp out -24..24` | Drive into the model / level after it, in dB |
@@ -206,6 +213,7 @@ src/AudioGraph.{h,cpp}      audio objects and the codec
 src/Params.{h,cpp}          reading and changing any setting by number (what each one does)
 src/IRLibrary.{h,cpp}       SD card scanning and IR loading
 src/AmpLibrary.{h,cpp}      the NAM amp models in /AMP: listing, loading, their gains
+src/PresetLibrary.{h,cpp}   presets in /PRESETS: listing, recalling, saving, the edited mark (PRESETS.md)
 src/SdSource.h              an SD file as the loaders' byte source
 src/DrumSongs.{h,cpp}       drum songs: the built-in ones and MIDI files in /DRUMS
 src/Settings.{h,cpp}        the settings saved in EEPROM
@@ -235,7 +243,7 @@ lib/irdsp/src/              portable DSP core (no Arduino dependencies)
   irdsp_fft.h               small radix-2 FFT
   IRLoader.{h,cpp}          WAV parser, resampler, IR trimming and normalization
 lib/oledui/src/             the panel UI, Arduino-free: the settings table (ParamDefs), canvas, fonts,
-                            menu tree, screens, meters, keys
+                            menu tree, screens, meters, keys; a preset's file format (PresetFile)
 fonts/spleen/               the panel's fonts (Spleen, BSD-2-Clause; tools/make_font.py compiles them in)
 kits/rock/                  the recorded drum kit (WAVs, kit.txt, credits, our originals)
 songs/                      the built-in drum songs (text, compiled in)
@@ -274,7 +282,7 @@ The tests check:
 
 ## Ideas for next steps
 
-- **Presets:** save and recall whole sounds (model, IR, tone, gate, doubler, delay, reverb) as numbered presets on the SD card. The plan is in [PRESETS.md](PRESETS.md).
+- **Presets on the panel** (P3) and a weights cache for fast model switches (P2): see [PRESETS.md](PRESETS.md). Saving and recalling over serial works (P1).
 - **Tone controls:** low-cut and high-cut after the convolver.
 - **Two-IR blending:** the engine already evaluates two IRs during crossfades.
 - **USB audio:** build with `-D USB_MIDI_AUDIO_SERIAL` and add `AudioOutputUSB` to record directly into a computer (verify it with your chosen block size).

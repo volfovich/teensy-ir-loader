@@ -12,6 +12,7 @@
 #include "DrumSongs.h"
 #include "IRLibrary.h"
 #include "Params.h"
+#include "PresetLibrary.h"
 #include "Tuner.h"
 #include "config.h"
 
@@ -67,6 +68,13 @@ void printHelp() {
                "  amp <n|name>          load amp model n, or the first whose name contains it\n"
                "  amp info              what the loaded model says about itself\n"
                "  amp selftest <n>      runs the model on n floats sent over USB (tools/amp_selftest.py)\n"
+               "  pre                   list the presets (/PRESETS); > the recalled one, * edited\n"
+               "  pre <n|name>          recall preset n, or the first whose name contains it\n"
+               "  pre save              save the sound over the recalled preset\n"
+               "  pre new <name>        save the sound as a new preset\n"
+               "  pre name <text>       rename the recalled preset\n"
+               "  pre del <n>           delete preset n\n"
+               "  pre show              what differs from the recalled preset\n"
                "  tuner                 the tuner for 5 s (the guitar is muted meanwhile)\n"
                "  drum loop <a> <b>|off  loop bars a..b of the song\n"
                "  drum train <step> <every> <target>  set the speed trainer and switch it on\n"
@@ -211,7 +219,12 @@ static void printDrumStatus() {
 static void printStatus() {
   auto& eng = convolver.engine();
   const float blockMs = AUDIO_BLOCK_SAMPLES * 1000.0f / AUDIO_SAMPLE_RATE_EXACT;
-  Serial.printf("\nIR:        %s\n", irCurrent() >= 0 ? irPath(irCurrent()) : "(none - passthrough)");
+  if (presetCurrent() >= 0)
+    Serial.printf("\nPreset:    %s%s, level %+.1f dB\n", presetName(presetCurrent()), presetEdited() ? "* (edited)" : "",
+                  0.5f * getParam(kPresetLevel));
+  else
+    Serial.printf("\nPreset:    none (pre new <name> saves one)\n");
+  Serial.printf("IR:        %s\n", irCurrent() >= 0 ? irPath(irCurrent()) : "(none - passthrough)");
   Serial.printf("Partitions %d x %d samples, %s\n", eng.activePartitions(), AUDIO_BLOCK_SAMPLES,
                 convolver.bypassed() ? "BYPASSED" : "active");
   Serial.printf("Latency:   ~%.2f ms buffering (2 x %d-sample blocks) + codec\n", 2 * blockMs, AUDIO_BLOCK_SAMPLES);
@@ -288,7 +301,39 @@ static char* splitWord(char* s) {
 // The commands that aren't one setting: "drum style|kit|song" take names,
 // "drum loop" and "drum train" several numbers, "bass key" a note name.
 // True if the line was one of them.
+// pre [n|name|save|new <name>|name <text>|del <n>|show]
+static void presetCommand(char* arg) {
+  if (!arg) {
+    printPresets();
+    return;
+  }
+  char* rest = splitWord(arg);
+  if (!strcmp(arg, "save") && !rest) {
+    savePreset();
+  } else if (!strcmp(arg, "new")) {
+    newPreset(rest ? rest : "");
+  } else if (!strcmp(arg, "name")) {
+    if (rest) renamePreset(rest);
+    else Serial.println("pre name <text>");
+  } else if (!strcmp(arg, "del")) {
+    const int i = rest && isdigit((unsigned char)rest[0]) ? findPresetNumber(atoi(rest)) : -1;
+    if (i < 0) Serial.println("pre del <n>: the preset's number (type 'pre').");
+    else deletePreset(i);
+  } else if (!strcmp(arg, "show") && !rest) {
+    printPresetDiff();
+  } else {
+    if (rest) arg[strlen(arg)] = ' ';  // a name with spaces: whole again
+    const int i = isdigit((unsigned char)arg[0]) && !strchr(arg, ' ') ? findPresetNumber(atoi(arg)) : findPresetName(arg);
+    if (i < 0) Serial.println("No such preset (type 'pre').");
+    else recallPreset(i);
+  }
+}
+
 static bool specialCommand(const char* cmd, char* arg) {
+  if (!strcmp(cmd, "pre")) {
+    presetCommand(arg);
+    return true;
+  }
   if (!strcmp(cmd, "amp") && arg) {
     // amp list | info | <n> | <name>; amp on|off|in|out|cal and
     // the tone controls are settings.

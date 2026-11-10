@@ -1,6 +1,6 @@
 # Presets: plan
 
-**Status (2026-11-10): a plan; nothing built yet.** A preset is a whole sound (the amp and its model, the gate, the IR, the doubler, the delay and the reverb) saved as a text file on the SD card. It is recalled from the panel or over serial.
+**Status (2026-11-10): P1 done: presets are saved, recalled, renamed and deleted over serial ([P1 results](#p1-results)). Next: P2 (the weights cache), then P3 (the panel).** A preset is a whole sound (the amp and its model, the gate, the IR, the doubler, the delay and the reverb) saved as a text file on the SD card. It is recalled from the panel or over serial.
 
 ```
 /PRESETS/01 Clean.txt      ─┐
@@ -24,6 +24,7 @@
 - [Code](#code)
 - [Memory and CPU](#memory-and-cpu)
 - [Milestones](#milestones)
+- [P1 results](#p1-results)
 - [Tests](#tests)
 - [Open questions](#open-questions)
 
@@ -41,7 +42,7 @@
 
 **Not in a preset:** `g` (the master output gain), `in`, `out`, `hp`, the drums (style, song, kit, tempo, crash, volume, compression, count-in), the bass and the trainer.
 
-**The table decides.** `ui::ParamDef` (`lib/oledui/src/ParamDefs.h`) gets a `flags` field with a `kPreset` bit, set on the rows above. Writing, reading and the edited mark all walk the table. A setting added later goes into presets, or stays out, by one flag in one place.
+**The table decides.** `ui::ParamDef` (`lib/oledui/src/ParamDefs.h`) gets a `flags` field with a `kInPreset` bit, set on the rows above. Writing, reading and the edited mark all walk the table. A setting added later goes into presets, or stays out, by one flag in one place.
 
 ## The file
 
@@ -67,7 +68,7 @@ dtime 380
 pvol -1.5
 ```
 
-- **One line per setting:** the serial key, a space, the value as `formatValue()` writes it for typing (`on`, `+3.5`, `nam`). Read back with `parseValue()`: exactly what a serial command accepts. Every `kPreset` setting is written, the defaults too, so a file is complete.
+- **One line per setting:** the serial key, a space, the value as `formatTyped()` writes it (`on`, `+3.5`, `nam`). Read back with `parseValue()`: exactly what a serial command accepts. Every `kInPreset` setting is written, the defaults too, so a file is complete.
 - **Two paths:** `amp model` and `ir`, written as the firmware knows them (`/AMP/…`, `/IR/…`).
 - **Reading is forgiving:**
   - `#` comments, blank lines, CRLF line ends and trailing spaces are fine.
@@ -105,7 +106,7 @@ A `.nam` file is about 670 KB of JSON (both networks); reading it takes about 0.
 
 ## Saving, and the edited mark
 
-- **The edited mark:** `03 Lead*` while any `kPreset` value, the model or the IR differs from the loaded preset's. It is computed against the reference kept at recall, so turning a knob back clears it.
+- **The edited mark:** `03 Lead*` while any `kInPreset` value, the model or the IR differs from the loaded preset's. It is computed against the reference kept at recall, so turning a knob back clears it.
 - **Save** writes the current values over the loaded preset (with a confirm on the panel).
 - **Save as new** takes the lowest free number, and a name: the panel offers `Preset NN`; over serial it's the command's text.
 - **Rename** renames the file. **Delete** removes it (with a confirm); the numbers of the others don't move.
@@ -159,7 +160,7 @@ Renders come first, as always (`make -C test/host render`); nothing is flashed b
 | File | What |
 |---|---|
 | `lib/oledui/src/PresetFile.{h,cpp}` | **New**, Arduino-free: writes a preset from the values (`formatValue`) and parses one (`parseValue`); the forgiving rules above. Host-tested. |
-| `lib/oledui/src/ParamDefs.{h,cpp}` | The `flags` field and `kPreset`; the `pvol` row at the end of the saved block. |
+| `lib/oledui/src/ParamDefs.{h,cpp}` | The `flags` field and `kInPreset`; the `pvol` row at the end of the saved block. |
 | `src/PresetLibrary.{h,cpp}` | **New**: scans `/PRESETS`, recalls, saves, renames, deletes; the edited mark. Background only: on the cold list in `tools/imxrt1062_cold.ld` (both `COLD_` blocks). |
 | `src/AmpLibrary.cpp` | The weights cache (read and write); `loadAmpPath()` for a preset's model. |
 | `src/Params.cpp` | A quiet bulk apply for a recall; `pvol` added to the output gain. |
@@ -178,16 +179,40 @@ Renders come first, as always (`make -C test/host render`); nothing is flashed b
 
 | | What | Done when |
 |---|---|---|
-| **P1** | The file format, the recall, `pvol`, the serial commands, the edited mark, the settings record. | Presets saved and recalled over serial, from a file edited on a computer too; switching while playing is click-free (by ear and in `s`). |
+| **P1** | The file format, the recall, `pvol`, the serial commands, the edited mark, the settings record. | **Done** ([results](#p1-results)); still to hear: switching while playing, by ear. |
 | **P2** | The weights cache. | A preset with another model plays within 0.2 s; a changed or damaged cache is rebuilt. |
 | **P3** | The panel: row 0, PRE, the list, the page, rename, the confirms. | Renders approved, then on the device. |
 | **P4** | Footswitches (later). | Up and down from the floor. |
 
+## P1 results
+
+Built and checked on the Teensy on 2026-11-10:
+
+- **The code:**
+  - `lib/oledui/src/PresetFile.{h,cpp}`: the format, one line at a time.
+  - `formatTyped()` in `ParamDefs`: a value as typed.
+  - The `flags` column with `kInPreset` on 35 rows, and `pvol`.
+  - `src/PresetLibrary.{h,cpp}`, the `pre` commands, the `Preset:` line in `s`.
+  - `setParamQuiet()`, and the `IRLR` settings record with `presetPath` (the `IRLQ` record carries over: the user's settings came through untouched).
+- **Recall time:**
+  - Only values changing: **55 ms**.
+  - Another model and IR: **about 1.07 s**, of which 946 ms is reading the model's JSON (the cache in P2 removes that) and 70–80 ms the IR.
+- **CPU:** 75.3 % max while a recall switched the model and the IR (amp, IR and reverb on); 57–59 % otherwise; no clipped samples.
+- **Checked:**
+  - Save as new (the lowest free number), list, recall by number and by name, rename (the number kept), save over, delete.
+  - The edited mark: set by turning a knob, cleared by turning it back; `pre show` lists the differences.
+  - The mark comes back after a restart (`presetPath` in the EEPROM, the file read again at boot).
+- **Memory:** RAM2 −5.3 KB (20.8 KB left): the list's 99 names (4.7 KB) and two preset records. ITCM and RAM1 unchanged: all of it is in flash, checked with `nm`.
+- **Saving** goes through `/PRESETS/.saving.tmp`, then replaces the old file, because the SD library's `FILE_WRITE` appends.
+- **Choices made:**
+  - `pre <n>` means the preset's own number (`05 X.txt` is `pre 5`), not its place in the list.
+  - A file without a number is listed last and recalled by name.
+
 ## Tests
 
 **On the PC** (`make -C test/host test`):
-- **`test_presets`** (new):
-  - A round trip of every `kPreset` setting, at its minimum, maximum and default.
+- **`test_presets`** (built in P1, also clean under AddressSanitizer and UBSan):
+  - A round trip of every `kInPreset` setting, at its minimum, maximum and default.
   - Keys in any order; comments, CRLF and blank lines.
   - Unknown keys skipped; missing keys defaulted; values clamped.
   - Long names and names with spaces; cut-off and randomly damaged files: an error or defaults, never a crash (also under AddressSanitizer).

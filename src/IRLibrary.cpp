@@ -7,6 +7,7 @@
 #include "AudioGraph.h"
 #include "DrumSongs.h"
 #include "IRLoader.h"
+#include "PresetLibrary.h"
 #include "SdSource.h"
 #include "Settings.h"
 #include "config.h"
@@ -78,6 +79,7 @@ void scanCard() {
   Serial.printf("Found %d IR file(s).\n", g_numFiles);
   scanDrumSongs();
   scanAmps();
+  scanPresets();
 }
 
 // ---------------------------------------------------------------------------

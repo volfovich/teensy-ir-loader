@@ -21,68 +21,70 @@ static const char* const kGateTypes[] = {"nam", "hard"};
 static const char* const kKeyNames[] = {"C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"};
 
 using U = Unit;
+constexpr uint8_t kPreset = kInPreset;
 
 // In Param order.
 static const ParamDef kParams[kValueCount] = {
-    // key           name                  label           min   max  def step unit        choices
-    {"dl",           "Delay",              "On",             0,    1,   0, 1, U::kOnOff,   nullptr},
-    {"dmix",         "Delay mix",          "Mix",            0,  100,  30, 1, U::kPercent, nullptr},
-    {"dtime",        "Delay time",         "Time",          20,  750, 380, 5, U::kMs,      nullptr},
-    {"dfb",          "Delay repeats",      "Repeats",        0,  100,  35, 1, U::kPercent, nullptr},
-    {"dtone",        "Delay tone",         "Tone",           0,  100,  60, 1, U::kPercent, nullptr},
-    {"dmod",         "Delay modulation",   "Mod",            0,  100,  15, 1, U::kPercent, nullptr},
-    {"dduck",        "Delay ducking",      "Duck",           0,  100,  40, 1, U::kPercent, nullptr},
-    {"ddrive",       "Delay drive",        "Drive",          0,  100,  20, 1, U::kPercent, nullptr},
-    {"dera",         "Delay era",          "Era",            0,  100,  40, 1, U::kPercent, nullptr},
-    {"rv",           "Reverb",             "On",             0,    1,   0, 1, U::kOnOff,   nullptr},
-    {"mix",          "Reverb mix",         "Mix",            0,  100,  25, 1, U::kPercent, nullptr},
-    {"size",         "Reverb size",        "Size",           0,  100,  50, 1, U::kPercent, nullptr},
-    {"tone",         "Reverb tone",        "Tone",           0,  100,  50, 1, U::kPercent, nullptr},
-    {"rmode",        "Reverb mode",        "Mode",           0,    1,   0, 1, U::kNone,    kReverbModes},
-    {"rpre",         "Reverb pre-delay",   "Pre-delay",      0,  150,  40, 1, U::kMs,      nullptr},
-    {"rmod",         "Reverb modulation",  "Mod",            0,  100,  40, 1, U::kPercent, nullptr},
-    {"rera",         "Reverb era",         "Era",            0,  100,  40, 1, U::kPercent, nullptr},
-    {"rgate",        "Reverb gate",        "Gate",         100,  600, 300, 10, U::kMs,     nullptr},
-    {"g",            "Output gain",        "Out gain",    -120,   48, -12, 1, U::kHalfDb,  nullptr},
-    {"in",           "Line-in level",      "Line-in sens",   0,   15,   0, 1, U::kNone,    nullptr},
-    {"out",          "Line-out level",     "Line-out",      13,   31,  29, 1, U::kNone,    nullptr},
-    {"hp",           "Headphones",         "Headphones",     0,  100,  50, 1, U::kPercent, nullptr},
-    {"b",            "Bypass",             "Bypass",         0,    1,   0, 1, U::kOnOff,   nullptr},
-    {"drum style",   "Drum style",         "Style",          0,   63,   1, 1, U::kName,    nullptr},
-    {"drum kit",     "Drum kit",           "Kit",            0,   63,   1, 1, U::kName,    nullptr},
-    {"drum song",    "Drum song",          "Song",           0,  255,   0, 1, U::kName,    nullptr},
-    {"drum crash",   "Crash",              "Crash",          0,    4,   2, 1, U::kNone,    kCrashNames},
-    {"bpm",          "Tempo",              "Tempo",         40,  240, 100, 1, U::kBpm,     nullptr},
-    {"drum vol",     "Drum volume",        "Volume",         0,  100,  60, 1, U::kPercent, nullptr},
-    {"drum comp",    "Drum compression",   "Comp",           0,  100,  40, 1, U::kPercent, nullptr},
-    {"drum count",   "Count-in",           "Count-in",       0,    4,   2, 1, U::kNone,    kCountNames},
-    {"drum train",   "Speed trainer",      "On",             0,    1,   0, 1, U::kOnOff,   nullptr},
-    {"train step",   "Trainer step",       "Step",           1,   20,   5, 1, U::kBpm,     nullptr},
-    {"train every",  "Trainer every",      "Every",          1,   16,   4, 1, U::kBars,    nullptr},
-    {"train target", "Trainer target",     "Target",        40,  240, 140, 1, U::kBpm,     nullptr},
-    {"bass",         "Bass",               "On",             0,    1,   1, 1, U::kOnOff,   nullptr},
-    {"bass vol",     "Bass volume",        "Volume",         0,  100,  70, 1, U::kPercent, nullptr},
-    {"bass key",     "Bass key",           "Key",            0,   11,   4, 1, U::kName,    kKeyNames},
-    {"bass tone",    "Bass tone",          "Tone",           0,  100,  50, 1, U::kPercent, nullptr},
-    {"amp",          "Amp",                "On",             0,    1,   0, 1, U::kOnOff,   nullptr},
-    {"amp in",       "Amp input",          "Input",        -48,   48,   0, 1, U::kHalfDb,  nullptr},
-    {"amp out",      "Amp output",         "Output",       -48,   48,   0, 1, U::kHalfDb,  nullptr},
-    {"amp cal",      "Amp calibration",    "Calibrate",      0,    1,   1, 1, U::kOnOff,   nullptr},
-    {"gate thr",     "Gate threshold",     "Threshold",    -90,  -20, -64, 1, U::kDb,      nullptr},
-    {"amp bass",     "Amp bass",           "Bass",         -24,   24,   0, 1, U::kHalfDb,  nullptr},
-    {"amp mid",      "Amp middle",         "Middle",       -20,   20,   0, 1, U::kHalfDb,  nullptr},
-    {"amp treble",   "Amp treble",         "Treble",       -24,   24,   0, 1, U::kHalfDb,  nullptr},
-    {"amp presence", "Amp presence",       "Presence",     -20,   20,   0, 1, U::kHalfDb,  nullptr},
-    {"gate rel",     "Gate release",       "Release",       10,  500,  50, 5, U::kMs,      nullptr},
-    {"dbl",          "Doubler",            "On",             0,    1,   0, 1, U::kOnOff,   nullptr},
-    {"dbl time",     "Doubler time",       "Time",           1,   35,  10, 1, U::kMs,      nullptr},
-    {"dbl width",    "Doubler width",      "Width",          0,  100, 100, 1, U::kPercent, nullptr},
-    {"gate",         "Noise gate",         "On",             0,    1,   1, 1, U::kOnOff,   nullptr},
-    {"gate type",    "Gate type",          "Type",           0,    1,   1, 1, U::kNone,    kGateTypes},
+    // key           name                  label           min   max  def step unit        choices      flags
+    {"dl",           "Delay",              "On",             0,    1,   0, 1, U::kOnOff,   nullptr, kPreset},
+    {"dmix",         "Delay mix",          "Mix",            0,  100,  30, 1, U::kPercent, nullptr, kPreset},
+    {"dtime",        "Delay time",         "Time",          20,  750, 380, 5, U::kMs,      nullptr, kPreset},
+    {"dfb",          "Delay repeats",      "Repeats",        0,  100,  35, 1, U::kPercent, nullptr, kPreset},
+    {"dtone",        "Delay tone",         "Tone",           0,  100,  60, 1, U::kPercent, nullptr, kPreset},
+    {"dmod",         "Delay modulation",   "Mod",            0,  100,  15, 1, U::kPercent, nullptr, kPreset},
+    {"dduck",        "Delay ducking",      "Duck",           0,  100,  40, 1, U::kPercent, nullptr, kPreset},
+    {"ddrive",       "Delay drive",        "Drive",          0,  100,  20, 1, U::kPercent, nullptr, kPreset},
+    {"dera",         "Delay era",          "Era",            0,  100,  40, 1, U::kPercent, nullptr, kPreset},
+    {"rv",           "Reverb",             "On",             0,    1,   0, 1, U::kOnOff,   nullptr, kPreset},
+    {"mix",          "Reverb mix",         "Mix",            0,  100,  25, 1, U::kPercent, nullptr, kPreset},
+    {"size",         "Reverb size",        "Size",           0,  100,  50, 1, U::kPercent, nullptr, kPreset},
+    {"tone",         "Reverb tone",        "Tone",           0,  100,  50, 1, U::kPercent, nullptr, kPreset},
+    {"rmode",        "Reverb mode",        "Mode",           0,    1,   0, 1, U::kNone,    kReverbModes, kPreset},
+    {"rpre",         "Reverb pre-delay",   "Pre-delay",      0,  150,  40, 1, U::kMs,      nullptr, kPreset},
+    {"rmod",         "Reverb modulation",  "Mod",            0,  100,  40, 1, U::kPercent, nullptr, kPreset},
+    {"rera",         "Reverb era",         "Era",            0,  100,  40, 1, U::kPercent, nullptr, kPreset},
+    {"rgate",        "Reverb gate",        "Gate",         100,  600, 300, 10, U::kMs,     nullptr, kPreset},
+    {"g",            "Output gain",        "Out gain",    -120,   48, -12, 1, U::kHalfDb,  nullptr, 0},
+    {"in",           "Line-in level",      "Line-in sens",   0,   15,   0, 1, U::kNone,    nullptr, 0},
+    {"out",          "Line-out level",     "Line-out",      13,   31,  29, 1, U::kNone,    nullptr, 0},
+    {"hp",           "Headphones",         "Headphones",     0,  100,  50, 1, U::kPercent, nullptr, 0},
+    {"b",            "Bypass",             "Bypass",         0,    1,   0, 1, U::kOnOff,   nullptr, kPreset},
+    {"drum style",   "Drum style",         "Style",          0,   63,   1, 1, U::kName,    nullptr, 0},
+    {"drum kit",     "Drum kit",           "Kit",            0,   63,   1, 1, U::kName,    nullptr, 0},
+    {"drum song",    "Drum song",          "Song",           0,  255,   0, 1, U::kName,    nullptr, 0},
+    {"drum crash",   "Crash",              "Crash",          0,    4,   2, 1, U::kNone,    kCrashNames, 0},
+    {"bpm",          "Tempo",              "Tempo",         40,  240, 100, 1, U::kBpm,     nullptr, 0},
+    {"drum vol",     "Drum volume",        "Volume",         0,  100,  60, 1, U::kPercent, nullptr, 0},
+    {"drum comp",    "Drum compression",   "Comp",           0,  100,  40, 1, U::kPercent, nullptr, 0},
+    {"drum count",   "Count-in",           "Count-in",       0,    4,   2, 1, U::kNone,    kCountNames, 0},
+    {"drum train",   "Speed trainer",      "On",             0,    1,   0, 1, U::kOnOff,   nullptr, 0},
+    {"train step",   "Trainer step",       "Step",           1,   20,   5, 1, U::kBpm,     nullptr, 0},
+    {"train every",  "Trainer every",      "Every",          1,   16,   4, 1, U::kBars,    nullptr, 0},
+    {"train target", "Trainer target",     "Target",        40,  240, 140, 1, U::kBpm,     nullptr, 0},
+    {"bass",         "Bass",               "On",             0,    1,   1, 1, U::kOnOff,   nullptr, 0},
+    {"bass vol",     "Bass volume",        "Volume",         0,  100,  70, 1, U::kPercent, nullptr, 0},
+    {"bass key",     "Bass key",           "Key",            0,   11,   4, 1, U::kName,    kKeyNames, 0},
+    {"bass tone",    "Bass tone",          "Tone",           0,  100,  50, 1, U::kPercent, nullptr, 0},
+    {"amp",          "Amp",                "On",             0,    1,   0, 1, U::kOnOff,   nullptr, kPreset},
+    {"amp in",       "Amp input",          "Input",        -48,   48,   0, 1, U::kHalfDb,  nullptr, kPreset},
+    {"amp out",      "Amp output",         "Output",       -48,   48,   0, 1, U::kHalfDb,  nullptr, kPreset},
+    {"amp cal",      "Amp calibration",    "Calibrate",      0,    1,   1, 1, U::kOnOff,   nullptr, kPreset},
+    {"gate thr",     "Gate threshold",     "Threshold",    -90,  -20, -64, 1, U::kDb,      nullptr, kPreset},
+    {"amp bass",     "Amp bass",           "Bass",         -24,   24,   0, 1, U::kHalfDb,  nullptr, kPreset},
+    {"amp mid",      "Amp middle",         "Middle",       -20,   20,   0, 1, U::kHalfDb,  nullptr, kPreset},
+    {"amp treble",   "Amp treble",         "Treble",       -24,   24,   0, 1, U::kHalfDb,  nullptr, kPreset},
+    {"amp presence", "Amp presence",       "Presence",     -20,   20,   0, 1, U::kHalfDb,  nullptr, kPreset},
+    {"gate rel",     "Gate release",       "Release",       10,  500,  50, 5, U::kMs,      nullptr, kPreset},
+    {"dbl",          "Doubler",            "On",             0,    1,   0, 1, U::kOnOff,   nullptr, kPreset},
+    {"dbl time",     "Doubler time",       "Time",           1,   35,  10, 1, U::kMs,      nullptr, kPreset},
+    {"dbl width",    "Doubler width",      "Width",          0,  100, 100, 1, U::kPercent, nullptr, kPreset},
+    {"gate",         "Noise gate",         "On",             0,    1,   1, 1, U::kOnOff,   nullptr, kPreset},
+    {"gate type",    "Gate type",          "Type",           0,    1,   1, 1, U::kNone,    kGateTypes, kPreset},
+    {"pvol",         "Preset level",       "Level",        -48,   24,   0, 1, U::kHalfDb,  nullptr, kPreset},
     // Not saved.
-    {"drum",         "Drums",              "Play",           0,    1,   0, 1, U::kOnOff,   nullptr},
-    {nullptr,        "Loop from",          "Loop from",      0,  512,   0, 1, U::kNone,    nullptr},
-    {nullptr,        "Loop to",            "Loop to",        1,  512,   1, 1, U::kNone,    nullptr},
+    {"drum",         "Drums",              "Play",           0,    1,   0, 1, U::kOnOff,   nullptr, 0},
+    {nullptr,        "Loop from",          "Loop from",      0,  512,   0, 1, U::kNone,    nullptr, 0},
+    {nullptr,        "Loop to",            "Loop to",        1,  512,   1, 1, U::kNone,    nullptr, 0},
 };
 
 const ParamDef& paramDef(int id) { return kParams[id < 0 || id >= kValueCount ? 0 : id]; }
@@ -117,6 +119,13 @@ void formatValue(const ParamDef& d, int v, bool spaced, char* buf, int n) {
     }
     default: snprintf(buf, n, "%d", v); break;
   }
+}
+
+void formatTyped(const ParamDef& d, int v, char* buf, int n) {
+  if (d.unit == Unit::kOnOff) snprintf(buf, n, "%s", v ? "on" : "off");
+  else if (d.choices && v >= d.min && v <= d.max) snprintf(buf, n, "%s", d.choices[v]);
+  else if (d.unit == Unit::kHalfDb) halfDb(v, buf, n);
+  else snprintf(buf, n, "%d", v);
 }
 
 // ---- Parsing ---------------------------------------------------------------------

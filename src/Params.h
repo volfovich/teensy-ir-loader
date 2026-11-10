@@ -11,6 +11,9 @@ int getParam(int id);
 // Clamps v to the setting's range, applies it, saves it (a saved setting)
 // and confirms it on Serial.
 void setParam(int id, int v);
+// The same for a saved setting (not the drum song), without the message:
+// for recalling a preset, which reports once for all of them.
+void setParamQuiet(int id, int v);
 // The setting's range: the table's, narrowed to the delay's longest time and
 // to how many styles, kits, songs and bars there are.
 void paramLimits(int id, int* lo, int* hi);

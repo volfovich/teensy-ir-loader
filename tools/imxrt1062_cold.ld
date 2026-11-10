@@ -61,6 +61,7 @@ SECTIONS
 		*src/Oled.cpp.o(.text*)
 		*src/Params.cpp.o(.text*)
 		*src/AmpLibrary.cpp.o(.text*)
+		*src/PresetLibrary.cpp.o(.text*)
 		*src/Tuner.cpp.o(.text*)
 		. = ALIGN(4);
 		KEEP(*(.init))
@@ -92,6 +93,7 @@ SECTIONS
 		*src/Oled.cpp.o(.rodata*)
 		*src/Params.cpp.o(.rodata*)
 		*src/AmpLibrary.cpp.o(.rodata*)
+		*src/PresetLibrary.cpp.o(.rodata*)
 		*src/Tuner.cpp.o(.rodata*)
 		. = ALIGN(4);
 	} > FLASH

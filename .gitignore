@@ -23,4 +23,5 @@ test/host/test_namfile
 test/host/namtool
 test/host/test_doubler
 test/host/test_pitch
+test/host/test_presets
 test/host/nam/user/

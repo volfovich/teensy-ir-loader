@@ -1,5 +1,5 @@
-// Settings.h - the persistent settings in EEPROM: the last IR and amp model
-// and the value of every saved setting (ui::Param 0 .. kParamCount-1, see ParamDefs.h).
+// Settings.h - the persistent settings in EEPROM: the last IR, amp model and
+// preset, and the value of every saved setting (ui::Param 0 .. kParamCount-1, see ParamDefs.h).
 // Read and change them through Params.h.
 #pragma once
 
@@ -14,6 +14,7 @@ struct Settings {
   uint16_t reserved;
   char irPath[IR_PATH_MAX];
   char ampPath[IR_PATH_MAX];
+  char presetPath[IR_PATH_MAX];  // the preset recalled last ("" = none; PRESETS.md)
   int16_t v[ui::kParamCount];
 };
 

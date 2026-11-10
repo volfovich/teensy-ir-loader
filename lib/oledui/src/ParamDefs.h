@@ -39,6 +39,7 @@ enum Param : uint8_t {
   kDblOn, kDblTime, kDblWidth,  // the doubler (ms, %)
   kGateOn,          // the noise gate (after the amp, before the cab)
   kGateType,        // 0 nam (the NAM plugin's expander), 1 hard (the default; release applies)
+  kPresetLevel,     // half-dB steps, added to the output gain; saved in presets (PRESETS.md)
   kParamCount,
   // Not saved.
   kDrumsPlay = kParamCount,
@@ -54,6 +55,9 @@ enum class Unit : uint8_t {
   kName,   // shown by name: `choices`, or MenuHost::valueText when it has none
 };
 
+// ParamDef::flags
+constexpr uint8_t kInPreset = 1;  // part of a preset's sound (PRESETS.md)
+
 struct ParamDef {
   const char* key;    // serial command ("dmix"); nullptr: none
   const char* name;   // in messages and the help ("Delay mix")
@@ -62,6 +66,7 @@ struct ParamDef {
   uint8_t step;       // per detent in the menu editor
   Unit unit;
   const char* const* choices;  // max + 1 names, or nullptr
+  uint8_t flags;               // kInPreset ...
 };
 
 // id < kValueCount.
@@ -71,6 +76,10 @@ const ParamDef& paramDef(int id);
 // editor ("380 ms"). Toggles are ON / OFF, choices their name. For kName
 // without choices it prints the number from 1.
 void formatValue(const ParamDef& d, int v, bool spaced, char* buf, int n);
+
+// Formats v as it is typed after the key: "on" / "off", a choice's name,
+// half-dB steps as "+3.5", otherwise the integer. parseValue() reads it back.
+void formatTyped(const ParamDef& d, int v, char* buf, int n);
 
 // Parses a typed value: "on" / "off" for toggles, a choice's name (or the
 // first word of it: "8" for "8 bars") or its index, dB with a decimal point
