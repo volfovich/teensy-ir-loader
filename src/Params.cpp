@@ -123,6 +123,10 @@ static void applyParam(int id, int v) {
       convolver.gate().setThreshold(s[kGateOn] ? powf(10.0f, (float)s[kGateThr] / 20.0f) : 0.0f);
       break;
     case kGateRel: convolver.gate().setRelease((float)v); break;
+    case kGateType:
+      convolver.gate().setType(v ? irdsp::NoiseGate<AUDIO_BLOCK_SAMPLES>::Type::kHard
+                                 : irdsp::NoiseGate<AUDIO_BLOCK_SAMPLES>::Type::kNam);
+      break;
     case kDblOn: convolver.doubler().setOn(v); break;
     case kDblTime:
     case kDblWidth: convolver.doubler().set(s[kDblTime], s[kDblWidth] / 100.0f); break;

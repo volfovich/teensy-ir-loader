@@ -72,13 +72,12 @@ int findAmp(const char* text) {
   return -1;
 }
 
-// The shield's line-in full scale in dBu: a sine at 0 dBFS is 3.12 V p-p
-// (+3.1 dBu) at sensitivity 0, and each step is 1.5 dB more sensitive.
-static float lineInFullScaleDbu() { return 3.07f - 1.5f * (float)getParam(kLineIn); }
+float ampInputFullScaleDbu() { return 3.07f - 1.5f * (float)getParam(kLineIn) + INPUT_PAD_DB; }
 
 float ampCalibrationDb() {
-  if (g_current < 0 || !getParam(kAmpCal) || isnan(g_info.inputLevelDbu)) return NAN;
-  return lineInFullScaleDbu() - g_info.inputLevelDbu;
+  if (g_current < 0 || !getParam(kAmpCal)) return NAN;
+  const float ref = isnan(g_info.inputLevelDbu) ? AMP_UNCAL_REF_DBU : g_info.inputLevelDbu;
+  return ampInputFullScaleDbu() - ref;
 }
 
 float ampLevelDb() { return g_current < 0 || isnan(g_info.loudness) ? 0.0f : AMP_LEVEL_DB - g_info.loudness; }
@@ -137,7 +136,9 @@ bool loadAmpIndex(int idx) {
   if (info.gearType[0] || info.toneType[0]) Serial.printf(" (%s%s%s)", info.gearType, info.gearType[0] && info.toneType[0] ? ", " : "", info.toneType);
   Serial.printf(", level %+.1f dB", ampLevelDb());
   const float cal = ampCalibrationDb();
-  if (!isnan(cal)) Serial.printf(", input %.1f dBu -> %+.1f dB", info.inputLevelDbu, cal);
+  if (!isnan(cal))
+    Serial.printf(", input %.1f dBu%s -> %+.1f dB", isnan(info.inputLevelDbu) ? AMP_UNCAL_REF_DBU : info.inputLevelDbu,
+                  isnan(info.inputLevelDbu) ? " (NAM default)" : "", cal);
   Serial.printf(", %lu ms\n", (unsigned long)ms);
   if (fabsf(info.sampleRate - AUDIO_SAMPLE_RATE_EXACT) > 1.0f)
     Serial.printf("      model is %.0f Hz, the firmware %.0f Hz: its tone is shifted\n", info.sampleRate,

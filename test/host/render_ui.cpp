@@ -185,7 +185,7 @@ int main(int argc, char** argv) {
   menu.open(); menu.turn(1, 0);
   menu.draw(c);
   snap("29_menu_top_gate");
-  menu.push(); menu.turn(1, 0);  // Threshold
+  menu.push(); menu.turn(2, 0);  // Threshold (hard, the default: Release below it)
   menu.draw(c);
   snap("29b_menu_gate");
   menu.push();
@@ -194,6 +194,10 @@ int main(int argc, char** argv) {
   menu.back(); menu.turn(1, 0); menu.push();  // Release
   menu.draw(c);
   snap("29d_edit_gate_release");
+  menu.back(); menu.turn(-2, 0); menu.push();  // Type: hard -> nam, Release goes
+  menu.draw(c);
+  snap("29e_menu_gate_nam");
+  menu.push();  // back to hard
   menu.back();
 
   // The tuner: in tune, sharp, flat, no note; the loading box.

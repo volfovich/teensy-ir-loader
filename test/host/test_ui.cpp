@@ -752,12 +752,25 @@ static void testAmpPanel() {
   p.push(t);
   check(p.menu().pageIndex() == ui::kPageGate && h.v[ui::kGateOn] == 0, "  ... On toggles", h.v[ui::kGateOn]);
   p.turn(1, t);
+  check(p.menu().current()->id == ui::kGateType && h.v[ui::kGateType] == 1, "  ... Type next, hard by default",
+        p.menu().current()->id);
+  p.push(t);
+  check(h.v[ui::kGateType] == 0, "  ... Type: push steps hard -> nam", h.v[ui::kGateType]);
+  p.turn(1, t);
+  p.turn(1, t);
+  check(p.menu().current()->id == ui::kGateThr, "  ... no Release with the nam type (Threshold last)",
+        p.menu().current()->id);
+  p.turn(-1, t);
+  p.push(t);
+  check(h.v[ui::kGateType] == 1, "  ... Type: push steps nam -> hard", h.v[ui::kGateType]);
+  p.turn(1, t);
   p.push(t);
   p.turn(-4, t + 4000);
   p.push(t);
   check(h.v[ui::kGateThr] == -68, "  ... Threshold: -64 -> -68 dB", h.v[ui::kGateThr]);
   p.turn(1, t);
-  check(p.menu().current()->id == ui::kGateRel, "  ... Release shown with the gate off too", p.menu().current()->id);
+  check(p.menu().current()->id == ui::kGateRel, "  ... Release shown for hard, with the gate off too",
+        p.menu().current()->id);
   p.push(t);
   p.turn(4, t + 6000);
   p.push(t);

@@ -17,6 +17,7 @@ namespace ui {
 static const char* const kReverbModes[] = {"hall", "gated"};
 static const char* const kCrashNames[] = {"off", "2 bars", "4 bars", "8 bars", "16 bars"};
 static const char* const kCountNames[] = {"off", "1 bar", "2 bars", "3 bars", "4 bars"};
+static const char* const kGateTypes[] = {"nam", "hard"};
 static const char* const kKeyNames[] = {"C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"};
 
 using U = Unit;
@@ -77,6 +78,7 @@ static const ParamDef kParams[kValueCount] = {
     {"dbl time",     "Doubler time",       "Time",           1,   35,  10, 1, U::kMs,      nullptr},
     {"dbl width",    "Doubler width",      "Width",          0,  100, 100, 1, U::kPercent, nullptr},
     {"gate",         "Noise gate",         "On",             0,    1,   1, 1, U::kOnOff,   nullptr},
+    {"gate type",    "Gate type",          "Type",           0,    1,   1, 1, U::kNone,    kGateTypes},
     // Not saved.
     {"drum",         "Drums",              "Play",           0,    1,   0, 1, U::kOnOff,   nullptr},
     {nullptr,        "Loop from",          "Loop from",      0,  512,   0, 1, U::kNone,    nullptr},

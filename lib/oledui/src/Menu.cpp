@@ -82,7 +82,7 @@ static const MenuItem kAmpItems[] = {
 // The noise gate after the amp (NAM.md, "Noise gate"): it works with the amp
 // on or off.
 static const MenuItem kGateItems[] = {
-    SETTING(kGateOn), SETTING(kGateThr), SETTING(kGateRel),
+    SETTING(kGateOn), SETTING(kGateType), SETTING(kGateThr), SETTING_IF(kGateRel, kGateType),  // Release: hard only
 };
 
 static const MenuItem kDoublerItems[] = {

@@ -10,6 +10,9 @@
 //   new model while on: a 20 ms fade to silence, the weights swapped in, the
 //             warm-up in silence, a 20 ms fade back in (a ~170 ms gap); while
 //             off the weights are just swapped in
+//   DC        a 5 Hz DC blocker right after the network, as in the NAM
+//             plugin (its kDCBlockerFrequency): A2's biases can leave DC
+//             there, which costs headroom and thumps when the gate moves
 //   tone      Bass, Middle, Treble and Presence after the network
 //             (ToneStack.h), flat at 0 dB
 //
@@ -30,6 +33,26 @@
 
 namespace irdsp {
 
+// The NAM plugin's DC blocker (AudioDSPTools recursive_linear_filter::HighPass
+// at 5 Hz): y[n] = a * (y[n-1] + x[n] - x[n-1]), a = 1 / (1 + 2 pi f / fs).
+struct DcBlocker {
+  float a = 1.0f, x1 = 0.0f, y1 = 0.0f;
+  void setup(float freq, float sampleRate) { a = 1.0f / (1.0f + 2.0f * 3.14159265f * freq / sampleRate); }
+  void reset() { x1 = y1 = 0.0f; }
+  void process(float* io, int n) {
+    float x1l = x1, y1l = y1;
+    const float al = a;
+    for (int i = 0; i < n; i++) {
+      const float x = io[i];
+      y1l = al * (y1l + (x - x1l));  // x - x1 first: y + x would round y away
+      x1l = x;
+      io[i] = y1l;
+    }
+    x1 = x1l;
+    y1 = y1l;
+  }
+};
+
 template <int B>
 class AmpStage {
  public:
@@ -38,9 +61,13 @@ class AmpStage {
   // Blocks of warm-up: the network's receptive field (6,346 samples).
   static constexpr int kWarmBlocks = (6331 + nama2::kHeadTaps - 1 + B - 1) / B;
 
+  static constexpr float kDcBlockHz = 5.0f;
+
   explicit AmpStage(float sampleRate)
       : tone_(sampleRate),
-        step_((float)B / (sampleRate * 0.02f)) {}
+        step_((float)B / (sampleRate * 0.02f)) {
+    dc_.setup(kDcBlockHz, sampleRate);
+  }
 
   // Hands over the network's history memory (kHistoryFloats).
   void begin(float* history) { net_.begin(history); }
@@ -94,6 +121,7 @@ class AmpStage {
       net_.reset();
       running_ = true;
       warm_ = kWarmBlocks;
+      dc_.reset();
       tone_.reset();
     }
     // 3. Where the dry and amp levels go.
@@ -113,6 +141,7 @@ class AmpStage {
       for (int i = 0; i < B; i++) y[i] = in[i] * (g0 + (g1 - g0) * (float)(i + 1) / (float)B);
       inCur_ = g1;
       net_.process(y, y);
+      dc_.process(y, B);
       tone_.process(y, B);
       if (warm_ > 0 && --warm_ == 0) swapping_ = false;
     } else {
@@ -146,6 +175,7 @@ class AmpStage {
   }
 
   Net net_;
+  DcBlocker dc_;
   ToneStack tone_;
   const float step_;
   // Settings (written from the background, read once per block).

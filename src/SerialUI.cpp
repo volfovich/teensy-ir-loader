@@ -107,10 +107,15 @@ static void printAmpInfo() {
   if (m.gearType[0] || m.toneType[0]) Serial.printf("Type:        %s %s\n", m.gearType, m.toneType);
   if (!isnan(m.loudness)) Serial.printf("Loudness:    %.1f dB -> level %+.1f dB\n", m.loudness, ampLevelDb());
   else Serial.println("Loudness:    - (not levelled)");
-  if (isnan(m.inputLevelDbu)) Serial.println("Calibration: - (an uncalibrated capture)");
-  else if (!getParam(kAmpCal)) Serial.printf("Calibration: %.1f dBu at 0 dBFS (amp cal off)\n", m.inputLevelDbu);
-  else Serial.printf("Calibration: %.1f dBu at 0 dBFS -> %+.1f dB at line-in sens %d\n", m.inputLevelDbu,
-                     ampCalibrationDb(), getParam(kLineIn));
+  const bool uncal = isnan(m.inputLevelDbu);
+  if (uncal) Serial.printf("Calibration: - (an uncalibrated capture)");
+  else Serial.printf("Calibration: %.1f dBu at 0 dBFS", m.inputLevelDbu);
+  if (!getParam(kAmpCal)) Serial.println(", amp cal off");
+  else
+    Serial.printf("%s\n             input %.1f dBu at 0 dBFS (line-in sens %d, pad %.0f dB) -> %+.1f dB\n",
+                  uncal ? ", played as through the NAM plugin's default interface" : "", ampInputFullScaleDbu(),
+                  getParam(kLineIn), INPUT_PAD_DB, ampCalibrationDb());
+  if (getParam(kAmpCal) && uncal) Serial.printf("             (that interface: %+.0f dBu at 0 dBFS)\n", AMP_UNCAL_REF_DBU);
 }
 
 // amp selftest <n>: the loaded model, on n raw floats from the USB serial
@@ -216,7 +221,8 @@ static void printStatus() {
   printValues({kAmpIn, kAmpBass, kAmpMid, kAmpTreble, kAmpPresence, kAmpOut, kAmpCal});
   Serial.println();
   Serial.printf("Gate:      %s", getParam(kGateOn) ? "on" : "off");
-  printValues({kGateThr, kGateRel});
+  if (getParam(kGateType)) printValues({kGateType, kGateThr, kGateRel});
+  else printValues({kGateType, kGateThr});
   Serial.println();
   Serial.printf("Doubler:   %s", getParam(kDblOn) ? "on" : "off");
   printValues({kDblTime, kDblWidth});

@@ -24,7 +24,13 @@ const irdsp::NamInfo& ampInfo();
 // settings (amp in / out / cal / bass / mid / treble / presence, the line-in
 // sensitivity) and the model: call when any of them change.
 void ampApplyGains();
-// The calibration gain into the model (dB), or NAN if it has none or it's off.
+// The input's full scale at the guitar, in dBu: a sine at 0 dBFS is 3.12 V
+// p-p (+3.1 dBu) at the shield at line-in sensitivity 0, each step is 1.5 dB
+// more sensitive, and the buffer in front adds INPUT_PAD_DB.
+float ampInputFullScaleDbu();
+// The calibration gain into the model (dB): the full scale minus the model's
+// input_level_dbu, or minus AMP_UNCAL_REF_DBU (the NAM plugin's default
+// interface) for an uncalibrated model. NAN with no model or amp cal off.
 float ampCalibrationDb();
 // The model's levelling gain (dB): AMP_LEVEL_DB - its loudness, 0 if it has
 // none.

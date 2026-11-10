@@ -66,6 +66,13 @@
 // use -18; the amp here stands in for a tube amp's line out, which is hotter,
 // so -12 makes output 0 dB about as loud.
 #define AMP_LEVEL_DB -12.0f
+// The loss of the buffer in front of LINE IN, in dB (0 without one). Ours,
+// a JFET TL072 buffer (1 MOhm in, 100 Ohm out), has -6 dB, so a guitar's 0
+// dBFS is 6 dB hotter than the shield's: the calibration adds it.
+#define INPUT_PAD_DB 6.0f
+// The interface level, in dBu at 0 dBFS, that an uncalibrated model is
+// played as if through (with amp cal on): the NAM plugin's default, +12 dBu.
+#define AMP_UNCAL_REF_DBU 12.0f
 
 // ---------------------------------------------------------------------------
 // Hardware

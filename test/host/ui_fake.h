@@ -29,7 +29,7 @@ struct FakeHost : ui::MenuHost {
     v[ui::kBassOn] = 1; v[ui::kBassVolume] = 70; v[ui::kBassKey] = 4; v[ui::kBassTone] = 50;
     v[ui::kAmpOn] = 1; v[ui::kAmpIn] = 6; v[ui::kAmpOut] = -3; v[ui::kAmpCal] = 1;
     v[ui::kAmpBass] = 0; v[ui::kAmpMid] = -4; v[ui::kAmpTreble] = 3; v[ui::kAmpPresence] = 8;
-    v[ui::kGateOn] = 1; v[ui::kGateThr] = -64; v[ui::kGateRel] = 50;
+    v[ui::kGateOn] = 1; v[ui::kGateThr] = -64; v[ui::kGateRel] = 50; v[ui::kGateType] = 1;
     v[ui::kDblOn] = 1; v[ui::kDblTime] = 10; v[ui::kDblWidth] = 100;
   }
   static const char* styleName(int i) {

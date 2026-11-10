@@ -29,8 +29,8 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► amp ──────�
 - **Both effects:**
   - They run in 32-bit float in the same audio object as the convolution, so the path from the IR through the delay and reverb never drops to 16 bits.
   - Switching an effect off is click-free and lets its tail ring out. When the tail has died away, the effect stops using CPU and passes its input through bit-identically.
-- **Optional amp block** (details in [NAM.md](NAM.md)): plays Neural Amp Modeler **A2** captures (`.nam` files in `/AMP` on the SD card) before the IR, so a guitar (through a buffer) or a preamp can go straight in. It runs the A2-Lite network, levels each model by its loudness, and uses the capture's input calibration when it has one. Off by default; with a real amp's line out, leave it off.
-  - After the model, **tone controls** (bass, middle, treble, presence) and a **noise gate** with an adjustable release.
+- **Optional amp block** (details in [NAM.md](NAM.md)): plays Neural Amp Modeler **A2** captures (`.nam` files in `/AMP` on the SD card) before the IR, so a guitar (through a buffer) or a preamp can go straight in. It runs the A2-Lite network (the same output as NeuralAmpModelerCore), levels each model by its loudness, and calibrates the input as the NAM plugin does. Off by default; with a real amp's line out, leave it off.
+  - After the model, the plugin's **5 Hz DC blocker**, **tone controls** (bass, middle, treble, presence) and a **noise gate**: a hard gate with an adjustable release (the default), or the NAM plugin's own.
 - **Doubler after the IR:** spreads the guitar like two takes panned left and right. The original goes left and a copy goes right, 1–35 ms later (10 by default). The width runs from centre to hard left and right. Listen in stereo: on one speaker from the left output you hear only the original.
 - **Tuner:** hold BACK (or Menu > Tuner) for a chromatic tuner on the OLED, accurate to well under a cent. The guitar is muted while it is open.
 - **Practice drum machine** (details in [DRUMS.md](DRUMS.md)):
@@ -51,7 +51,7 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► amp ──────�
 
 | Connection | Shield pad / pin | Notes |
 |---|---|---|
-| Amp line out signal | **LINE IN L** | Only the left input is processed. LINE IN is about 29 kΩ: fine for a line out, a preamp or a pedal, but passive pickups lose treble into it, so put a buffer (any buffered pedal) in front for the amp block. |
+| Amp line out signal | **LINE IN L** | Only the left input is processed. LINE IN is about 29 kΩ: fine for a line out, a preamp or a pedal, but passive pickups lose treble into it, so put a buffer in front for the amp block. Ours is a JFET TL072 buffer (1 MΩ in, 100 Ω out, −6 dB); set its loss as `INPUT_PAD_DB` in `include/config.h` (0 without one) so the amp's input calibration stays right. |
 | Amp line out ground | **GND** next to the line-in pads | |
 | To mixer / interface / power amp | **LINE OUT L** and **R** + GND | Stereo when the delay or reverb is on; both carry the same signal when they are off. For a mono rig use L. If the gear you feed is not AC-coupled, add a 2.2–10 µF capacitor in series. |
 | Headphones | 3.5 mm jack | **Headphones only.** The jack's ground is a *virtual* ground, so never connect it to another device's ground. |
@@ -65,6 +65,7 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► amp ──────�
   2. Play hard. The input should peak below about −3 dBFS.
   3. If it still shows `CLIP!`, add a resistive pad: a **10 kΩ resistor in series** with the signal, then **4.7 kΩ to ground** (about −10 dB) or **2.2 kΩ to ground** (about −15 dB).
   4. If the signal is weak instead, raise the input sensitivity with `in 3`, `in 5`, and so on.
+- **A guitar through the buffer, into the amp block:** use the highest `in` whose hardest hits still peak below about −3 dBFS. With `amp cal` on, the amp's input calibration follows `in` (and the buffer's `INPUT_PAD_DB`), so the model is driven the same at any setting. Only the codec's noise drops relative to the guitar (about 3 dB at `in 2`, 5 dB at `in 6`, measured). With our rig the hardest hits peak at −1.5 to −0.1 dBFS at `in 0` through the −6 dB buffer, so `in 0` it is. Before the buffer they clipped at `in 0`.
 - **Ground loops:** if you hear hum, check that the amp and the Teensy's USB power are not creating a loop. A USB power bank is a quick way to test this.
 
 ## SD card
@@ -107,7 +108,8 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `amp bass` / `amp treble` `-12..12`, `amp mid` / `amp presence` `-10..10` | Tone controls after the model, in dB (0 = flat): low shelf 120 Hz, peak 650 Hz, high shelf 2.5 kHz, peak 5 kHz |
 | `gate [on\|off]` | The noise gate on/off (after the amp, before the cab: it gates the amp's output, or the dry guitar with the amp off) |
 | `gate thr -90..-20` | The gate's threshold on the input, in dBFS (default −64): set it a few dB above the meter's idle reading |
-| `gate rel 10..500` | How fast the gate closes: the fade from open to −60 dB, in ms (default 50). Short cuts the hiss at once; long lets notes die naturally. |
+| `gate type [nam\|hard]` | `hard` (default): closes after 20 ms below the threshold, with its own release. `nam`: the NAM plugin's gate, a smooth expander that starts fading at the threshold |
+| `gate rel 10..500` | `hard` only: how fast it closes, the fade from open to −60 dB, in ms (default 50). Short cuts the hiss at once; long lets notes die naturally. |
 | `dbl [on\|off]` | Toggle the doubler (after the IR, before the delay) |
 | `dbl time 1..35` / `dbl width 0..100` | How late the copy comes (ms, default 10), and the stereo spread (%, 100 = hard left and right) |
 | `tuner` | The tuner for 5 s: prints the note, cents and frequency as they change (the guitar is muted meanwhile) |
@@ -262,7 +264,7 @@ The tests check:
 - WAV decoding for every supported format.
 - Resampling accuracy from 22.05, 32, 44.1, 88.2, 96 and 192 kHz to 48 kHz.
 - Anti-aliasing, trimming, truncation and normalization.
-- The NAM amp network against a plain reference and against NeuralAmpModelerCore on a real A2 model, and reading `.nam` files (see [NAM.md](NAM.md#m2-and-m3-results)). Also the gate (and its release time) and the tone controls.
+- The NAM amp network against a plain reference and against NeuralAmpModelerCore on a real A2 model, and reading `.nam` files (see [NAM.md](NAM.md#m2-and-m3-results)). Also the DC blocker, both gates (the NAM one against AudioDSPTools' own code) and the tone controls.
 - The doubler: exact left and right from 1 to 35 ms, time changes without a click, width, on/off.
 - The tuner: sines and plucked strings from 55 Hz to 1 kHz to within 0.1 cent, no pitch from noise or silence, and the note names.
 
@@ -272,7 +274,7 @@ The tests check:
 
 ## Ideas for next steps
 
-- **Presets:** save and recall whole sounds (model, IR, tone, gate, doubler, delay, reverb) as numbered presets on the SD card.
+- **Presets:** save and recall whole sounds (model, IR, tone, gate, doubler, delay, reverb) as numbered presets on the SD card. The plan is in [PRESETS.md](PRESETS.md).
 - **Tone controls:** low-cut and high-cut after the convolver.
 - **Two-IR blending:** the engine already evaluates two IRs during crossfades.
 - **USB audio:** build with `-D USB_MIDI_AUDIO_SERIAL` and add `AudioOutputUSB` to record directly into a computer (verify it with your chosen block size).

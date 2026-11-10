@@ -1,6 +1,6 @@
 # Amp block (NAM A2): plan
 
-**Status (2026-10-30): M0 to M5 done, plus a noise gate and a device self-test: the amp block works over serial and on the panel** (`amp`, `amp list`, `amp <n>`, see [Serial commands](#serial-commands)), measured on the Teensy at 33 % CPU ([M4 results](#m4-results)), with its own home block and menu page ([Panel](#panel-m5)). This is the research and the build plan for an amp block that plays [Neural Amp Modeler](https://www.neuralampmodeler.com/) **A2** profiles (`.nam` files) on the Teensy 4.0.
+**Status (2026-11-10): M0 to M5 done, plus a noise gate and a device self-test: the amp block works over serial and on the panel** (`amp`, `amp list`, `amp <n>`, see [Serial commands](#serial-commands)), measured on the Teensy at 33 % CPU ([M4 results](#m4-results)), with its own home block and menu page ([Panel](#panel-m5)). **2026-11-10, a fidelity pass** against the NAM plugin: its 5 Hz DC blocker, its noise gate (as a second gate type), its input calibration convention, and the new −6 dB input buffer ([Fidelity](#fidelity-what-matches-the-nam-plugin)). This is the research and the build plan for an amp block that plays [Neural Amp Modeler](https://www.neuralampmodeler.com/) **A2** profiles (`.nam` files) on the Teensy 4.0.
 
 ```
 shield LINE IN (L) ──► AMP (NAM A2-Lite) ──► IR (cab) ──► delay ──► reverb ──► LINE OUT L/R + headphones
@@ -16,6 +16,7 @@ shield LINE IN (L) ──► AMP (NAM A2-Lite) ──► IR (cab) ──► dela
 
 - [The A2 format](#the-a2-format)
 - [Why Lite, and what it costs](#why-lite-and-what-it-costs)
+- [Fidelity: what matches the NAM plugin](#fidelity-what-matches-the-nam-plugin)
 - [Step 1: the whole system at 48 kHz](#step-1-the-whole-system-at-48-khz)
 - [Step 2: the A2-Lite engine](#step-2-the-a2-lite-engine)
 - [Step 3: reading .nam files](#step-3-reading-nam-files)
@@ -102,6 +103,55 @@ For Lite that is **1,871 floats** (7.5 KB): 72 per 6-tap layer, 153 per 15-tap l
 - **Full is out of reach.** 565 M multiply-adds a second is about a whole 600 MHz Cortex-M7 at one cycle each, before anything else runs.
 - **Lite fits.** TONE3000 quotes it at "50 % CPU on an ARM Cortex M7 600MHz" (the Teensy 4's chip), with general code. Our engine is specialized for this one shape and processes a block at a time, so the goal was **about 20 %** (1.5 cycles per multiply-add). [M0](#m0-results) measured **32.4 %** (2.34 cycles): the M7 doesn't overlap the float loads with the arithmetic, so moving the data costs as much as the math.
 - **LeakyReLU is cheap** (a compare and a multiply), unlike A1's tanh.
+
+### Why not Full (checked 2026-11-10)
+
+Not on a Teensy 4.0, and not with any amount of tuning:
+
+| | A2-Lite | A2-Full |
+|---|---|---|
+| Multiply-adds per sample | ~1,730 | ~12,000 (6.7×) |
+| CPU at the measured 2.34 cycles per multiply-add | 32.4 % (measured) | **~225 %** |
+| CPU at the float FMA's floor (1 cycle each, no loads at all) | 14 % | 96 % |
+| History + weights | 87 KB + 7.5 KB | ~230 KB (as ring buffers) + 48 KB: more than RAM1 has left, even with Lite's freed (~183 KB) |
+
+- **720 MHz** buys 20 %. **16-bit fixed point** (the M7's dual multiply-add, `SMLAD`) would at best bring the network alone to about 70–80 %, while the rest of the chain needs 25–55 %. It would also no longer match NAM: the weights and the activations would be rounded to 16 bits.
+- **What would run Full:** a Cortex-A class board, such as a Raspberry Pi 4 or 5 with NEON. A 1 GHz Cortex-M7 (i.MX RT1170) still would not.
+- **What Lite gives up** ([measured](#results-the-high-end-2026-10-30)): the same tone, within 0.5 dB of Full in 2–12.7 kHz on the JCM800s, with less exact detail (error-to-signal 0.02–0.04 on the JCMs, 0.06–0.18 on the high-gain Oranges).
+
+## Fidelity: what matches the NAM plugin
+
+The goal is to play a capture exactly as the NAM plugin does (NeuralAmpModelerPlugin's `ProcessBlock`: input gain, gate trigger, model, gate gain, tone stack, IR, DC blocker, output gain).
+
+| | The plugin | Here |
+|---|---|---|
+| The network | NeuralAmpModelerCore | **The same output** within 4.8e-7 (golden test), 9e-6 on 14 real models; the Teensy matches the PC within 2.4e-7 ([self-test](#checking-the-device-against-the-pc)) |
+| Sample rate | the model's (48 kHz), resampled if the host differs | 48 kHz, the whole system |
+| Input calibration | `interface dBu − input_level_dbu`; the interface's level defaults to +12 dBu | The same, with the shield's full scale plus the buffer's 6 dB ([below](#input-level-and-calibration)); uncalibrated models as through a +12 dBu interface |
+| Noise gate | AudioDSPTools' expander | **The same** with `gate type nam`, within 0.004 dB; the default is `hard`, which suits the codec's noise floor better ([below](#noise-gate)) |
+| DC blocker | 5 Hz high-pass, last in the chain | **The same filter**, right after the network ([below](#the-dc-blocker)) |
+| Tone stack | Bass, Middle, Treble | Bass, Middle, Treble, Presence: flat at 0 dB as there, a different voicing when turned |
+| Output level | normalized to −18 dB | −12 dB (`AMP_LEVEL_DB`): a level only |
+
+**What still differs, on purpose:**
+- The gate listens to the input before `amp in`, so its threshold reads like the level meter. The plugin's listens after its input gain. That only moves where the threshold sits, not how the gate acts.
+- The output target, −12 instead of −18 dB, so `amp out` 0 dB is about as loud as a tube amp's line out.
+
+**Aliasing:** nothing to change. A model's dilations count samples, so it is defined at its rate. Run oversampled, it would be a different model. The plugin doesn't oversample either; it runs the model at 48 kHz, resampling the host's rate when it differs. Whatever aliasing a capture has, the plugin plays it too. The input's anti-aliasing is the codec's decimation filter.
+
+**Noise:** the model adds none (silence in gives its own DC out, no noise). The hiss between notes is the codec's input noise, about −86 dBFS rms, amplified 50 dB or more by a high-gain capture. The gate is the cure, as in the plugin. Turning the shield's input up (`in`) while the buffer leaves headroom may lower that noise; see [Input](#input-level-and-calibration).
+
+### The DC blocker
+
+A2's biases leave a constant offset at the network's output, different for each capture. `test/host/namtool --dc model.nam` measures it on silence and on a held note. On 32 captures (the user's and the example):
+
+| | DC, after levelling to −12 dB |
+|---|---|
+| Highest (Knob Goblin IR, Gainiac Mansion RAW) | **−38.5 dBFS** |
+| Typical | −47 to −65 dBFS |
+| Lowest (Bass Invaders IR, SD Dragon) | below −77 dBFS |
+
+That DC goes into the cab IR, and every time the gate opens or closes it becomes a step: a thump. The plugin removes it with a one-pole 5 Hz high-pass (AudioDSPTools `HighPass`: `y = a (y₁ + x − x₁)`, `a = 1 / (1 + 2π·5/fs)`). `AmpStage.h` runs the same filter right after the network, before the tone controls and the gate. In a linear chain that is equivalent to the plugin's place at the end, and the gate never sees the DC. It costs a few multiply-adds per sample, only while the amp runs. `x − x₁` is summed first: in float, `y + x` would round `y` away and leave a residue of 5e-5 on a DC step.
 
 ## Step 1: the whole system at 48 kHz
 
@@ -225,7 +275,7 @@ An A2 file is about 670 KB of JSON (NeuralAmpModelerCore's example), most of it 
 **The amp stage** in `AudioConvolverIR::update()`:
 
 ```
-in → × input gain → NamA2 → × level (−18 − loudness) → × output level → on/off blend → convolver
+in → × input gain → NamA2 → DC blocker (5 Hz) → tone → × level (−12 − loudness) → × output level → on/off blend → gate → convolver
 ```
 
 - **On:** the network starts from a cleared state and warms up for its receptive field (132 ms) while the dry signal goes on, then a 20 ms crossfade to the amp.
@@ -252,8 +302,9 @@ The settings are new rows at the end of the saved block in `ParamDefs.cpp`, afte
 | `amp bass` / `amp treble` | −12 … +12 dB, 0.5 | 0 | Tone controls after the model; 0 is flat ([below](#tone-controls)). |
 | `amp mid` / `amp presence` | −10 … +10 dB, 0.5 | 0 | The same, for the middle and the presence. |
 | `gate` | on / off | on | The noise gate ([below](#noise-gate)); its own menu page and home block (NG). |
+| `gate type` | `nam` / `hard` | `hard` | The first, hard gate, or the NAM plugin's expander. |
 | `gate thr` | −90 … −20 dB, 1 | −64 dB | The gate's threshold on the input, in dBFS. |
-| `gate rel` | 10 … 500 ms, 5 | 50 ms | How fast the gate closes: its fade from open to −60 dB. |
+| `gate rel` | 10 … 500 ms, 5 | 50 ms | `hard` only: how fast it closes, its fade from open to −60 dB. |
 
 | Command | What it does |
 |---|---|
@@ -283,19 +334,38 @@ Measured on 2026-10-29 with the user's eight captures of a JCM800 2203, plain an
 - The home blocks are **AMP › NG › IR › DLY › REV** (NG, the noise gate, since 2026-11-06; the drums lost their block then). Push on AMP opens the model list, hold switches the amp on/off. An off block shows only its box's top and bottom lines.
 - **Row 0** shows the model's name while the cursor is on AMP (`_` as spaces), scrolling when it's long; elsewhere the IR's, as before.
 - **The model list** works like the IR list (push loads, the list stays, the last row rescans). It leaves out the words every name shares, and rows off the cursor keep both ends of a long name: `06 OD800~ain 39`.
-- **The Amp page**, first in the menu: On, Model (`7/8`, opens the list), Input, Bass, Middle, Treble, Presence, Output, Calibrate: in the order of an amp's knobs, then the rest. The gate has its own page after it: On, Threshold, Release.
-- Tested in `test_ui` (the AMP block, the list, the page, the names), with renders `02g`, `02h`, `23`–`25c` in `screenshots/`. The gate has its own page and home block (NG): renders `02i`, `29`–`29d`.
+- **The Amp page**, first in the menu: On, Model (`7/8`, opens the list), Input, Bass, Middle, Treble, Presence, Output, Calibrate: in the order of an amp's knobs, then the rest. The gate has its own page after it: On, Type, Threshold, and Release for the hard type.
+- Tested in `test_ui` (the AMP block, the list, the page, the names), with renders `02g`, `02h`, `23`–`25c` in `screenshots/`. The gate has its own page and home block (NG): renders `02i`, `29`–`29e`.
 
 ## Input level and calibration
 
-**The hardware stays as it is.** The shield's LINE IN is about 29 kΩ. A tube amp's line out, a preamp or a pedal drives that fine. Passive guitar pickups don't: they lose treble into anything much below 1 MΩ. To plug a guitar in, put a buffer in front (any buffered pedal, or a JFET or op-amp buffer with a 1 MΩ input). The README's hardware section will say so.
+**The buffer (since 2026-11-10).** The shield's LINE IN is about 29 kΩ, which passive pickups can't drive without losing treble. The rig now has a JFET TL072 buffer in front of it: 1 MΩ in, 100 Ω out, and **−6 dB**. The loss is welcome: hard hits used to reach 0.0 dBFS at `in 0` and clip the ADC. Now they peak about 6 dB lower. Its own noise (about 18 nV/√Hz, −110 dBu over 20 kHz) is far below the codec's (about −83 dBu).
 
-**Calibration:** a NAM model only reacts like the real amp when the input level matches the capture's. Calibrated captures store `input_level_dbu`: the dBu of a sine that reached 0 dBFS when the amp was captured.
+**Calibration:** a NAM model only reacts like the real amp when the input level matches the capture's. Calibrated captures store `input_level_dbu`: the dBu of a sine that reached 0 dBFS when the amp was captured. The plugin's rule is: input gain = the interface's dBu at 0 dBFS − `input_level_dbu`. The firmware uses the same rule:
 
-- The shield's full scale is known for each `in` step from the SGTL5000 datasheet: `in 0` is 3.12 V p-p, which is +3.1 dBu, down to 0.24 V p-p at `in 15`.
-- With `amp cal` on, the input gain into the model is (the shield's full-scale dBu − the model's `input_level_dbu`) + `amp in`.
-- Without the field (an uncalibrated capture), it is `amp in` alone.
+- **The full scale at the guitar:** the shield's, from the SGTL5000 datasheet (`in 0` is 3.12 V p-p = +3.1 dBu, down 1.5 dB per step to 0.24 V p-p at `in 15`), plus the buffer's loss, `INPUT_PAD_DB` in `include/config.h` (6 dB; 0 without a buffer). So `in 0` is **+9.1 dBu** at the guitar.
+- **With `amp cal` on:** the input gain into the model is (that full scale − `input_level_dbu`) + `amp in`.
+- **An uncalibrated capture** (no `input_level_dbu`, like all the user's) is played as through the plugin's default interface, **+12 dBu** at 0 dBFS (`AMP_UNCAL_REF_DBU`, the plugin's `kDefaultInputCalibrationLevel`): the input gain is (full scale − 12) + `amp in`, −2.9 dB at `in 0`. So such a model is driven about as hard as on a typical audio interface, and the drive stays the same at any `in`.
+- **With `amp cal` off:** `amp in` alone.
+- **The change in drive:** before the buffer, an uncalibrated model got the shield's level at `in 0` with no correction. Now it gets about 9 dB less (6 dB from the buffer, 2.9 from the reference). Raise `amp in` to get the old drive back.
+- `amp info` shows the full scale, the pad and the resulting gain.
 - The Meter screen and `m` still show the shield's input, so the level procedure in the README is unchanged.
+
+### Measured with the buffer (2026-11-10)
+
+The user's guitar (active pickups) through the buffer, with the guitar's volume at 0, idle input peaks over 5 s:
+
+| `in` | Gain | Idle peak | Noise against the guitar |
+|---|---|---|---|
+| 0 | 0 dB | −70.3 dBFS | reference |
+| 2 | +3 dB | −70.3 dBFS | 3 dB better |
+| 4 | +6 dB | −68.0 dBFS | 3.7 dB better |
+| 6 | +9 dB | −66.2 dBFS | 4.9 dB better |
+
+- **Most of the noise comes in after the input gain stage,** so turning `in` up would lower it relative to the guitar, while calibration keeps the model's drive the same.
+- **But the hardest hits peak at −1.5 to −0.1 dBFS at `in 0`.** There is no room to turn `in` up, so `in 0` stays.
+- **More pad with more `in` doesn't help.** At the same level into the converter, the noise is higher at `in 4` than at `in 0`.
+- **The −6 dB buffer is about right:** the hardest hits just stay below clipping (before it they clipped at `in 0`).
 
 **Output:** `AMP_LEVEL_DB − loudness` dB evens out the models' levels, then `amp out`. The IR's own normalization follows.
 
@@ -325,21 +395,42 @@ The value is the gain where the knob acts most: Treble at +3 dB lifts everything
 **Why:** with nothing played, the shield's input sits at about **−73 dBFS** peak: its own noise, plus whatever is in front of it. A high-gain model amplifies that by **50 dB or more** (measured: −35 dBFS out from the Orange Rockerverb capture, with −15 dB output gain). That is the hiss between notes.
 
 - Turning the guitar's volume down doesn't help, because the noise comes in after the guitar.
-- The model adds no noise of its own: silence in gives silence out.
+- The model adds no noise of its own: silence in gives only a constant offset out, which the [DC blocker](#the-dc-blocker) removes.
 - A real amp's first tube stage is about 25 dB quieter than the shield's converter, so the real amp hisses less with the same settings.
 
-**The gate** works like the NAM plugin's (in `NoiseGate.h`):
+**Two types** (`gate type`, in `NoiseGate.h`). Both:
 
-- It **listens to the input**, before `amp in`, so its threshold reads like the level meter.
-- It **sits after the amp and its tone controls, before the cab IR**, so the delay and reverb tails ring out after it closes.
-- It **mutes the amp's output**, or the **dry guitar while the amp is off**: it works with the amp on or off (2026-11-06; before, it was part of the amp block and did nothing with the amp off).
+- **Listen to the input**, before `amp in`, so the threshold reads like the level meter.
+- **Sit after the amp and its tone controls, before the cab IR**, so the delay and reverb tails ring out after the gate closes.
+- **Mute the amp's output**, or the **dry guitar while the amp is off**: they work with the amp on or off (since 2026-11-06; before, the gate was part of the amp block and did nothing with the amp off).
+
+### `nam` (2026-11-10)
+
+The NAM plugin's gate, ported sample for sample from AudioDSPTools (`dsp/NoiseGate.cpp`, MIT), with the plugin's fixed settings:
+
+- **The level:** the input's power, averaged with a 10 ms half-life.
+- **A downward expander, not a switch:** below the threshold T, the gain falls by 0.1·(L − T)² in the plugin's "dB", applied as 10^(GR/10). That is −20 dB at 10 dB below T, −80 dB at 20 dB below. A note dying into the noise fades along that curve instead of being cut, which is what the plugin sounds like.
+- **Times:** it holds 10 ms below T before it starts to move, and it opens at most in 5 ms and closes at most in 50 ms (over its whole range). Each step goes half the way to the target. `gate rel` doesn't apply.
+- **On the Teensy:** while open it only compares the power with T. The dB and the gain are worked out only while it is closing or closed, with an inline `log2` and `2^x` (minimax polynomials, errors 6e-6 dB and 7.5e-8). The library's are in flash, which is slow in the audio interrupt.
+- **Test** (`test_nam`): against a double-precision copy of AudioDSPTools' loop on 12 s of noise, a dying chord, chugs and ticks, at thresholds of −45, −64 and −80 dB: within **0.004 dB** wherever the reference is above −60 dB.
+
+### `hard`, the first gate and the default
+
 - **Opening:** within about 1 ms once the input rises above the threshold.
 - **Closing:** when the input stays 6 dB below the threshold for an unbroken 20 ms, then fading out exponentially. **Release** (`gate rel`, 10–500 ms, default 50) is the time that fade takes to reach −60 dB. At the default, after a palm mute the output is down 60 dB in about **140 ms** (simulated with the Marshall Law capture; the first version took 600 ms). Short releases cut the hiss at once; long ones let a chord ring out naturally under the gate. The 20 ms hold stays fixed: it is what keeps the gate from chattering.
 - **Tests** (`test_nam`): releases of 10 and 200 ms reach −60 dB at the set time, within a block.
 - **The level it reads:** each block's mean power, taken at once when it rises and falling with 5 ms. The 20 ms hold is longer than a low string's cycle (12 ms for low E), so the dips between cycles don't close it. The first version used block peaks with a 10 ms fall. Noise spikes and pick ticks crossed the threshold with it, so the gate flickered open and shut as a note died: a sputter. A simulation with the Marshall Law capture, a dying chord and realistic noise reopened it 4–5 times; this one opens once and closes once, on three captures (Marshall Law, Chug Norris, a boosted JCM800) and notes dying fast or slow. For noise this level reads about 5 dB below the meter's peaks, so the default leaves more margin than the meter suggests.
-- **The default, −64 dB,** is 9 dB above the measured idle level.
+- **The default threshold, −64 dB,** is 9 dB above the measured idle level.
 
 **Setting it:** open the meter (`m`, or Levels > Meter) and read the input with the strings muted. Set the gate a few dB above that reading. Set it too high and soft notes and long sustains get cut.
+
+- **With `nam`** the threshold is where the fade *starts*, not where the gate shuts. The fade goes 20 dB deep at 10 dB below the threshold, so the threshold needs a clear gap above the idle noise. With the noise only a few dB below it, the hiss is turned down, not off.
+- **Measured on the user's rig** (2026-11-10, the Orange Recto Active RAW capture, the guitar at volume 0, idle input peaks around −70 dBFS):
+  - `nam` at −67 dB let the hiss through at −57 dBFS.
+  - `nam` at −60 dB was silent (−118.6 dBFS), but cut the tails of dying chords by ear.
+  - `hard` at −67 dB with a 10 ms release was silent and kept the tails. **The user chose `hard`, −67 dB, 10 ms, and `hard` became the default.**
+- **Why:** the noise floor is too close to where tails end for an expander that starts fading at the threshold. The hard gate's level reads a block's power with a 20 ms hold and closes only 6 dB below its threshold. That lets a tail run down to the noise, then shuts at once.
+- **CPU:** `nam` costs 1.1 % while closing or closed (log and exp every sample), next to nothing while open. `hard` costs almost nothing either way.
 
 ## Loading a model
 
@@ -425,7 +516,9 @@ On the PC (`make -C test/host test`):
   - The same output for every block size from 16 to 128, and for odd chunk lengths.
   - The history copy-back: no step in the output when it happens.
   - 60 s of loud noise stays finite; `reset()` gives exact silence from silence plus the biases' steady output.
-- **The noise gate** (in `test_nam`, on the dry signal as with the amp off): noise at −75 dBFS alone gives silence; a note at −20 dBFS opens it within two blocks, keeps it open and passes untouched; a note dying into the noise fades out no faster than the release, then silence; once closed, noise spikes and ticks to −62 dBFS don't reopen it; gate off lets everything through.
+- **The DC blocker** (in `test_nam`): a DC step is gone in 150 ms and fully after 1 s; 1 kHz passes within 0.01 dB. The amp stage matches the network plus the same filter.
+- **The NAM gate** (in `test_nam`): against AudioDSPTools' loop, written in double, within 0.004 dB. Also `fastLog2` and `fastExp2` over their whole range.
+- **The hard noise gate** (in `test_nam`, on the dry signal as with the amp off): noise at −75 dBFS alone gives silence; a note at −20 dBFS opens it within two blocks, keeps it open and passes untouched; a note dying into the noise fades out no faster than the release, then silence; once closed, noise spikes and ticks to −62 dBFS don't reopen it; gate off lets everything through.
 - **The golden test** (in `test_nam`): NeuralAmpModelerCore's A2 example model, run once through Core by `nam/make_reference.sh` on a test signal (plucked notes, a sweep, noise bursts). Its Lite output is committed; ours must match within 1e-5 and 100 dB (it does: 4.8e-7, 130 dB).
 - **`test_namfile`, the loader:**
   - The keys in any order; the Lite submodel picked from either position.
@@ -443,7 +536,7 @@ On the Teensy:
 
 - **Home screen row 0:** the IR's name, the model's, or the model's only while the amp is on.
 - **A1 models:** an A1-nano engine (tanh, 4 channels) is possible later, if it's asked for.
-- **Presets:** whole sounds (model, IR, tone, gate, doubler, delay, reverb) saved as numbered files on the SD card and recalled from the panel or serial. Asked about; left for later.
+- **Presets:** whole sounds (model, IR, tone, gate, doubler, delay, reverb) saved as files on the SD card and recalled from the panel or serial. The plan is in [PRESETS.md](PRESETS.md).
 
 ## Sources
 
@@ -451,5 +544,6 @@ On the Teensy:
 - [Architecture "A2"](https://www.neuralampmodeler.com/post/architecture-a2) (the NAM blog): goals and naming.
 - [NAM A2 Architecture](https://namforum.com/wiki/index.php/NAM_A2_Architecture) (NAMFORUM wiki): release, minimum versions.
 - [.nam file specification](https://neural-amp-modeler.readthedocs.io/en/latest/model-file.html): the top-level keys and the metadata.
+- [NeuralAmpModelerPlugin](https://github.com/sdatkinson/NeuralAmpModelerPlugin) `NeuralAmpModeler/NeuralAmpModeler.cpp` (the chain, the calibration, the 5 Hz DC blocker) and [AudioDSPTools](https://github.com/sdatkinson/AudioDSPTools) `dsp/NoiseGate.{h,cpp}`, `dsp/RecursiveLinearFilter.h` (the gate, the high-pass).
 - [NeuralAmpModelerCore](https://github.com/sdatkinson/NeuralAmpModelerCore): `NAM/wavenet/a2_fast.h` and `a2_fast.cpp` (the shape, the weight order, the computation), `NAM/container.cpp` (`SlimmableContainer`).
 - [tone-3000/nam-pedal](https://github.com/tone-3000/nam-pedal): NAM on a Daisy (Cortex-M7, 48 kHz, 48-sample blocks) and the `.namb` binary format.

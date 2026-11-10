@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <algorithm>
 #include <vector>
 
 #include "AmpStage.h"
@@ -182,8 +183,8 @@ static bool writeWav(const char* path, const std::vector<float>& x) {
 }
 
 // The amp stage: dry while warming up, then exactly the network (with its
-// gains); a new model fades to silence, warms up silent, fades in; off goes
-// back to dry and idle. No clicks anywhere.
+// gains and the 5 Hz DC blocker); a new model fades to silence, warms up
+// silent, fades in; off goes back to dry and idle. No clicks anywhere.
 static void testAmpStage(const std::vector<float>& w1) {
   printf("  amp stage: on, new model, off\n");
   constexpr int B = 32;
@@ -193,6 +194,12 @@ static void testAmpStage(const std::vector<float>& w1) {
   std::vector<float> hist(Stage::kHistoryFloats), refHist(Stage::kHistoryFloats);
   Stage* st = new Stage(48000.0f);
   NamA2<B>* ref = new NamA2<B>;
+  DcBlocker dc;  // the reference's, reset with the network as the stage's is
+  dc.setup(Stage::kDcBlockHz, 48000.0f);
+  auto refRun = [&](const float* xin, float* rout) {
+    ref->process(xin, rout);
+    dc.process(rout, B);
+  };
   st->begin(hist.data());
   ref->begin(refHist.data());
   const float gIn = 1.5f, gOut = 0.7f;
@@ -219,28 +226,29 @@ static void testAmpStage(const std::vector<float>& w1) {
   st->setOn(true);
   ref->reset();
   ref->setWeights(w1.data());
+  dc.reset();
   bool dry = true;
   float r[B], x[B];
   for (int b = 0; b < Stage::kWarmBlocks; b++) {
     block(&idle);
     for (int i = 0; i < B; i++) dry = dry && out[i] == in[i], x[i] = in[i] * gIn;
-    ref->process(x, r);
+    refRun(x, r);
   }
   CHECK(dry && !idle, "on: the dry signal during the warm-up (%d blocks)", Stage::kWarmBlocks);
   // Then a 20 ms crossfade, then the network times the output gain.
   for (int b = 0; b < 30; b++) {
     block(&idle);
     for (int i = 0; i < B; i++) x[i] = in[i] * gIn;
-    ref->process(x, r);
+    refRun(x, r);
   }
   double err = 0, level = 0;
   for (int b = 0; b < 100; b++) {
     block(&idle);
     for (int i = 0; i < B; i++) x[i] = in[i] * gIn;
-    ref->process(x, r);
+    refRun(x, r);
     for (int i = 0; i < B; i++) err = fmax(err, fabs(out[i] - gOut * r[i])), level = fmax(level, fabs(out[i]));
   }
-  CHECK(err < 1e-6 && level > 0.01, "  ... then exactly the network with its gains (error %g)", err);
+  CHECK(err < 1e-6 && level > 0.003, "  ... then exactly the network with its gains (error %g, level %g)", err, level);
   const float steadyStep = maxStep;
 
   // A new model while on: silence within 20 ms, a silent warm-up, then in.
@@ -256,11 +264,12 @@ static void testAmpStage(const std::vector<float>& w1) {
         silentFrom);
   ref->reset();
   ref->setWeights(w2.data());
+  dc.reset();
   int silentBlocks = 1;
   for (;; silentBlocks++) {
     block(&idle);
     for (int i = 0; i < B; i++) x[i] = in[i] * gIn;
-    ref->process(x, r);
+    refRun(x, r);
     bool silent = true;
     for (int i = 0; i < B; i++) silent = silent && out[i] == 0.0f;
     if (!silent || silentBlocks > 400) break;
@@ -270,13 +279,13 @@ static void testAmpStage(const std::vector<float>& w1) {
   for (int b = 0; b < 30; b++) {
     block(&idle);
     for (int i = 0; i < B; i++) x[i] = in[i] * gIn;
-    ref->process(x, r);
+    refRun(x, r);
   }
   err = 0;
   for (int b = 0; b < 100; b++) {
     block(&idle);
     for (int i = 0; i < B; i++) x[i] = in[i] * gIn;
-    ref->process(x, r);
+    refRun(x, r);
     for (int i = 0; i < B; i++) err = fmax(err, fabs(out[i] - gOut * r[i]));
   }
   CHECK(err < 1e-6, "  ... then the new model (error %g)", err);
@@ -295,14 +304,16 @@ static void testAmpStage(const std::vector<float>& w1) {
   delete ref;
 }
 
-// The noise gate (after the amp in the firmware; here on the dry signal, as
-// with the amp off): the input's noise floor alone gives silence; a note
-// opens it within a block or two and passes untouched; a note dying into the
-// noise is faded out, never cut; gate off leaves the signal as it was.
+// The hard noise gate (after the amp in the firmware; here on the dry
+// signal, as with the amp off): the input's noise floor alone gives silence;
+// a note opens it within a block or two and passes untouched; a note dying
+// into the noise is faded out, never cut; gate off leaves the signal as it
+// was.
 static void testGate() {
-  printf("  noise gate\n");
+  printf("  noise gate, hard\n");
   constexpr int B = 32;
   NoiseGate<B>* st = new NoiseGate<B>(48000.0f);
+  st->setType(NoiseGate<B>::Type::kHard);
   st->setThreshold(powf(10.0f, -64.0f / 20.0f));
   bool untouched = true;  // while open, out == in
   const float noise = powf(10.0f, -75.0f / 20.0f);
@@ -373,6 +384,122 @@ static void testGate() {
   for (int i = 0; i < B; i++) passes = passes && out[i] == in[i];
   CHECK(passes, "gate off: open, the noise passes untouched");
   delete st;
+}
+
+// The DC blocker: a step of DC decays to under 1 % in 150 ms (5 Hz: a
+// 32 ms time constant), and 1 kHz passes within 0.01 dB.
+static void testDcBlocker() {
+  printf("  DC blocker\n");
+  DcBlocker dc;
+  dc.setup(AmpStage<32>::kDcBlockHz, 48000.0f);
+  std::vector<float> x(48000, 0.5f);
+  dc.process(x.data(), (int)x.size());
+  CHECK(fabsf(x[7200]) < 0.005f && fabsf(x.back()) < 1e-6f, "DC 0.5: %g after 150 ms, %g after 1 s", x[7200], x.back());
+  dc.reset();
+  float peak = 0.0f;
+  for (int i = 0; i < 48000; i++) {
+    float v = sinf(2.0f * 3.14159265f * 1000.0f * (float)i / 48000.0f);
+    dc.process(&v, 1);
+    if (i > 24000) peak = fmaxf(peak, fabsf(v));
+  }
+  CHECK(fabsf(20.0f * log10f(peak)) < 0.01f, "1 kHz passes: %.4f dB", 20.0f * log10f(peak));
+}
+
+// The NAM plugin's gate, written here in double straight from AudioDSPTools
+// (dsp/NoiseGate.cpp, MIT, Steven Atkinson): Trigger::Process with the
+// plugin's settings (time 10 ms, ratio 0.1, open 5 ms, hold 10 ms, close
+// 50 ms), one channel. Returns the gain per sample.
+struct NamGateRef {
+  double thrDb, fs, level = 1e-12, lastGr, held = 0.0;
+  bool holding = false;
+  NamGateRef(double thr, double rate) : thrDb(thr), fs(rate), lastGr(gr(-120.0)) {}
+  double gr(double l) const { return l < thrDb ? -0.1 * (l - thrDb) * (l - thrDb) : 0.0; }
+  double step(double x) {
+    const double alpha = pow(0.5, 1.0 / (0.01 * fs)), beta = 1.0 - alpha, dt = 1.0 / fs;
+    const double maxGr = gr(-120.0), dOpen = -maxGr / 0.005 * dt, dClose = maxGr / 0.05 * dt;
+    level = std::min(std::max(alpha * level + beta * x * x, 1e-12), 1000.0);
+    const double l = 10.0 * log10(level);
+    double out;
+    if (holding) {
+      out = 0.0, lastGr = 0.0;
+      if (l < thrDb) {
+        held += dt;
+        if (held >= 0.01) holding = false;
+      } else {
+        held = 0.0;
+      }
+    } else {
+      const double t = gr(l);
+      if (t > lastGr) {
+        lastGr += std::min(std::max(0.5 * (t - lastGr), 0.0), dOpen);
+        if (lastGr >= 0.0) lastGr = 0.0, holding = true, held = 0.0;
+      } else if (t < lastGr) {
+        lastGr += std::min(std::max(0.5 * (t - lastGr), dClose), 0.0);
+        if (lastGr < maxGr) lastGr = maxGr;
+      }
+      out = lastGr;
+    }
+    return pow(10.0, out / 10.0);
+  }
+};
+
+// The NAM gate type against that reference, sample by sample: within 0.1 dB
+// wherever the reference is above -60 dB, and below -59.9 dB where it isn't.
+// Also fastLog2 / fastExp2 themselves.
+static void testNamGate() {
+  printf("  noise gate, NAM (against AudioDSPTools)\n");
+  double e2 = 0.0, eE = 0.0;
+  for (float x = 1e-12f; x < 1000.0f; x *= 1.013f) e2 = fmax(e2, fabs(fastLog2(x) - log2((double)x)));
+  for (float x = -120.0f; x < 20.0f; x += 0.0137f) eE = fmax(eE, fabs(fastExp2(x) / exp2((double)x) - 1.0));
+  CHECK(e2 < 5e-6 && eE < 5e-7, "fastLog2 error %g, fastExp2 relative error %g", e2, eE);
+
+  constexpr int B = 32;
+  const float noise = powf(10.0f, -75.0f / 20.0f);
+  for (float thrDb : {-64.0f, -45.0f, -80.0f}) {
+    NoiseGate<B>* st = new NoiseGate<B>(48000.0f);
+    st->setType(NoiseGate<B>::Type::kNam);  // from the start: no type change, closed as the plugin starts
+    st->setThreshold(powf(10.0f, thrDb / 20.0f));
+    NamGateRef ref(thrDb, 48000.0);
+    double worst = 0.0;
+    int bad = 0;
+    long t = 0;
+    float in[B], g[B];
+    // Silence-ish noise, a chord dying slowly into the noise, a palm-muted
+    // chug, bursts, and the noise again: 12 s.
+    for (int b = 0; b < 12 * 48000 / B; b++) {
+      for (int i = 0; i < B; i++, t++) {
+        const double sec = (double)t / 48000.0;
+        float v = noise * urand();
+        if (sec >= 1.0 && sec < 7.0)
+          for (float f : {82.41f, 123.47f, 164.81f}) v += 0.15f * expf(-1.2f * (float)(sec - 1.0)) * sinf(2.0f * 3.14159265f * f * (float)sec);
+        if (sec >= 7.0 && sec < 9.0 && fmod(sec, 0.25) < 0.08) v += 0.3f * sinf(2.0f * 3.14159265f * 82.41f * (float)sec);
+        if (sec >= 9.0 && sec < 11.0 && fmod(sec, 0.5) < 0.01) v += 0.02f * urand();
+        in[i] = v;
+        g[i] = 1.0f;
+      }
+      st->process(in, g);
+      for (int i = 0; i < B; i++) {
+        const double r = ref.step(in[i]), rDb = 20.0 * log10(fmax(r, 1e-30)), oDb = 20.0 * log10(fmax(g[i], 1e-30));
+        if (rDb > -60.0) {
+          worst = fmax(worst, fabs(oDb - rDb));
+          if (fabs(oDb - rDb) > 0.1 && !bad++) printf("    first at t=%ld (%.4f s): ref %.3f dB ours %.3f dB, in %g\n", t - B + i, (t - B + i) / 48000.0, rDb, oDb, in[i]);
+        } else if (oDb > -59.9) {
+          if (!bad++) printf("    first(closed) at t=%ld: ref %.3f dB ours %.3f dB\n", t - B + i, rDb, oDb);
+        }
+      }
+    }
+    CHECK(bad == 0, "threshold %.0f dB: %d samples off, worst %.4f dB", thrDb, bad, worst);
+    printf("    threshold %.0f dB: worst %.5f dB\n", thrDb, worst);
+    delete st;
+  }
+  // Off: the signal untouched.
+  NoiseGate<B> off(48000.0f);
+  off.setType(NoiseGate<B>::Type::kNam);
+  off.setThreshold(0.0f);
+  float in[B], io[B];
+  for (int i = 0; i < B; i++) in[i] = io[i] = noise * urand();
+  off.process(in, io);
+  CHECK(!memcmp(in, io, sizeof(in)), "NAM gate off: untouched");
 }
 
 // The tone controls: flat at 0 dB (untouched), and each knob's gain at its
@@ -543,6 +670,8 @@ int main(int argc, char** argv) {
 
   testGolden();
   testAmpStage(w);
+  testDcBlocker();
+  testNamGate();
   testGate();
   testToneStack();
 

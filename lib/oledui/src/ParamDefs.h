@@ -38,6 +38,7 @@ enum Param : uint8_t {
   kGateRel,         // the gate's fade from open to -60 dB, ms
   kDblOn, kDblTime, kDblWidth,  // the doubler (ms, %)
   kGateOn,          // the noise gate (after the amp, before the cab)
+  kGateType,        // 0 nam (the NAM plugin's expander), 1 hard (the default; release applies)
   kParamCount,
   // Not saved.
   kDrumsPlay = kParamCount,
