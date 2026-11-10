@@ -23,14 +23,27 @@ void ampDisplayName(const char* path, char* out, int n) {
     if (*p == '_') *p = ' ';
 }
 
-int fileCount(const UiModel& m, FileList list) { return list == FileList::kAmp ? m.ampCount : m.irCount; }
-int fileCurrent(const UiModel& m, FileList list) { return list == FileList::kAmp ? m.ampCurrent : m.irCurrent; }
+int fileCount(const UiModel& m, FileList list) {
+  return list == FileList::kAmp ? m.ampCount : (list == FileList::kPreset ? m.presetCount : m.irCount);
+}
+int fileCurrent(const UiModel& m, FileList list) {
+  return list == FileList::kAmp ? m.ampCurrent : (list == FileList::kPreset ? m.presetCurrent : m.irCurrent);
+}
+int fileExtraRows(FileList list) { return list == FileList::kPreset ? 2 : 1; }
+// Presets carry their number in the name ("03 Lead"); the files get "NN ".
+int listNameRoom(FileList list) { return list == FileList::kPreset ? kIrBrowserNameChars + 3 : kIrBrowserNameChars; }
 
 // The list's mark (`*`, the title's "3/12"): the saved IR, which the IR being
 // tried under the cursor doesn't replace until it is clicked.
-static int fileMarked(const UiModel& m, FileList list) { return list == FileList::kAmp ? m.ampCurrent : m.irSaved; }
+static int fileMarked(const UiModel& m, FileList list) {
+  return list == FileList::kIR ? m.irSaved : (list == FileList::kPreset ? m.presetSaved : m.ampCurrent);
+}
 
 void fileName(const UiModel& m, FileList list, int i, char* out, int n) {
+  if (list == FileList::kPreset) {
+    snprintf(out, n, "%s", m.presetName ? m.presetName(i) : "");
+    return;
+  }
   const char* (*path)(int) = list == FileList::kAmp ? m.ampPath : m.irPath;
   if (!path) out[0] = 0;
   else if (list == FileList::kAmp) ampDisplayName(path(i), out, n);
@@ -41,7 +54,7 @@ void fileName(const UiModel& m, FileList list, int i, char* out, int n) {
 // name in the list starts with; 0 for fewer than two names.
 static int commonPrefix(const UiModel& m, FileList list) {
   const int count = fileCount(m, list);
-  if (count < 2) return 0;
+  if (count < 2 || list == FileList::kPreset) return 0;
   char first[64], other[64];
   fileName(m, list, 0, first, sizeof(first));
   int len = (int)strlen(first);
@@ -64,6 +77,13 @@ void listName(const UiModel& m, FileList list, int i, char* out, int n) {
 
 void homeName(const UiModel& m, int block, char* out, int n) {
   char name[64];
+  const bool preset = m.presetCurrent >= 0 && m.presetName;
+  if (block == kBlockPreset || (preset && block != kBlockAmp && block != kBlockIR)) {
+    if (preset) snprintf(out, n, "%s%s", m.presetName(m.presetCurrent), m.presetEdited ? "*" : "");
+    else if (!m.sdOk) snprintf(out, n, "%s", "No SD card");
+    else snprintf(out, n, "%s", m.presetCount ? "No preset" : "No presets");
+    return;
+  }
   if (block == kBlockAmp) {
     if (!m.sdOk) snprintf(out, n, "%s", "No SD card");
     else if (m.ampCount == 0) snprintf(out, n, "%s", "No amps on SD");
@@ -105,7 +125,7 @@ void drawSplash(Canvas& c, const UiModel& m) {
 struct HomeBlockPos { const char* label; int x, w; };
 static constexpr int kBlockH = 13;
 static constexpr int kHomeColumnX = 52;  // the style and the beat boxes (9 characters)
-static constexpr HomeBlockPos kBlocks[kBlockTempo] = {
+static constexpr HomeBlockPos kBlocks[kBlockTempo - kBlockAmp] = {
     {"AMP", 0, 25}, {"NG", 30, 17}, {"IR", 52, 17}, {"DLY", 74, 25}, {"REV", 103, 25},
 };
 static constexpr HomeBlockPos kTrainerBlock = {"TRN", 103, 25};
@@ -132,17 +152,19 @@ void drawHome(Canvas& c, const UiModel& m, int block, int editing, int marquee) 
   char buf[40], name[64];
   c.clear();
 
-  // Row 0: the IR, or the amp model with the cursor on AMP.
+  // Row 0: the preset or the IR; the amp model on AMP, the IR on IR;
+  // inverted with the cursor on it.
   homeName(m, block, name, sizeof(name));
   const int len = (int)strlen(name);
-  int off = block == kBlockAmp ? marquee : 0;
+  int off = block == kBlockAmp || block == kBlockPreset ? marquee : 0;
   if (off > len - kHomeNameChars) off = len - kHomeNameChars > 0 ? len - kHomeNameChars : 0;
   snprintf(buf, sizeof(buf), "%.*s", kHomeNameChars, name + off);
   c.text(Canvas::kLeft, 0, buf);
+  if (block == kBlockPreset) c.invert(0, 0, Canvas::kW, 15);  // a dark line between it and the blocks
 
   // Row 1: the blocks, the cursor under one.
-  const bool on[kBlockTempo] = {m.ampOn, m.gateOn, !m.bypass, m.delayOn, m.reverbOn};
-  for (int i = 0; i < kBlockTempo; i++) drawBlock(c, kBlocks[i], 2, on[i], block == i);
+  const bool on[kBlockTempo - kBlockAmp] = {m.ampOn, m.gateOn, !m.bypass, m.delayOn, m.reverbOn};
+  for (int i = kBlockAmp; i < kBlockTempo; i++) drawBlock(c, kBlocks[i - kBlockAmp], 2, on[i - kBlockAmp], block == i);
 
   // Rows 2-3: the tempo big (its digits' ink is y 38-57), and in a column
   // beside it the style and a box per beat, the one sounding filled (all
@@ -178,13 +200,23 @@ void drawFileList(Canvas& c, const UiModel& m, FileList list, int cursor, int to
   const int count = fileCount(m, list), current = fileMarked(m, list);
   if (current >= 0) snprintf(buf, sizeof(buf), "%d/%d", current + 1, count);
   else snprintf(buf, sizeof(buf), "-/%d", count);
-  titleBar(c, list == FileList::kAmp ? "AMP" : "IR", buf);
-  const int skip = commonPrefix(m, list);
+  titleBar(c, list == FileList::kAmp ? "AMP" : (list == FileList::kPreset ? "PRESET" : "IR"), buf);
+  const int skip = commonPrefix(m, list), extra = fileExtraRows(list);
   for (int row = 0; row < kIrBrowserRows; row++) {
     const int n = top + row, page = (row + 1) * Canvas::kRowPages;
-    if (n > count) break;
-    if (n == count) {
-      c.text(Canvas::kLeft, page, "Rescan SD card");
+    if (n >= count + extra) break;
+    if (n >= count) {
+      c.text(Canvas::kLeft, page, n == count + extra - 1 ? "Rescan SD card" : "Save as new");
+    } else if (list == FileList::kPreset) {
+      // The name has its number; as much as fits before the mark, the cursor
+      // row scrolled.
+      fileName(m, list, n, name, sizeof(name));
+      const int room = listNameRoom(list), len = (int)strlen(name);
+      int off = n == cursor ? marquee : 0;
+      if (off > len - room) off = len - room > 0 ? len - room : 0;
+      snprintf(buf, sizeof(buf), "%.*s", room, name + off);
+      c.text(Canvas::kLeft, page, buf);
+      if (n == current) c.textRight(Canvas::kW, page, m.presetEdited && n == m.presetCurrent ? "*" : "<");
     } else {
       fileName(m, list, n, name, sizeof(name));
       if (name[skip]) memmove(name, name + skip, strlen(name + skip) + 1);
@@ -267,6 +299,36 @@ void drawTuner(Canvas& c, const UiModel& m) {
   float cents = m.tunerCents < -50 ? -50 : (m.tunerCents > 50 ? 50 : m.tunerCents);
   const int nx = cx + (int)lroundf(cents * (float)half / 50.0f);
   c.fill(nx - 1, y - 8, 3, 15, true);
+}
+
+void drawConfirm(Canvas& c, const char* title, const char* name) {
+  char buf[24];
+  c.clear();
+  titleBar(c, title, nullptr);
+  snprintf(buf, sizeof(buf), "%.*s", Canvas::kCols, name);
+  c.textCenter(2, buf);
+  c.text(Canvas::kLeft, 6, "push=yes");
+  c.textRight(Canvas::kW, 6, "back=no");
+}
+
+const char kRenameChars[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-";
+
+void drawRename(Canvas& c, const char* title, const char* name, int pos) {
+  char buf[24];
+  c.clear();
+  titleBar(c, title, nullptr);
+  // A window of 16 characters that keeps the cursor in view; the cursor's
+  // cell inverted (a space too), the rest of the name as typed.
+  const int len = (int)strlen(name), cols = Canvas::kCols;
+  int first = pos - (cols - 2);
+  if (first < 0) first = 0;
+  snprintf(buf, sizeof(buf), "%.*s", cols, len > first ? name + first : "");
+  c.text(Canvas::kLeft, 2, buf);
+  c.invert(Canvas::kLeft + (pos - first) * Canvas::kCharW, 16, Canvas::kCharW, 16);
+  c.text(Canvas::kLeft, 4, "push=>");
+  c.textRight(Canvas::kW, 4, "back=<");
+  c.text(Canvas::kLeft, 6, "hold=ok");
+  c.textRight(Canvas::kW, 6, "CONF=del");
 }
 
 void drawBusy(Canvas& c, const char* what, const char* name) {

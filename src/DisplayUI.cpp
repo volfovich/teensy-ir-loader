@@ -15,6 +15,7 @@
 #include "Oled.h"
 #include "Panel.h"
 #include "Params.h"
+#include "PresetLibrary.h"
 #include "Tuner.h"
 #include "config.h"
 
@@ -44,6 +45,7 @@ class FirmwareHost final : public ui::MenuHost {
       case ui::kIsReverbHall: return getParam(ui::kReverbMode) == 0;
       case ui::kIsReverbGated: return getParam(ui::kReverbMode) == 1;
       case ui::kIsDrumSong: return getParam(ui::kDrumSong) != 0;
+      case ui::kHasPreset: return presetCurrent() >= 0;
       default: return id < ui::kValueCount ? getParam(id) : 0;
     }
   }
@@ -52,6 +54,10 @@ class FirmwareHost final : public ui::MenuHost {
     if (id < ui::kValueCount) paramLimits(id, lo, hi);
   }
   bool valueText(uint8_t id, char* buf, int n) override;
+  void setText(uint8_t id, const char* text) override {
+    if (id == ui::kPresetRename) renamePreset(text);
+    else if (id == ui::kPresetNew) newPreset(text);
+  }
 };
 
 void FirmwareHost::set(uint8_t id, int v) {
@@ -62,6 +68,11 @@ void FirmwareHost::set(uint8_t id, int v) {
       break;
     case ui::kIrPreview: loadIRIndex(v, false); break;
     case ui::kAmpLoad: loadAmpIndex(v); break;
+    case ui::kPresetLoad: recallPreset(v); break;
+    case ui::kPresetPreview: previewPreset(v); break;
+    case ui::kPresetRestore: cancelPreview(); break;
+    case ui::kPresetSave: savePreset(); break;
+    case ui::kPresetDelete: deletePreset(presetCurrent()); break;
     case ui::kIrRescan:
       scanCard();
       loadStartupIR();
@@ -89,6 +100,11 @@ bool FirmwareHost::valueText(uint8_t id, char* buf, int n) {
       if (!irSdOk()) snprintf(buf, n, "no SD");
       else if (ampCurrent() < 0) snprintf(buf, n, "-/%d", ampCount());
       else snprintf(buf, n, "%d/%d", ampCurrent() + 1, ampCount());
+      return true;
+    case ui::kScreenPreset:
+      if (!irSdOk()) snprintf(buf, n, "no SD");
+      else if (presetSaved() < 0) snprintf(buf, n, "-/%d", presetCount());
+      else snprintf(buf, n, "%d/%d%s", presetSaved() + 1, presetCount(), presetEdited() ? "*" : "");
       return true;
     case ui::kDrumStyle:
     case ui::kDrumKit:
@@ -120,6 +136,11 @@ static void fillModel(uint32_t now) {
   m.ampCount = ampCount();
   m.ampCurrent = ampCurrent();
   m.ampPath = ampPath;
+  m.presetCount = presetCount();
+  m.presetCurrent = presetCurrent();
+  m.presetSaved = presetSaved();
+  m.presetEdited = presetEdited();
+  m.presetName = presetName;
 
   m.ampOn = getParam(ui::kAmpOn);
   m.gateOn = getParam(ui::kGateOn);

@@ -179,6 +179,7 @@ static void setCurrentFromSettings() {
 }
 
 void scanPresets() {
+  keepPreview();  // the list's numbers change
   g_count = 0;
   g_current = -1;
   if (!irSdOk()) return;
@@ -212,17 +213,10 @@ bool presetEdited() {
 
 // ---- Recall, save, rename, delete --------------------------------------------------
 
-bool recallPreset(int idx) {
-  if (idx < 0 || idx >= g_count) return false;
-  char path[IR_PATH_MAX];
-  pathOf(g_files[idx], path);
-  Serial.printf("[preset] %s\n", presetName(idx));
-  if (!readFile(path, &g_staging, true)) {
-    Serial.printf("Cannot open %s\n", path);
-    return false;
-  }
-  const PresetData& p = g_staging;
-  // The model and the IR first (their own messages), then the values.
+// Sets the sound: the model and the IR (their own messages; a path not on
+// the card keeps the current one), then the values. Returns how many values
+// changed.
+static int applySound(const PresetData& p) {
   if (p.ampPath[0]) {
     int i = -1;
     for (int k = 0; k < ampCount() && i < 0; k++)
@@ -243,6 +237,20 @@ bool recallPreset(int idx) {
     setParamQuiet(id, p.v[id]);
     changed++;
   }
+  return changed;
+}
+
+// Reads preset idx's file and sets its sound; it becomes the recalled one.
+static bool recallFile(int idx) {
+  if (idx < 0 || idx >= g_count) return false;
+  char path[IR_PATH_MAX];
+  pathOf(g_files[idx], path);
+  Serial.printf("[preset] %s\n", presetName(idx));
+  if (!readFile(path, &g_staging, true)) {
+    Serial.printf("Cannot open %s\n", path);
+    return false;
+  }
+  const int changed = applySound(g_staging);
   g_ref = g_staging;
   g_current = idx;
   strlcpy(g_settings.presetPath, path, IR_PATH_MAX);
@@ -251,7 +259,64 @@ bool recallPreset(int idx) {
   return true;
 }
 
+// ---- Trying presets from the panel's list --------------------------------------------
+// The first preview keeps the sound as it was (edits and all) and which
+// preset was recalled; cancelPreview() puts them back, keepPreview() drops
+// them. Anything else that changes presets keeps.
+
+DMAMEM static PresetData g_snapSound, g_snapRef;
+DMAMEM static char g_snapPath[IR_PATH_MAX];
+static int g_snapIdx = -1;
+static bool g_snap = false;
+
+int presetSaved() { return g_snap ? g_snapIdx : g_current; }
+
+static void restoreSnapshot() {
+  applySound(g_snapSound);
+  g_ref = g_snapRef;
+  g_current = g_snapIdx;
+  strlcpy(g_settings.presetPath, g_snapPath, IR_PATH_MAX);
+  scheduleSave();
+}
+
+bool previewPreset(int idx) {
+  if (idx < 0 || idx >= g_count) return false;
+  if (!g_snap) {
+    currentSound(&g_snapSound);
+    g_snapRef = g_ref;
+    g_snapIdx = g_current;
+    strlcpy(g_snapPath, g_settings.presetPath, IR_PATH_MAX);
+    g_snap = true;
+  }
+  if (idx == g_snapIdx) {  // back on the one recalled before: its sound as it was, edits too
+    Serial.printf("[preset] %s (as before)\n", presetName(idx));
+    restoreSnapshot();
+    return true;
+  }
+  return recallFile(idx);
+}
+
+void keepPreview() { g_snap = false; }
+
+void cancelPreview() {
+  if (!g_snap) return;
+  Serial.println("[preset] back to the sound before the list");
+  restoreSnapshot();
+  g_snap = false;
+}
+
+bool recallPreset(int idx) {
+  // Keeping the preset being tried: it is already playing.
+  if (g_snap && idx == g_current) {
+    g_snap = false;
+    return true;
+  }
+  g_snap = false;
+  return recallFile(idx);
+}
+
 bool savePreset() {
+  keepPreview();
   if (g_current < 0) {
     Serial.println("No preset recalled: 'pre new <name>' saves a new one.");
     return false;
@@ -287,6 +352,7 @@ static void rescanAndSelect(const char* file) {
 }
 
 bool newPreset(const char* name) {
+  keepPreview();
   bool used[kMaxPresets + 1] = {};
   for (int i = 0; i < g_count; i++)
     if (presetNumber(i) <= kMaxPresets) used[presetNumber(i)] = true;
@@ -309,6 +375,7 @@ bool newPreset(const char* name) {
 }
 
 bool renamePreset(const char* name) {
+  keepPreview();
   if (g_current < 0) {
     Serial.println("No preset recalled.");
     return false;
@@ -338,6 +405,7 @@ bool renamePreset(const char* name) {
 }
 
 bool deletePreset(int idx) {
+  keepPreview();
   if (idx < 0 || idx >= g_count) return false;
   char path[IR_PATH_MAX];
   pathOf(g_files[idx], path);

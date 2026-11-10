@@ -12,6 +12,7 @@
 
 #include "Canvas.h"
 #include "Menu.h"
+#include "Panel.h"
 #include "Screens.h"
 #include "ui_fake.h"
 
@@ -90,7 +91,7 @@ int main(int argc, char** argv) {
   snap("01_splash");
 
   // Home, with the cursor on each block.
-  const char* const homeShots[ui::kHomeBlocks] = {"02g_home_amp",   "02i_home_gate",  "02_home",
+  const char* const homeShots[ui::kHomeBlocks] = {"02n_home_preset", "02g_home_amp",   "02i_home_gate",  "02_home",
                                                    "02b_home_delay", "02c_home_reverb", "02e_home_tempo",
                                                    "02j_home_style", "02k_home_trainer"};
   for (int blk = 0; blk < ui::kHomeBlocks; blk++) {
@@ -118,7 +119,7 @@ int main(int argc, char** argv) {
   c.clear(); ui::drawHome(c, x, ui::kBlockIR);
   snap("04_home_bypass");
 
-  menu.open(); menu.turn(3, 0);  // Doubler
+  menu.open(); menu.turn(4, 0);  // Doubler
   menu.draw(c);
   snap("05b_menu_doubler");
   menu.push(); menu.turn(1, 0);  // the Doubler page, on Time
@@ -130,11 +131,11 @@ int main(int argc, char** argv) {
   menu.back(); menu.turn(100, 0);  // Width
   menu.draw(c);
   snap("26c_menu_doubler_width");
-  menu.open(); menu.turn(9, 0);  // Tuner
+  menu.open(); menu.turn(10, 0);  // Tuner
   menu.draw(c);
   snap("05c_menu_tuner");
 
-  menu.open(); menu.turn(4, 0);
+  menu.open(); menu.turn(5, 0);
   menu.draw(c);
   snap("05_menu");
 
@@ -151,7 +152,7 @@ int main(int argc, char** argv) {
   snap("07_edit_delay_time");
   menu.back(); menu.back(); menu.back();
 
-  menu.open(); menu.turn(7, 0); menu.push(); menu.push();  // Levels > Out gain
+  menu.open(); menu.turn(8, 0); menu.push(); menu.push();  // Levels > Out gain
   menu.draw(c);
   snap("08_edit_output_gain");
   menu.back();
@@ -224,7 +225,7 @@ int main(int argc, char** argv) {
   snap("11_status");
 
   host.v[ui::kTrainerOn] = 1;
-  menu.open(); menu.turn(6, 0); menu.push(); menu.turn(10, 0);  // Drums > Trainer
+  menu.open(); menu.turn(7, 0); menu.push(); menu.turn(10, 0);  // Drums > Trainer
   menu.draw(c);
   snap("12_menu_drums");
 
@@ -249,7 +250,7 @@ int main(int argc, char** argv) {
   host.v[ui::kDrumSong] = 4;
   host.v[ui::kDrumLoopFrom] = 9;
   host.v[ui::kDrumLoopTo] = 16;
-  menu.open(); menu.turn(6, 0); menu.push(); menu.turn(3, 0);  // Drums > Song
+  menu.open(); menu.turn(7, 0); menu.push(); menu.turn(3, 0);  // Drums > Song
   menu.draw(c);
   snap("19_menu_drums_song");
   menu.push();  // the song's name: two rows in the 8x16 font
@@ -261,7 +262,7 @@ int main(int argc, char** argv) {
   host.v[ui::kDrumLoopFrom] = 0;
   host.v[ui::kDrumLoopTo] = 32;
 
-  menu.open(); menu.turn(6, 0); menu.push(); menu.turn(1, 0);  // Drums, the cursor on Bass
+  menu.open(); menu.turn(7, 0); menu.push(); menu.turn(1, 0);  // Drums, the cursor on Bass
   menu.draw(c);
   snap("20_menu_drums_bass");
   menu.push();  // the Bass page
@@ -272,7 +273,7 @@ int main(int argc, char** argv) {
   snap("22_edit_bass_key");
   menu.back();
 
-  menu.open(); menu.turn(5, 0); menu.push(); menu.turn(1, 0);  // Reverb > Mode (hall)
+  menu.open(); menu.turn(6, 0); menu.push(); menu.turn(1, 0);  // Reverb > Mode (hall)
   menu.draw(c);
   snap("17_menu_reverb_hall");
 
@@ -281,6 +282,53 @@ int main(int argc, char** argv) {
   menu.draw(c);
   snap("18_menu_reverb_gated");
   host.v[ui::kReverbMode] = 0;
+
+  // Presets (PRESETS.md, "Panel"): the list, the save confirm, the page,
+  // the name editor, and home with a preset edited.
+  {
+    ui::Panel pp(ui::menuPages(), host, m);
+    pp.turn(-1, 0);
+    pp.push(0);  // PRE: the preset list, on 03 Lead
+    pp.draw(c, m);
+    snap("31_preset_list");
+    pp.turn(3, 0);  // the Save as new row
+    pp.draw(c, m);
+    snap("31b_preset_list_end");
+    pp.back(0);
+    pp.hold(0);  // save, asked
+    pp.draw(c, m);
+    snap("31c_preset_save");
+    pp.back(0);
+    pp.back(0);
+    pp.turn(2, 0);  // menu > Presets
+    pp.draw(c, m);
+    snap("31d_menu_top_presets");
+    pp.push(0);
+    pp.turn(1, 0);  // Level
+    pp.draw(c, m);
+    snap("31e_menu_presets");
+    pp.turn(3, 0);
+    pp.push(0);  // Rename, cursor after "Lead", an 's' added
+    for (int i = 0; i < 4; i++) pp.push(0);
+    pp.turn(45, 0);
+    pp.draw(c, m);
+    snap("31f_rename");
+    ui::UiModel none = m;  // no preset recalled: hold on PRE names a new one
+    none.presetCurrent = none.presetSaved = -1;
+    ui::Panel pn(ui::menuPages(), host, none);
+    pn.turn(-1, 0);
+    pn.hold(0);
+    pn.turn(3, 0);  // C
+    pn.push(0);
+    pn.turn(38, 0);  // l
+    pn.push(0);
+    pn.draw(c, none);
+    snap("31g_new_preset");
+    ui::UiModel ed = m;
+    ed.presetEdited = true;
+    c.clear(); ui::drawHome(c, ed, ui::kBlockDelay);
+    snap("02o_home_preset_edited");
+  }
 
   int ok = 0;
   for (auto& s : shots) ok += writePng(dir + "/" + s.name + ".png", kImgW, kImgH, s.img);

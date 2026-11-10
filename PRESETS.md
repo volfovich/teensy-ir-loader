@@ -1,6 +1,6 @@
 # Presets: plan
 
-**Status (2026-11-10): P1 and P2 done: presets are saved, recalled, renamed and deleted over serial ([P1 results](#p1-results)), and a preset with another model switches in about 0.1 s ([P2 results](#p2-results)). Next: P3 (the panel).** A preset is a whole sound (the amp and its model, the gate, the IR, the doubler, the delay and the reverb) saved as a text file on the SD card. It is recalled from the panel or over serial.
+**Status (2026-11-10): P1, P2 and P3 done.** Presets are saved, recalled, renamed and deleted over serial ([P1 results](#p1-results)) and on the panel ([P3 results](#p3-results)), and a preset with another model switches in about 0.1 s ([P2 results](#p2-results)). Next, if wanted: P4, footswitches. A preset is a whole sound (the amp and its model, the gate, the IR, the doubler, the delay and the reverb) saved as a text file on the SD card. It is recalled from the panel or over serial.
 
 ```
 /PRESETS/01 Clean.txt      ─┐
@@ -26,6 +26,7 @@
 - [Milestones](#milestones)
 - [P1 results](#p1-results)
 - [P2 results](#p2-results)
+- [P3 results](#p3-results)
 - [Tests](#tests)
 - [Open questions](#open-questions)
 
@@ -131,28 +132,29 @@ A `.nam` file is about 670 KB of JSON (both networks); reading it takes about 0.
 
 ## Panel
 
-Renders come first, as always (`make -C test/host render`); nothing is flashed before they're seen.
+Built in P3; the screens and keys in detail are in [DISPLAY.md](DISPLAY.md#the-preset-list).
 
 **Home.** Row 1 is full (`AMP NG IR DLY RE`), so the preset gets row 0:
 
 ```
 ┌────────────────┐
 │03 Lead*        │  row 0: the preset (inverted while the cursor is on it)
-│AMP NG IR DLY RE│  row 1: the blocks, as now
+│AMP NG IR DLY RE│  row 1: the blocks, as before
 │      ▀▀        │
-│100  offbeat8   │  rows 2-3: tempo, style, TRN, as now
+│100  offbeat8   │  rows 2-3: tempo, style, TRN, as before
 └────────────────┘
 ```
 
-- **The cursor's first stop is row 0, PRE**, then AMP, NG, IR and on as now.
-- **Row 0** shows the preset (`NN Name`, `*` when edited, scrolling when long) wherever the cursor is, except on AMP (the model's name) and IR (the IR's name), as now. With no preset loaded, or no `/PRESETS` folder, row 0 shows the IR's name, exactly as today.
+- **The cursor's first stop is row 0, PRE**, then AMP, NG, IR and on as before.
+- **Row 0** shows the preset (`NN Name`, `*` when edited, scrolling when long) wherever the cursor is, except on AMP (the model's name) and IR (the IR's name). With no preset recalled, row 0 shows the IR's name, as before presets.
 - **Push on PRE:** the preset list.
-- **Hold on PRE:** Save, after a confirm screen (`Save 03 Lead?`, push = yes, BACK = no).
+- **Hold on PRE:** save over the recalled preset, after `SAVE? 03 Lead` (push = yes, BACK = no); with none recalled, name a new one.
 
-**The preset list** works like the IR list: turn moves, push recalls (the list stays open, to try the next one), BACK returns. There is no preview on resting: a preset may load a model (a gap) and would be a surprise. The last rows are `Save as new` and `Rescan`.
+**The preset list works like the IR list:** a preset plays once the cursor rests on it for 150 ms; push keeps it (the list stays open); leaving without (BACK, the timeout) puts back the sound from before the list, unsaved edits included. The firmware keeps that sound in a snapshot at the first try (`previewPreset()`, `cancelPreview()`, `keepPreview()` in `PresetLibrary`). The last rows are `Save as new` and `Rescan SD card`.
 
-**The Presets page** (in the menu, after Gate): Preset (`3/12`, opens the list), Level (`pvol`), Save, Save as new, Rename, Delete.
-- **Rename:** a character editor. Turn picks the character (A–Z, a–z, 0–9, space, `-`), push moves to the next, hold keeps the name, BACK cancels. Up to 24 characters.
+**The Presets page** (in the menu, after Gate): Preset (`3/12`, opens the list), Level (`pvol`), Save, Save as new, Rename, Delete; Save, Rename and Delete only while a preset is recalled.
+
+**Naming** (Rename, and every new preset, which is named before it is saved): turn picks the letter (space, A–Z, a–z, 0–9, `-`); push moves right, adding a space at the end; BACK moves left, cancelling on the first letter; CONFIRM deletes the letter under the cursor; hold keeps the name. Up to 24 characters.
 
 **Footswitches** (P4, later): two inputs on free pins (0, 1, 14 or 22, to GND with the internal pull-ups) for preset up and down, the way the keys work now.
 
@@ -182,7 +184,7 @@ Renders come first, as always (`make -C test/host render`); nothing is flashed b
 |---|---|---|
 | **P1** | The file format, the recall, `pvol`, the serial commands, the edited mark, the settings record. | **Done** ([results](#p1-results)); still to hear: switching while playing, by ear. |
 | **P2** | The weights cache. | **Done** ([results](#p2-results)). |
-| **P3** | The panel: row 0, PRE, the list, the page, rename, the confirms. | Renders approved, then on the device. |
+| **P3** | The panel: row 0, PRE, the list, the page, naming, the confirms. | **Done** ([results](#p3-results)). |
 | **P4** | Footswitches (later). | Up and down from the floor. |
 
 ## P1 results
@@ -223,6 +225,33 @@ Built and checked on the Teensy on 2026-11-10:
 - **Tests** (`test_namfile`): the real model through a cache gives the same weights and info. Another size or date, any cut-off and any flipped byte are refused, and the info is left untouched.
 - **Never wrong, at worst slow:** a cache whose size or date doesn't match its `.nam` file is rebuilt (copying a new version of a model over the old one changes both), and so is a damaged one. Deleting `/AMP/.cache` is always safe.
 
+## P3 results
+
+Built and tried on the Teensy on 2026-11-10, after renders:
+
+- **The code:**
+  - `lib/oledui`:
+    - `kBlockPreset`, the first home stop.
+    - Row 0's rules (`homeName()`).
+    - `FileList::kPreset`, with its two extra rows.
+    - The `SAVE?` / `DELETE?` screen (`drawConfirm()`) and the name editor (`drawRename()`).
+    - The Presets page.
+    - New item ids, among them `kPresetPreview` / `kPresetRestore` and `MenuHost::setText()` for names.
+  - The firmware's host in `src/DisplayUI.cpp`.
+- **Changed after the user tried it:**
+  - The list first recalled on push. Now it plays on resting and keeps on push, like the IR list.
+  - Save as new first saved `Preset NN` at once. Now it asks for the name first.
+  - The editor first only moved forward (wrapping). Now BACK moves back, push at the end adds a space, and CONFIRM deletes.
+- **Rendering:** the inverted row 0 touched the blocks' top edge and merged with the filled blocks; it now stops a pixel short.
+- **Memory:** RAM2 −0.7 KB for the snapshot (20.1 KB left); RAM1 and ITCM unchanged (all in flash).
+- **Tests** (`test_ui`, "Presets on the panel"):
+  - Row 0 and PRE.
+  - The list: plays on resting, not while scrolling; push keeps; BACK and the timeout restore; Save as new and Rescan.
+  - Hold on PRE.
+  - The page and its hidden rows.
+  - Naming: forward, back, a space at the end, delete, backspace, the 24-character limit, keep, cancel.
+- **Also:** the existing menu and home tests moved by one stop.
+
 ## Tests
 
 **On the PC** (`make -C test/host test`):
@@ -231,7 +260,7 @@ Built and checked on the Teensy on 2026-11-10:
   - Keys in any order; comments, CRLF and blank lines.
   - Unknown keys skipped; missing keys defaulted; values clamped.
   - Long names and names with spaces; cut-off and randomly damaged files: an error or defaults, never a crash (also under AddressSanitizer).
-- **`test_ui`:** PRE on the home screen and the row-0 rules, the list, the page, rename (edit, keep, cancel), the confirms, the edited mark.
+- **`test_ui`** (built in P3): PRE on the home screen and the row-0 rules, the list (tries, keep, restore), the page, naming (edit, delete, keep, cancel), the confirms, the edited mark.
 
 **On the Teensy:**
 - Recall time with the same model, with a cached model, and with an uncached one.

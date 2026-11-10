@@ -36,13 +36,28 @@ enum ItemId : uint8_t {
   kMeterReset,  // reset the clip counter and the peak holds
   kAmpLoad,     // load amp model number `value` (0-based)
   kIrPreview,   // load IR number `value` to hear it, without saving it (kIrLoad saves)
+  // Presets (PRESETS.md).
+  kHasPreset,           // read-only: 1 while a preset is recalled
+  kScreenPreset,        // the preset list
+  kScreenPresetSave,    // menu rows that act: save (after a confirm), save as new,
+  kScreenPresetNew,     // rename (the name editor), delete (after a confirm)
+  kScreenPresetRename,
+  kScreenPresetDelete,
+  kPresetLoad,     // keep preset number `value` (0-based in the list): recall it, or keep it if it is being tried
+  kPresetPreview,  // play preset `value` to try it (the list's cursor resting on it)
+  kPresetRestore,  // leaving the list without keeping: the sound from before the tries
+  kPresetSave,     // save over the recalled preset
+  kPresetNew,      // MenuHost::setText: save the sound as a new preset with this name
+  kPresetDelete,   // delete the recalled preset
+  kPresetRename,   // MenuHost::setText: the recalled preset's new name
+  kLastItemId = kPresetRename,
   kNoItem = 0xFF,
 };
 
 // The pages of menuPages().
 enum MenuPageId : uint8_t {
   kPageTop, kPageDelay, kPageReverb, kPageLevels, kPageDrums, kPageTrainer, kPageBass, kPageAmp, kPageDoubler,
-  kPageGate, kPageCount
+  kPageGate, kPagePresets, kPageCount
 };
 
 enum class Kind : uint8_t {
@@ -83,6 +98,8 @@ class MenuHost {
   // and named values (drum style, kit, song, loop bars). Returns false to use
   // the number.
   virtual bool valueText(uint8_t id, char* buf, int n) { (void)id; (void)buf; (void)n; return false; }
+  // A text value (kPresetRename).
+  virtual void setText(uint8_t id, const char* text) { (void)id; (void)text; }
 
  protected:
   ~MenuHost() = default;

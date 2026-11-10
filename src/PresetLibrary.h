@@ -22,8 +22,18 @@ int findPresetName(const char* text);  // the first whose name contains text, or
 bool presetEdited();
 
 // Recalls preset idx: model, IR, then the settings. False if it can't be read
-// (nothing changes then).
+// (nothing changes then). Keeps a preset being tried (previewPreset).
 bool recallPreset(int idx);
+
+// Trying presets from the panel's list: previewPreset() plays preset idx,
+// keeping the sound from before the first try (edits and all);
+// cancelPreview() goes back to it, keepPreview() keeps what plays. Every
+// other change to presets keeps.
+bool previewPreset(int idx);
+void cancelPreview();
+void keepPreview();
+// The preset recalled before the tries (the list's mark), else presetCurrent().
+int presetSaved();
 // Writes the current sound over the recalled preset.
 bool savePreset();
 // Saves the current sound as a new preset at the lowest free number; it

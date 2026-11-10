@@ -9,11 +9,15 @@
 
 struct FakeHost : ui::MenuHost {
   int v[96] = {};
-  static_assert(ui::kIrPreview < 96, "v[] holds every ItemId");
+  static_assert(ui::kLastItemId < 96, "v[] holds every ItemId");
   int timeMax = 750;
+  bool hasPreset = true;
   int sets = 0;
   int loaded = -1, ampLoaded = -1, rescans = 0, resets = 0;  // the panel's actions
   int previewed = -1, previews = 0;                           // IRs played without saving
+  int presetLoaded = -1, presetSaves = 0, presetNews = 0, presetDeletes = 0;  // the preset actions
+  int presetTried = -1, presetTries = 0, presetRestores = 0;                  // the list's tries
+  char renamed[32] = "", newName[32] = "-";
   FakeHost() {
     v[ui::kDelayOn] = 1; v[ui::kDelayMix] = 30; v[ui::kDelayTime] = 380;
     v[ui::kDelayRepeats] = 35; v[ui::kDelayTone] = 60; v[ui::kDelayMod] = 15;
@@ -54,6 +58,7 @@ struct FakeHost : ui::MenuHost {
     if (id == ui::kIsReverbHall) return v[ui::kReverbMode] == 0;
     if (id == ui::kIsReverbGated) return v[ui::kReverbMode] == 1;
     if (id == ui::kIsDrumSong) return v[ui::kDrumSong] != 0;
+    if (id == ui::kHasPreset) return hasPreset;
     return v[id];
   }
   void set(uint8_t id, int value) override {
@@ -63,7 +68,16 @@ struct FakeHost : ui::MenuHost {
     else if (id == ui::kIrPreview) previewed = value, previews++;
     else if (id == ui::kIrRescan) rescans++;
     else if (id == ui::kMeterReset) resets++;
+    else if (id == ui::kPresetLoad) presetLoaded = value;
+    else if (id == ui::kPresetPreview) presetTried = value, presetTries++;
+    else if (id == ui::kPresetRestore) presetRestores++;
+    else if (id == ui::kPresetSave) presetSaves++;
+    else if (id == ui::kPresetDelete) presetDeletes++;
     else v[id] = value;
+  }
+  void setText(uint8_t id, const char* text) override {
+    if (id == ui::kPresetRename) std::snprintf(renamed, sizeof(renamed), "%s", text);
+    if (id == ui::kPresetNew) std::snprintf(newName, sizeof(newName), "%s", text), presetNews++;
   }
   void limits(uint8_t id, int* lo, int* hi) override {
     (void)lo;
@@ -111,6 +125,11 @@ inline const char* fakeAmpPath(int i) {
   return names[i % 8];
 }
 
+inline const char* fakePresetName(int i) {
+  static const char* names[] = {"01 Clean", "02 Crunch", "03 Lead", "04 Big chorus hall ambient", "07 Djent"};
+  return names[i % 5];
+}
+
 // The model of the DISPLAY.md mockups.
 inline ui::UiModel fakeModel() {
   ui::UiModel m;
@@ -123,6 +142,10 @@ inline ui::UiModel fakeModel() {
   m.ampCount = 8;
   m.ampCurrent = 6;
   m.ampPath = fakeAmpPath;
+  m.presetCount = 5;
+  m.presetCurrent = 2;
+  m.presetSaved = 2;
+  m.presetName = fakePresetName;
   m.ampOn = true;
   m.gateOn = true;
   m.delayOn = true;

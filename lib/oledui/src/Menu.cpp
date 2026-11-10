@@ -19,6 +19,7 @@ static constexpr uint8_t kAlways = kNoItem;
 static const MenuItem kTop[] = {
     {"Amp", K::kSubmenu, kAmpOn, kPageAmp, kAlways},
     {"Gate", K::kSubmenu, kGateOn, kPageGate, kAlways},
+    {"Presets", K::kSubmenu, kNoItem, kPagePresets, kAlways},
     {"IR", K::kScreen, kScreenIR, 0, kAlways},
     {"Doubler", K::kSubmenu, kDblOn, kPageDoubler, kAlways},
     {"Delay", K::kSubmenu, kDelayOn, kPageDelay, kAlways},
@@ -85,6 +86,17 @@ static const MenuItem kGateItems[] = {
     SETTING(kGateOn), SETTING(kGateType), SETTING(kGateThr), SETTING_IF(kGateRel, kGateType),  // Release: hard only
 };
 
+// Presets (PRESETS.md): the list, the preset's level, and what acts on the
+// recalled one (only while there is one).
+static const MenuItem kPresetItems[] = {
+    {"Preset", K::kScreen, kScreenPreset, 0, kAlways},
+    SETTING(kPresetLevel),
+    {"Save", K::kScreen, kScreenPresetSave, 0, kHasPreset},
+    {"Save as new", K::kScreen, kScreenPresetNew, 0, kAlways},
+    {"Rename", K::kScreen, kScreenPresetRename, 0, kHasPreset},
+    {"Delete", K::kScreen, kScreenPresetDelete, 0, kHasPreset},
+};
+
 static const MenuItem kDoublerItems[] = {
     SETTING(kDblOn), SETTING(kDblTime), SETTING(kDblWidth),
 };
@@ -111,6 +123,7 @@ static const MenuPage kPages[] = {
     PAGE("AMP", kAmpItems),
     PAGE("DOUBLER", kDoublerItems),
     PAGE("GATE", kGateItems),
+    PAGE("PRESETS", kPresetItems),
 };
 static_assert(sizeof(kPages) / sizeof(kPages[0]) == kPageCount, "a page per MenuPageId");
 #undef PAGE

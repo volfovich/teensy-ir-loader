@@ -31,6 +31,7 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► amp ──────�
   - Switching an effect off is click-free and lets its tail ring out. When the tail has died away, the effect stops using CPU and passes its input through bit-identically.
 - **Optional amp block** (details in [NAM.md](NAM.md)): plays Neural Amp Modeler **A2** captures (`.nam` files in `/AMP` on the SD card) before the IR, so a guitar (through a buffer) or a preamp can go straight in. It runs the A2-Lite network (the same output as NeuralAmpModelerCore), levels each model by its loudness, and calibrates the input as the NAM plugin does. Off by default; with a real amp's line out, leave it off.
   - After the model, the plugin's **5 Hz DC blocker**, **tone controls** (bass, middle, treble, presence) and a **noise gate**: a hard gate with an adjustable release (the default), or the NAM plugin's own.
+- **Presets** (details in [PRESETS.md](PRESETS.md)): whole sounds (the amp and its model, gate, IR, doubler, delay, reverb and a level) saved as text files in `/PRESETS` and recalled from the home screen's top row or over serial. The list plays each preset as you scroll, like the IR list, and a switch with another model takes about 0.1 s.
 - **Doubler after the IR:** spreads the guitar like two takes panned left and right. The original goes left and a copy goes right, 1–35 ms later (10 by default). The width runs from centre to hard left and right. Listen in stereo: on one speaker from the left output you hear only the original.
 - **Tuner:** hold BACK (or Menu > Tuner) for a chromatic tuner on the OLED, accurate to well under a cent. The guitar is muted while it is open.
 - **Practice drum machine** (details in [DRUMS.md](DRUMS.md)):
@@ -103,7 +104,7 @@ PlatformIO is used instead of the Arduino IDE because the block size is set with
 | `l` | List IR files (`>` marks the current one) |
 | `3` | Load IR number 3 |
 | `n` / `p` | Next / previous IR |
-| `pre` | List the presets in `/PRESETS` (`>` the recalled one, `*` if it has been changed since). All preset commands are explained in [PRESETS.md](PRESETS.md#serial-commands). |
+| `pre` | List the presets in `/PRESETS` (on the panel: the PRE row, see [DISPLAY.md](DISPLAY.md#the-preset-list)) (`>` the recalled one, `*` if it has been changed since). All preset commands are explained in [PRESETS.md](PRESETS.md#serial-commands). |
 | `pre <n\|name>` | Recall preset n (its number), or the first whose name contains the text: the amp model, the IR and every sound setting |
 | `pre save` / `pre new <name>` | Save the sound over the recalled preset / as a new one at the lowest free number |
 | `pre name <text>` / `pre del <n>` / `pre show` | Rename the recalled preset / delete preset n / list what differs from the recalled preset |
@@ -282,7 +283,7 @@ The tests check:
 
 ## Ideas for next steps
 
-- **Presets on the panel** (P3): see [PRESETS.md](PRESETS.md). Saving and recalling over serial works (P1), and a model switch takes about 20 ms after its first load (P2).
+- **Footswitches for presets** (P4): see [PRESETS.md](PRESETS.md).
 - **Tone controls:** low-cut and high-cut after the convolver.
 - **Two-IR blending:** the engine already evaluates two IRs during crossfades.
 - **USB audio:** build with `-D USB_MIDI_AUDIO_SERIAL` and add `AudioOutputUSB` to record directly into a computer (verify it with your chosen block size).

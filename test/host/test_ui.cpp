@@ -71,7 +71,8 @@ static void testMenu() {
   m.open();
   check(m.current()->id == ui::kAmpOn && m.current()->kind == ui::Kind::kSubmenu, "the top level starts with Amp",
         m.current()->id);
-  check(m.turn(4, 0) == ui::Menu::kRedraw && m.current()->id == ui::kDelayOn, "turn moves past Gate, IR, Doubler to Delay",
+  check(m.turn(5, 0) == ui::Menu::kRedraw && m.current()->id == ui::kDelayOn,
+        "turn moves past Gate, Presets, IR, Doubler to Delay",
         m.current()->id);
   m.push();
   check(m.pageIndex() == 1, "push enters the delay page", m.pageIndex());
@@ -112,7 +113,7 @@ static void testReverbPage() {
   FakeHost h;
   ui::Menu m(ui::menuPages(), h);
   m.open();
-  m.turn(5, 0);
+  m.turn(6, 0);
   m.push();
   m.turn(100, 0);
   check(m.current()->id == ui::kReverbEra, "hall: last row Era (Mod shown, Gate hidden)", m.current()->id);
@@ -136,7 +137,7 @@ static void testDoublerPage() {
   FakeHost h;
   ui::Menu m(ui::menuPages(), h);
   m.open();
-  m.turn(3, 0);
+  m.turn(4, 0);
   check(m.current()->id == ui::kDblOn && m.current()->kind == ui::Kind::kSubmenu, "Doubler after IR (a page)",
         m.current()->id);
   m.push();
@@ -162,7 +163,7 @@ static void testSongRows() {
   FakeHost h;
   ui::Menu m(ui::menuPages(), h);
   m.open();
-  m.turn(6, 0);
+  m.turn(7, 0);
   m.push();
   m.turn(3, 0);
   check(m.current()->id == ui::kDrumSong, "Song after Bass and Style", m.current()->id);
@@ -193,7 +194,7 @@ static void testDrumsPage() {
   FakeHost h;
   ui::Menu m(ui::menuPages(), h);
   m.open();
-  m.turn(6, 0);
+  m.turn(7, 0);
   check(m.current()->id == ui::kDrumsPlay, "Drums on the top level after Reverb", m.current()->id);
   m.push();
   m.turn(100, 0);
@@ -508,7 +509,10 @@ static void testPanel() {
   uint32_t t = 1000;
 
   // Home: turn moves between the blocks, stopping at the ends.
-  check(!p.turn(-1, t) && p.block() == ui::kBlockAmp, "home: the cursor starts on AMP, stops at the left", p.block());
+  check(p.block() == ui::kBlockAmp, "home: the cursor starts on AMP", p.block());
+  check(p.turn(-1, t) && p.block() == ui::kBlockPreset, "  ... PRE (row 0) left of it", p.block());
+  check(!p.turn(-1, t) && p.block() == ui::kBlockPreset, "  ... and it stops there", p.block());
+  p.turn(1, t);
   p.turn(3, t);
   check(p.block() == ui::kBlockDelay, "  ... turn: past NG, IR to DLY", p.block());
   p.turn(2, t);
@@ -631,13 +635,14 @@ static void testPanel() {
   p.back(t);
   const int drums = h.v[ui::kDrumsPlay];
   p.turn(-10, t);
+  p.turn(1, t);  // AMP
   p.confirm(t);
   check(h.v[ui::kDrumsPlay] == !drums && p.block() == ui::kBlockAmp, "CONFIRM: drums start/stop from any block", h.v[ui::kDrumsPlay]);
 
   // BACK: the menu; its screens return to it.
   p.back(t);
   check(p.screen() == P::kMenu && p.menu().pageIndex() == ui::kPageTop, "BACK on home: the top menu", p.menu().pageIndex());
-  p.turn(2, t);
+  p.turn(3, t);
   p.confirm(t);
   check(p.screen() == P::kIrList, "  ... CONFIRM works like push (IR)", p.screen());
   p.back(t);
@@ -847,11 +852,203 @@ static void testIrPreview() {
   check(h.previews == n && p.irCursor() == m.irCount, "the Rescan row: nothing plays", h.previews);
   p.back(t + 1000);
   p.turn(-10, t);
+  p.turn(1, t);
   p.push(t);  // AMP: the model list
   p.turn(1, t);
   p.tick(t + 1000);
   check(p.screen() == P::kAmpList && h.previews == n && h.ampLoaded < 0, "the amp list: nothing loads by scrolling",
         h.previews);
+}
+
+// Presets on the panel (PRESETS.md, "Panel"): PRE on row 0 and its names;
+// the list, which plays a preset once the cursor rests and keeps it on push
+// (leaving without goes back); naming a new preset; save and delete behind a
+// confirm; the Presets page; the name editor's keys.
+static void testPresetPanel() {
+  std::printf("Presets on the panel\n");
+  FakeHost h;
+  ui::UiModel m = fakeModel();  // presets: 5, "03 Lead" recalled
+  ui::Panel p(ui::menuPages(), h, m);
+  using P = ui::Panel;
+  uint32_t t = 1000;
+  char name[64];
+
+  // Row 0.
+  ui::homeName(m, ui::kBlockPreset, name, sizeof(name));
+  check(!std::strcmp(name, "03 Lead"), "row 0 on PRE: the recalled preset", 0);
+  ui::homeName(m, ui::kBlockDelay, name, sizeof(name));
+  check(!std::strcmp(name, "03 Lead"), "  ... and on the other blocks", 0);
+  ui::homeName(m, ui::kBlockIR, name, sizeof(name));
+  check(!std::strcmp(name, "V30 SM57 Mesa 4x12 close"), "  ... but the IR's on IR", 0);
+  m.presetEdited = true;
+  ui::homeName(m, ui::kBlockPreset, name, sizeof(name));
+  check(!std::strcmp(name, "03 Lead*"), "  ... * when the sound differs from it", 0);
+  m.presetEdited = false;
+  m.presetCurrent = -1;
+  ui::homeName(m, ui::kBlockDelay, name, sizeof(name));
+  check(!std::strcmp(name, "V30 SM57 Mesa 4x12 close"), "  ... none recalled: the IR's, as before presets", 0);
+  ui::homeName(m, ui::kBlockPreset, name, sizeof(name));
+  check(!std::strcmp(name, "No preset"), "  ... and on PRE: No preset", 0);
+  m.presetCurrent = 2;
+  uint8_t buf[1024];
+  ui::Canvas c(buf);
+  ui::drawHome(c, m, ui::kBlockPreset);
+  check(c.get(0, 0) && c.get(127, 14) && !c.get(127, 15), "PRE: row 0 inverted, a dark line under it", 0);
+
+  // The list: it opens on the recalled preset; a preset plays once the
+  // cursor rests on it, not while scrolling past.
+  p.turn(-1, t);
+  check(p.block() == ui::kBlockPreset, "PRE left of AMP", p.block());
+  p.push(t);
+  check(p.screen() == P::kPresetList && p.irCursor() == 2, "push on PRE: the preset list, on the recalled one",
+        p.irCursor());
+  p.turn(1, t);
+  p.turn(1, t + 50);
+  p.tick(t + 100);
+  check(h.presetTries == 0, "  ... scrolling past plays nothing", h.presetTries);
+  p.tick(t + 50 + P::kPreviewMs);
+  check(h.presetTried == 4 && h.presetTries == 1 && h.presetLoaded < 0, "  ... resting plays 07 Djent, not kept yet",
+        h.presetTried);
+  p.back(t + 1000);
+  check(p.screen() == P::kHome && h.presetRestores == 1, "  ... BACK: the sound from before the list", h.presetRestores);
+  t = 5000;
+  p.push(t);
+  p.turn(1, t);
+  p.tick(t + P::kPreviewMs);
+  p.push(t + 1000);
+  check(h.presetLoaded == 3 && p.screen() == P::kPresetList, "  ... push keeps 04, the list stays", h.presetLoaded);
+  check(p.tick(t + 1000 + P::kMarqueeMs) || p.tick(t + 1000 + 2 * P::kMarqueeMs), "  ... its long name scrolls", 0);
+  p.back(t + 1000);
+  check(h.presetRestores == 1, "  ... BACK after a push: nothing to undo", h.presetRestores);
+  p.push(t);
+  p.turn(1, t);
+  p.tick(t + P::kPreviewMs);
+  check(p.tick(t + P::kTimeoutMs) && p.screen() == P::kHome && h.presetRestores == 2,
+        "  ... a try left for 30 s: back to the sound from before", h.presetRestores);
+
+  // Save as new, the list's next-to-last row: its name first.
+  t = 50000;
+  p.push(t);
+  p.turn(10, t);
+  p.turn(-1, t);
+  p.push(t);
+  check(p.screen() == P::kRename && p.renameText()[0] == 0, "Save as new (list): an empty name to fill in", p.screen());
+  p.turn(3, t);  // C
+  p.push(t);
+  p.turn(38, t);  // l
+  p.hold(t);
+  check(p.screen() == P::kPresetList && h.presetNews == 1 && !std::strcmp(h.newName, "Cl"),
+        "  ... hold saves it as \"Cl\", back on the list", h.presetNews);
+  p.turn(-10, t);
+  p.turn(5, t);
+  p.push(t);
+  p.back(t);
+  check(p.screen() == P::kPresetList && h.presetNews == 1, "  ... BACK on the first letter cancels", h.presetNews);
+  p.turn(1, t);
+  p.push(t);
+  check(h.rescans == 1, "  ... and Rescan, the last row", h.rescans);
+  p.turn(1, t);
+  check(p.irCursor() == 6, "  ... where the cursor stops", p.irCursor());
+  p.back(t);
+  check(p.screen() == P::kHome, "  ... BACK: home", p.screen());
+
+  // Hold on PRE: save, after a yes; with none recalled, name a new one.
+  p.hold(t);
+  check(p.screen() == P::kConfirm && h.presetSaves == 0, "hold on PRE: asks before saving", p.screen());
+  p.back(t);
+  check(p.screen() == P::kHome && h.presetSaves == 0, "  ... BACK: no", h.presetSaves);
+  p.hold(t);
+  p.push(t);
+  check(p.screen() == P::kHome && h.presetSaves == 1, "  ... push: saved, home", h.presetSaves);
+  m.presetCurrent = -1;
+  p.hold(t);
+  check(p.screen() == P::kRename, "  ... none recalled: a new preset's name", p.screen());
+  p.hold(t);
+  check(p.screen() == P::kHome && h.presetNews == 2 && h.newName[0] == 0, "  ... kept empty: \"Preset NN\" (the firmware's)",
+        h.presetNews);
+  m.presetCurrent = 2;
+
+  // The Presets page: after Gate in the menu.
+  p.back(t);
+  p.turn(2, t);
+  check(p.menu().current()->kind == ui::Kind::kSubmenu && p.menu().current()->sub == ui::kPagePresets,
+        "menu > Presets after Gate", p.menu().current()->sub);
+  p.push(t);
+  check(p.menu().current()->id == ui::kScreenPreset, "  ... Preset first (the list)", p.menu().current()->id);
+  p.turn(1, t);
+  check(p.menu().current()->id == ui::kPresetLevel, "  ... then Level", p.menu().current()->id);
+  p.push(t);
+  p.turn(-3, t + 2000);
+  p.push(t);
+  check(h.v[ui::kPresetLevel] == -3, "  ... Level: -1.5 dB (half-dB steps)", h.v[ui::kPresetLevel]);
+  p.turn(1, t);
+  p.push(t);
+  check(p.screen() == P::kConfirm, "  ... Save asks", p.screen());
+  p.push(t);
+  check(p.screen() == P::kMenu && h.presetSaves == 2, "  ... yes: saved, back on the page", h.presetSaves);
+  p.turn(1, t);
+  p.push(t);
+  check(p.screen() == P::kRename && p.renameText()[0] == 0, "  ... Save as new: its name first", p.screen());
+  p.back(t);
+  check(p.screen() == P::kMenu && h.presetNews == 2, "  ... BACK: nothing saved", h.presetNews);
+
+  // Rename: the name without its number; push forward, BACK back, CONFIRM
+  // deletes, push at the end adds a space.
+  p.turn(1, t);
+  p.push(t);
+  check(p.screen() == P::kRename && !std::strcmp(p.renameText(), "Lead") && p.renamePos() == 0,
+        "  ... Rename: the name without its number, cursor first", 0);
+  for (int i = 0; i < 4; i++) p.push(t);
+  check(p.renamePos() == 4, "  ... push moves to the end", p.renamePos());
+  p.push(t);
+  p.turn(1, t);  // ' ' -> 'A'
+  check(!std::strcmp(p.renameText(), "Lead A") && p.renamePos() == 5, "  ... push at the end adds a space: \"Lead A\"",
+        p.renamePos());
+  p.back(t);
+  p.back(t);
+  check(p.renamePos() == 3, "  ... BACK moves back", p.renamePos());
+  p.confirm(t);
+  check(!std::strcmp(p.renameText(), "Lea A") && p.renamePos() == 3, "  ... CONFIRM deletes the letter under the cursor",
+        p.renamePos());
+  p.hold(t);
+  check(p.screen() == P::kMenu && !std::strcmp(h.renamed, "Lea A"), "  ... hold keeps it", 0);
+  p.push(t);  // "Lead" again (the model's name)
+  for (int i = 0; i < 4; i++) p.push(t);  // past its end
+  p.confirm(t);
+  check(!std::strcmp(p.renameText(), "Lea") && p.renamePos() == 3, "  ... past the end, CONFIRM is a backspace",
+        p.renamePos());
+  for (int i = 0; i < 3; i++) p.confirm(t);
+  check(p.renameText()[0] == 0 && p.renamePos() == 0 && !p.confirm(t), "  ... down to an empty name, then nothing", 0);
+  p.back(t);
+  check(p.screen() == P::kMenu && !std::strcmp(h.renamed, "Lea A"), "  ... BACK on the first letter cancels", 0);
+  p.push(t);
+  for (int i = 0; i < 6; i++) p.push(t);  // past "Lead" and two added spaces
+  p.hold(t);
+  check(!std::strcmp(h.renamed, "Lead"), "  ... trailing spaces dropped", 0);
+  p.push(t);
+  for (int i = 0; i < 40; i++) p.push(t);
+  check(p.renamePos() == ui::kRenameMax - 1 && (int)std::strlen(p.renameText()) == ui::kRenameMax,
+        "  ... the name stops at 24 characters", p.renamePos());
+  p.confirm(t);
+  check((int)std::strlen(p.renameText()) == ui::kRenameMax - 1, "  ... CONFIRM on the last letter: 23", 0);
+  p.back(t + 100000);  // (a back, not a cancel: the cursor is far along)
+  p.tick(t + 200000);
+
+  // Delete, after a yes; with no preset the rows that need one are hidden.
+  t = 300000;
+  p.back(t);
+  p.turn(2, t);
+  p.push(t);
+  p.turn(5, t);
+  p.push(t);
+  check(p.screen() == P::kConfirm, "  ... Delete asks", p.screen());
+  p.push(t);
+  check(h.presetDeletes == 1 && p.screen() == P::kMenu, "  ... yes: deleted", h.presetDeletes);
+  h.hasPreset = false;
+  p.turn(-10, t);
+  p.turn(10, t);
+  check(p.menu().current()->id == ui::kScreenPresetNew, "  ... none recalled: Save, Rename, Delete hidden",
+        p.menu().current()->id);
 }
 
 int main() {
@@ -871,6 +1068,7 @@ int main() {
   testPanel();
   testAmpPanel();
   testIrPreview();
+  testPresetPanel();
   std::printf(failures ? "\n%d FAILURE(S)\n" : "\nALL TESTS PASSED\n", failures);
   return failures ? 1 : 0;
 }

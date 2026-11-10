@@ -23,6 +23,13 @@ struct UiModel {
   int ampCount = 0, ampCurrent = -1;
   const char* (*ampPath)(int idx) = nullptr;
 
+  // Presets (/PRESETS, PRESETS.md): the recalled one, and whether the sound
+  // differs from it. presetName gives "03 Lead".
+  int presetCount = 0, presetCurrent = -1;
+  int presetSaved = -1;  // the recalled one before the list's tries (the list's mark)
+  bool presetEdited = false;
+  const char* (*presetName)(int idx) = nullptr;
+
   // The blocks' on/off.
   bool ampOn = false, gateOn = false, bypass = false, delayOn = false, reverbOn = false;
   bool drumsPlaying = false, trainerOn = false;
@@ -53,19 +60,23 @@ void irDisplayName(const char* path, char* out, int n);
 // The same for an amp model, with '_' shown as a space.
 void ampDisplayName(const char* path, char* out, int n);
 
-// The home screen's items in the encoder's order: the blocks in signal order
-// (row 1), then the drums' tempo, style and speed trainer (rows 2-3).
+// The home screen's items in the encoder's order: the preset (row 0), the
+// blocks in signal order (row 1), then the drums' tempo, style and speed
+// trainer (rows 2-3).
 enum HomeBlock : uint8_t {
-  kBlockAmp, kBlockGate, kBlockIR, kBlockDelay, kBlockReverb, kBlockTempo, kBlockStyle, kBlockTrainer, kHomeBlocks
+  kBlockPreset, kBlockAmp, kBlockGate, kBlockIR, kBlockDelay, kBlockReverb, kBlockTempo, kBlockStyle, kBlockTrainer,
+  kHomeBlocks
 };
 
-// The file lists (IR, amp models): which one, for drawFileList.
-enum class FileList : uint8_t { kIR, kAmp };
+// The lists (IR, amp models, presets): which one, for drawFileList.
+enum class FileList : uint8_t { kIR, kAmp, kPreset };
 
 // Screens in rows of 16 px (the 8x16 font): row r is pages 2r and 2r+1.
 void drawSplash(Canvas& c, const UiModel& m);
-// Row 0 the IR name (the amp model's with the cursor on AMP, scrolled by
-// `marquee` characters when it is long); row 1 the blocks, filled when on;
+// Row 0 the preset ("03 Lead*") while one is recalled, else the IR name;
+// the amp model's with the cursor on AMP, the IR's on IR; inverted with the
+// cursor on it (PRE), scrolled by `marquee` characters when it is long on
+// AMP or PRE; row 1 the blocks, filled when on;
 // rows 2-3 the tempo big, the style, a box per beat and the trainer's block.
 // The cursor is a bar under `block`; `editing` (kBlockTempo or kBlockStyle,
 // -1 = none) draws that item inverted instead.
@@ -74,7 +85,8 @@ void drawHome(Canvas& c, const UiModel& m, int block, int editing = -1, int marq
 // limit on the row.
 void homeName(const UiModel& m, int block, char* out, int n);
 static constexpr int kHomeNameChars = 16;
-// A file list: entries 0..count-1 plus "Rescan SD card" (index count).
+// A list: entries 0..count-1, then its extra rows: "Rescan SD card" (index
+// count), and for presets "Save as new" (count) before it.
 // marquee: characters the cursor row's name is scrolled by.
 void drawFileList(Canvas& c, const UiModel& m, FileList list, int cursor, int top, int marquee);
 inline void drawIrBrowser(Canvas& c, const UiModel& m, int cursor, int top, int marquee) {
@@ -82,6 +94,9 @@ inline void drawIrBrowser(Canvas& c, const UiModel& m, int cursor, int top, int 
 }
 // A list's entries, the loaded one (-1: none) and the display name of entry i.
 int fileCount(const UiModel& m, FileList list);
+int fileExtraRows(FileList list);
+// The characters of a name a row shows (its number prefix aside).
+int listNameRoom(FileList list);
 int fileCurrent(const UiModel& m, FileList list);
 void fileName(const UiModel& m, FileList list, int i, char* out, int n);
 // Entry i's name as the list shows it: without the whole words every name in
@@ -95,6 +110,16 @@ void drawMeterScreen(Canvas& c, const UiModel& m);
 // inverted within kTunerInTuneCents.
 void drawTuner(Canvas& c, const UiModel& m);
 static constexpr float kTunerInTuneCents = 3.0f;
+// A yes/no question: the title ("SAVE?") and the name, push / CONFIRM = yes,
+// BACK = no.
+void drawConfirm(Canvas& c, const char* title, const char* name);
+// The name editor, titled `title`: `name` with the character at `pos`
+// inverted, scrolled so it shows; the keys on the last two rows.
+void drawRename(Canvas& c, const char* title, const char* name, int pos);
+static constexpr int kRenameMax = 24;  // characters (PresetLibrary's limit)
+// The editor's characters, in turning order.
+extern const char kRenameChars[];
+
 // The whole screen while the panel waits: a title ("Loading") and the
 // model's name on up to two rows. Drawn once, before a slow job.
 void drawBusy(Canvas& c, const char* what, const char* name);

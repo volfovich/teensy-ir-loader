@@ -4,11 +4,13 @@
 // panel runs and is tested on a PC.
 //
 // Controls (DISPLAY.md, "Controls"):
-//   home:    turn = move between the blocks (AMP, NG, IR, DLY, REV), the
-//            tempo, the style and TRN; push = open the block (the amp or IR
-//            list, or its menu page); hold = the block on/off (IR: bypass;
-//            tempo, style: drums start/stop); TRN: push or hold = the speed
-//            trainer on/off; CONFIRM = drums start/stop; BACK = the menu
+//   home:    turn = move between the preset (row 0, PRE), the blocks (AMP,
+//            NG, IR, DLY, REV), the tempo, the style and TRN; push = open the
+//            block (the preset, amp or IR list, or its menu page); hold = the
+//            block on/off (IR: bypass; tempo, style: drums start/stop; PRE:
+//            save the preset after a confirm, or name a new one when none is
+//            recalled); TRN: push or hold = the
+//            speed trainer on/off; CONFIRM = drums start/stop; BACK = the menu
 //   tempo, style: push edits it in place: turn = BPM (x5 when fast) or the
 //            style, applied live (a drum song is switched off); push = keep;
 //            BACK = restore (the style's song too)
@@ -19,6 +21,16 @@
 //            the IR under the cursor once it rests kPreviewMs, without saving
 //            it: push or CONFIRM keeps it (saved, marked *), leaving without
 //            (BACK, the timeout) loads the saved IR again
+//            The preset list works the same way (a preset plays once the
+//            cursor rests; push keeps it; leaving without goes back to the
+//            sound from before, edits and all); its last rows name a new
+//            preset and rescan
+//   confirm: (save, delete) push or CONFIRM = yes; BACK = no
+//   name:    (rename, a new preset) turn = the character under the cursor;
+//            push = the next one (at the end: adds a space); BACK = the
+//            previous one (on the first: cancel); CONFIRM = delete the
+//            character under the cursor (past the end: the last one);
+//            hold = keep the name
 //   meter:   turn = line-in sensitivity; CONFIRM = reset clips and peaks; BACK
 //   status:  BACK
 //   tuner:   (the guitar muted) BACK or push closes it
@@ -38,7 +50,7 @@ namespace ui {
 
 class Panel {
  public:
-  enum Screen : uint8_t { kHome, kMenu, kIrList, kMeter, kStatus, kAmpList, kTuner };
+  enum Screen : uint8_t { kHome, kMenu, kIrList, kMeter, kStatus, kAmpList, kTuner, kPresetList, kConfirm, kRename };
   static constexpr uint32_t kTimeoutMs = 30000;
   static constexpr uint32_t kMarqueeMs = 400;  // the lists' and home's scrolling name
   static constexpr uint32_t kPreviewMs = 150;  // the IR list: rest before the cursor's IR plays
@@ -63,7 +75,9 @@ class Panel {
   // The home item being edited in place (kBlockTempo, kBlockStyle), or -1.
   int editing() const { return editing_; }
   int block() const { return block_; }
-  int irCursor() const { return listCursor_; }  // in the open list (IR or amp)
+  int irCursor() const { return listCursor_; }  // in the open list (IR, amp or preset)
+  const char* renameText() const { return name_; }
+  int renamePos() const { return namePos_; }
   Menu& menu() { return menu_; }
 
  private:
@@ -71,7 +85,14 @@ class Panel {
   bool menuResult(Menu::Result r);
   void openList(Screen list, Screen from);
   void leaveIrList();  // the IR list closes without a click: back to the saved IR
-  FileList fileList() const { return screen_ == kAmpList ? FileList::kAmp : FileList::kIR; }
+  FileList fileList() const {
+    return screen_ == kAmpList ? FileList::kAmp : (screen_ == kPresetList ? FileList::kPreset : FileList::kIR);
+  }
+  bool isList() const { return screen_ == kIrList || screen_ == kAmpList || screen_ == kPresetList; }
+  void askConfirm(uint8_t action, Screen from);
+  void openRename(Screen from, bool newPreset);
+  bool keepName();
+  void leavePresetList();  // the preset list closes without a push: back to the sound before the tries
   bool toggle(uint8_t id);
   int marqueeOffset() const;
 
@@ -88,6 +109,15 @@ class Panel {
   int editing_ = -1;
   int editOrig_ = 0, editSong_ = 0;  // the value (and the song) before editing
   uint32_t editTurnMs_ = 0;
+  // The confirm screen's action (kPresetSave, kPresetDelete, kPresetNew) and
+  // where it returns; the name editor's text and cursor.
+  uint8_t confirmAction_ = kNoItem;
+  Screen confirmFrom_ = kHome;
+  char name_[kRenameMax + 1] = "";
+  int namePos_ = 0;
+  uint8_t renameAction_ = kPresetRename;  // or kPresetNew
+  bool presetTried_ = false;  // the preset list played a preset that hasn't been kept
+  bool syncCursor_ = false;  // the list's cursor follows the recalled preset at the next draw
 };
 
 }  // namespace ui
