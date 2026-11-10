@@ -80,7 +80,7 @@ screenshots: render_ui
 	./render_ui ../../screenshots
 
 NAM_SRC = ../../lib/irdsp/src/NamFile.cpp
-NAM_DEPS = $(NAM_SRC) ../../lib/irdsp/src/NamFile.h ../../lib/irdsp/src/NamA2.h ../../lib/irdsp/src/IRLoader.h
+NAM_DEPS = $(NAM_SRC) ../../lib/irdsp/src/NamFile.h ../../lib/irdsp/src/NamCache.h ../../lib/irdsp/src/NamA2.h ../../lib/irdsp/src/IRLoader.h
 
 test_nam: test_nam.cpp $(NAM_DEPS) ../../lib/irdsp/src/AmpStage.h ../../lib/irdsp/src/NoiseGate.h ../../lib/irdsp/src/ToneStack.h
 	$(CXX) $(CXXFLAGS) $(INC) -o $@ test_nam.cpp $(NAM_SRC)

@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "NamA2.h"
+#include "NamCache.h"
 #include "NamFile.h"
 
 using namespace irdsp;
@@ -250,6 +251,54 @@ static void testDamage(const std::string& a2) {
   check(true, "300 randomly damaged files: no crash", std::to_string(ok) + " still read");
 }
 
+// The weights cache (NamCache.h): the real model's network through a cache
+// gives the same weights and info; a cache for another size or date, cut
+// short at any point, or with any byte flipped, is refused.
+static void testCache(const std::string& a2) {
+  printf("The weights cache (NamCache.h)\n");
+  const Result r = read(a2);
+  if (!r.ok) return;
+  const uint32_t size = (uint32_t)a2.size(), stamp = 0x12345678u;
+  const NamCacheHeader h = namCacheHeader(size, stamp, r.info, r.w.data());
+  std::string file((const char*)&h, sizeof(h));
+  file.append((const char*)&r.info, sizeof(r.info));
+  file.append((const char*)r.w.data(), r.w.size() * sizeof(float));
+  check((int)file.size() == kNamCacheBytes, "  ... the file's size", std::to_string(file.size()));
+
+  std::vector<float> w(nama2::kWeightCount);
+  NamInfo info;
+  {
+    MemSource src(file);
+    const bool ok = readNamCache(src, size, stamp, w.data(), &info);
+    check(ok && !memcmp(w.data(), r.w.data(), w.size() * sizeof(float)) && !strcmp(info.name, r.info.name) &&
+              info.loudness == r.info.loudness && isnan(info.outputLevelDbu) && info.container == r.info.container,
+          "read back: the same weights and info");
+  }
+  {
+    MemSource a(file), b(file);
+    check(!readNamCache(a, size + 1, stamp, w.data(), &info) && !readNamCache(b, size, stamp + 1, w.data(), &info),
+          "another size or date: refused");
+  }
+  int accepted = 0;
+  for (size_t cut = 0; cut < file.size(); cut += 7) {
+    const std::string part = file.substr(0, cut);
+    MemSource src(part);
+    accepted += readNamCache(src, size, stamp, w.data(), &info);
+  }
+  check(accepted == 0, "cut short anywhere: refused", std::to_string(accepted));
+  accepted = 0;
+  for (size_t i = 0; i < file.size(); i += 3) {
+    std::string bad = file;
+    bad[i] ^= 0x10;
+    MemSource src(bad);
+    NamInfo before = info;
+    const bool ok = readNamCache(src, size, stamp, w.data(), &info);
+    accepted += ok;
+    if (!ok && memcmp(&before, &info, sizeof(info))) accepted += 1000;  // info touched on failure
+  }
+  check(accepted == 0, "any byte flipped: refused, info untouched", std::to_string(accepted));
+}
+
 int main() {
   printf("test_namfile\n");
   const std::string a2 = readFile("nam/A2.nam");
@@ -257,6 +306,7 @@ int main() {
   if (!a2.empty()) testRealFile(a2);
   testMadeFiles();
   if (!a2.empty()) testDamage(a2);
+  if (!a2.empty()) testCache(a2);
   printf(g_fail ? "test_namfile: %d FAILED\n" : "test_namfile: all passed\n", g_fail);
   return g_fail ? 1 : 0;
 }

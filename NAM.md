@@ -434,7 +434,7 @@ The NAM plugin's gate, ported sample for sample from AudioDSPTools (`dsp/NoiseGa
 
 ## Loading a model
 
-Reading a `.nam` file from the SD card takes about 0.9 s, and `loop()` is busy all that time, so the panel can't redraw or react. So `loadAmpIndex()` first shows a `Loading` screen with the model's name (from the panel, a serial command or startup). The old model keeps playing until the new one is read; the change itself fades out, warms the new model up in silence and fades in, a gap of about 170 ms. Removing that gap would take a second 87 KB history to warm the new model up beside the old one, and there is no room for one.
+Reading a `.nam` file from the SD card takes about 0.9 s, and `loop()` is busy all that time, so the panel can't redraw or react. **Since 2026-11-10 that happens once per model:** the network is then cached in `/AMP/.cache` (7.7 KB, `NamCache.h`) and loads in about 20 ms ([PRESETS.md](PRESETS.md#p2-results)). The rest of this section is about that first load. So `loadAmpIndex()` first shows a `Loading` screen with the model's name (from the panel, a serial command or startup). The old model keeps playing until the new one is read; the change itself fades out, warms the new model up in silence and fades in, a gap of about 170 ms. Removing that gap would take a second 87 KB history to warm the new model up beside the old one, and there is no room for one.
 
 `amp info`'s `Type:` line used to cut a 16-letter tone type (`neuralampmodeler`, which some trainers write there) to `neuralampmodele`. The fields are 24 characters now.
 

@@ -76,7 +76,7 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► amp ──────�
 
 Hidden files (such as macOS `._name.wav` files) are ignored. Files are listed alphabetically, so a numeric prefix like `01 V30 SM57.wav` sets the order.
 
-The firmware writes presets to `/PRESETS` (`01 Clean.txt` …), as plain text you can read and edit on a computer ([PRESETS.md](PRESETS.md#the-file)).
+The firmware keeps a 7.7 KB cache of each amp model it has loaded in `/AMP/.cache`: about 20 ms to load instead of 0.9 s. It is safe to delete; a model whose file changes gets a new one. It writes presets to `/PRESETS` (`01 Clean.txt` …), as plain text you can read and edit on a computer ([PRESETS.md](PRESETS.md#the-file)).
 
 ## Build and upload
 
@@ -282,7 +282,7 @@ The tests check:
 
 ## Ideas for next steps
 
-- **Presets on the panel** (P3) and a weights cache for fast model switches (P2): see [PRESETS.md](PRESETS.md). Saving and recalling over serial works (P1).
+- **Presets on the panel** (P3): see [PRESETS.md](PRESETS.md). Saving and recalling over serial works (P1), and a model switch takes about 20 ms after its first load (P2).
 - **Tone controls:** low-cut and high-cut after the convolver.
 - **Two-IR blending:** the engine already evaluates two IRs during crossfades.
 - **USB audio:** build with `-D USB_MIDI_AUDIO_SERIAL` and add `AudioOutputUSB` to record directly into a computer (verify it with your chosen block size).

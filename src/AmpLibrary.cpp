@@ -7,6 +7,7 @@
 #include "DisplayUI.h"
 #include "IRLibrary.h"
 #include "NamA2.h"
+#include "NamCache.h"
 #include "Params.h"
 #include "Screens.h"
 #include "SdSource.h"
@@ -91,6 +92,58 @@ void ampApplyGains() {
                           0.5f * getParam(kAmpPresence));
 }
 
+// ---- The weights cache (NamCache.h, PRESETS.md) --------------------------------------
+// /AMP/.cache/<file>.bin holds what a full read of <file> got; the scan skips
+// the folder (a directory, and a dot-name).
+
+static const char kCacheDir[] = "/AMP/.cache";
+
+// The file's modified time, packed (0 if the card has none).
+static uint32_t stampOf(File& f) {
+  DateTimeFields t;
+  if (!f.getModifyTime(t)) return 0;
+  return ((uint32_t)t.year << 24) | ((uint32_t)t.mon << 20) | ((uint32_t)t.mday << 15) | ((uint32_t)t.hour << 10) |
+         ((uint32_t)t.min << 4) | (uint32_t)(t.sec >> 2);
+}
+
+// "/AMP/x.nam" -> "/AMP/.cache/x.nam.bin".
+static bool cachePathOf(const char* path, char* out, int n) {
+  const char* base = strrchr(path, '/');
+  const int k = snprintf(out, n, "%s/%s.bin", kCacheDir, base ? base + 1 : path);
+  return k > 0 && k < n;
+}
+
+static bool readCache(const char* path, uint32_t size, uint32_t stamp, irdsp::NamInfo* info) {
+  char cp[IR_PATH_MAX + 16];
+  if (!cachePathOf(path, cp, sizeof(cp))) return false;
+  File c = SD.open(cp, FILE_READ);
+  if (!c) return false;
+  SdSource src(c);
+  const bool ok = irdsp::readNamCache(src, size, stamp, g_staging, info);
+  c.close();
+  return ok;
+}
+
+// Written through a temporary file, so a failed write leaves no half cache.
+static void writeCache(const char* path, uint32_t size, uint32_t stamp, const irdsp::NamInfo& info) {
+  char cp[IR_PATH_MAX + 16], tmp[sizeof(kCacheDir) + 16];
+  if (!cachePathOf(path, cp, sizeof(cp))) return;
+  if (!SD.exists(kCacheDir) && !SD.mkdir(kCacheDir)) return;
+  snprintf(tmp, sizeof(tmp), "%s/.saving.tmp", kCacheDir);
+  SD.remove(tmp);
+  File c = SD.open(tmp, FILE_WRITE);
+  if (!c) return;
+  const irdsp::NamCacheHeader h = irdsp::namCacheHeader(size, stamp, info, g_staging);
+  c.write((const uint8_t*)&h, sizeof(h));
+  c.write((const uint8_t*)&info, sizeof(info));
+  c.write((const uint8_t*)g_staging, sizeof(g_staging));
+  const bool ok = c.getWriteError() == 0;
+  c.close();
+  if (ok && (!SD.exists(cp) || SD.remove(cp)) && SD.rename(tmp, cp)) return;
+  SD.remove(tmp);
+  Serial.println("      (could not write its cache; the next load reads the .nam again)");
+}
+
 bool loadAmpIndex(int idx) {
   if (idx < 0 || idx >= g_numFiles) return false;
   irdsp::AmpStage<AUDIO_BLOCK_SAMPLES>& amp = convolver.amp();
@@ -105,25 +158,32 @@ bool loadAmpIndex(int idx) {
   }
 
   const char* path = g_files[idx];
-  char name[64];
-  ui::ampDisplayName(path, name, sizeof(name));
-  displayBusy("Loading", name);
+  const uint32_t t0 = millis();
   File f = SD.open(path, FILE_READ);
   if (!f) {
     Serial.printf("Cannot open %s\n", path);
     return false;
   }
-  SdSource src(f);
+  const uint32_t size = (uint32_t)f.size(), stamp = stampOf(f);
   irdsp::NamInfo info;
-  const char* err = "";
-  const uint32_t t0 = millis();
-  const bool ok = irdsp::readNamA2Lite(src, g_staging, &info, &err);
-  f.close();
-  if (!ok) {
-    Serial.printf("Failed to load %s: %s\n", path, err);
-    return false;
+  // The cache first (~10 ms); else the .nam file itself (~0.9 s, with the
+  // Loading screen), and then its cache is written.
+  const bool cached = readCache(path, size, stamp, &info);
+  if (!cached) {
+    char name[64];
+    ui::ampDisplayName(path, name, sizeof(name));
+    displayBusy("Loading", name);
+    SdSource src(f);
+    const char* err = "";
+    if (!irdsp::readNamA2Lite(src, g_staging, &info, &err)) {
+      f.close();
+      Serial.printf("Failed to load %s: %s\n", path, err);
+      return false;
+    }
   }
+  f.close();
   const uint32_t ms = millis() - t0;
+  if (!cached) writeCache(path, size, stamp, info);
   g_info = info;
   g_current = idx;
   amp.loadWeights(g_staging);
@@ -139,7 +199,7 @@ bool loadAmpIndex(int idx) {
   if (!isnan(cal))
     Serial.printf(", input %.1f dBu%s -> %+.1f dB", isnan(info.inputLevelDbu) ? AMP_UNCAL_REF_DBU : info.inputLevelDbu,
                   isnan(info.inputLevelDbu) ? " (NAM default)" : "", cal);
-  Serial.printf(", %lu ms\n", (unsigned long)ms);
+  Serial.printf(", %lu ms%s\n", (unsigned long)ms, cached ? " (cache)" : "");
   if (fabsf(info.sampleRate - AUDIO_SAMPLE_RATE_EXACT) > 1.0f)
     Serial.printf("      model is %.0f Hz, the firmware %.0f Hz: its tone is shifted\n", info.sampleRate,
                   AUDIO_SAMPLE_RATE_EXACT);

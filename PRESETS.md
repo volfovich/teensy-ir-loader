@@ -1,6 +1,6 @@
 # Presets: plan
 
-**Status (2026-11-10): P1 done: presets are saved, recalled, renamed and deleted over serial ([P1 results](#p1-results)). Next: P2 (the weights cache), then P3 (the panel).** A preset is a whole sound (the amp and its model, the gate, the IR, the doubler, the delay and the reverb) saved as a text file on the SD card. It is recalled from the panel or over serial.
+**Status (2026-11-10): P1 and P2 done: presets are saved, recalled, renamed and deleted over serial ([P1 results](#p1-results)), and a preset with another model switches in about 0.1 s ([P2 results](#p2-results)). Next: P3 (the panel).** A preset is a whole sound (the amp and its model, the gate, the IR, the doubler, the delay and the reverb) saved as a text file on the SD card. It is recalled from the panel or over serial.
 
 ```
 /PRESETS/01 Clean.txt      ─┐
@@ -25,6 +25,7 @@
 - [Memory and CPU](#memory-and-cpu)
 - [Milestones](#milestones)
 - [P1 results](#p1-results)
+- [P2 results](#p2-results)
 - [Tests](#tests)
 - [Open questions](#open-questions)
 
@@ -180,7 +181,7 @@ Renders come first, as always (`make -C test/host render`); nothing is flashed b
 | | What | Done when |
 |---|---|---|
 | **P1** | The file format, the recall, `pvol`, the serial commands, the edited mark, the settings record. | **Done** ([results](#p1-results)); still to hear: switching while playing, by ear. |
-| **P2** | The weights cache. | A preset with another model plays within 0.2 s; a changed or damaged cache is rebuilt. |
+| **P2** | The weights cache. | **Done** ([results](#p2-results)). |
 | **P3** | The panel: row 0, PRE, the list, the page, rename, the confirms. | Renders approved, then on the device. |
 | **P4** | Footswitches (later). | Up and down from the floor. |
 
@@ -207,6 +208,20 @@ Built and checked on the Teensy on 2026-11-10:
 - **Choices made:**
   - `pre <n>` means the preset's own number (`05 X.txt` is `pre 5`), not its place in the list.
   - A file without a number is listed last and recalled by name.
+
+## P2 results
+
+Built and checked on the Teensy on 2026-11-10:
+
+- **The format:** `lib/irdsp/src/NamCache.h` (portable). A header (magic, version, the `NamInfo`'s size, the weight count, the source's size and packed modified time, an FNV-1a checksum), then the `NamInfo` and the 1,871 weights: **7,688 bytes**.
+- **In `AmpLibrary.cpp`:** `loadAmpIndex()` tries `/AMP/.cache/<file>.bin` first. If it is missing or doesn't match, it parses the `.nam` (with the `Loading` screen) and writes the cache through a temporary file. Every model load gains, not only presets: the list, `amp <n>` and startup.
+- **Loading a model:** **18–28 ms** from the cache, against 950–970 ms from the `.nam` file. The first load of each model is the slow one.
+- **A preset with another model and IR:** **105–160 ms** in all (was 1.07 s). About 70 ms of it is the IR, resampled from 44.1 kHz on every load. The model's 170 ms warm-up gap in the sound stays.
+- **The same sound:** `amp_selftest.py` with the model loaded from its cache: 3.87e-7, exactly as from the `.nam`.
+- **CPU:** 70 % max while switching (amp, IR, reverb on), no clipped samples.
+- **Memory:** none: the weights are read straight into the existing staging buffer.
+- **Tests** (`test_namfile`): the real model through a cache gives the same weights and info. Another size or date, any cut-off and any flipped byte are refused, and the info is left untouched.
+- **Never wrong, at worst slow:** a cache whose size or date doesn't match its `.nam` file is rebuilt (copying a new version of a model over the old one changes both), and so is a damaged one. Deleting `/AMP/.cache` is always safe.
 
 ## Tests
 
