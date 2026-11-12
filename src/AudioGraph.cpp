@@ -9,7 +9,7 @@
 AudioInputI2S i2sIn;
 AudioConvolverIR convolver;
 AudioOutputI2S i2sOut;
-AudioConnection patchIn(i2sIn, 0, convolver, 0);  // left input = guitar
+AudioConnection patchIn(i2sIn, 1, convolver, 0);  // right input = guitar
 AudioConnection patchL(convolver, 0, i2sOut, 0);
 AudioConnection patchR(convolver, 1, i2sOut, 1);
 Codec codec;

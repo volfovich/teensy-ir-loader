@@ -52,7 +52,7 @@ tube amp LINE OUT ──► shield LINE IN (L) ──► amp ──────�
 
 | Connection | Shield pad / pin | Notes |
 |---|---|---|
-| Amp line out signal | **LINE IN L** | Only the left input is processed. LINE IN is about 29 kΩ: fine for a line out, a preamp or a pedal, but passive pickups lose treble into it, so put a buffer in front for the amp block. Ours is a JFET TL072 buffer (1 MΩ in, 100 Ω out, −6 dB); set its loss as `INPUT_PAD_DB` in `include/config.h` (0 without one) so the amp's input calibration stays right. |
+| Amp line out signal | **LINE IN R** | Only the right input is processed. LINE IN is about 29 kΩ: fine for a line out, a preamp or a pedal, but passive pickups lose treble into it, so put a buffer in front for the amp block. Ours is a JFET TL072 buffer (1 MΩ in, 100 Ω out, −6 dB); set its loss as `INPUT_PAD_DB` in `include/config.h` (0 without one) so the amp's input calibration stays right. |
 | Amp line out ground | **GND** next to the line-in pads | |
 | To mixer / interface / power amp | **LINE OUT L** and **R** + GND | Stereo when the delay or reverb is on; both carry the same signal when they are off. For a mono rig use L. If the gear you feed is not AC-coupled, add a 2.2–10 µF capacitor in series. |
 | Headphones | 3.5 mm jack | **Headphones only.** The jack's ground is a *virtual* ground, so never connect it to another device's ground. |
